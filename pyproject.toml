@@ -5,7 +5,18 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "groq>=1.5.0",
+    "boto3>=1.35",
+    "fastapi>=0.115",
+    "requests>=2.32",
+    "streamlit>=1.31",
+    "langchain-aws>=1.6.0",
+    "langgraph>=0.2",
     "pydantic>=2.13.4",
+    "pydantic-settings>=2.0",
     "pyrefly>=0.60.0",
+    "python-dotenv>=1.0",
+    "typing-extensions>=4.15.0",
+    "uvicorn>=0.30",
+    "contextvars>=2.4",
+    "boto3-stubs~=1.43.36",
 ]
