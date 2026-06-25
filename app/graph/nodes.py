@@ -7,7 +7,7 @@ Graph nodes
 -----------
 validate_input                  Validates approach; resolves system prompt.     (sync)
 conceptual_zoom_node            Generates ConceptualZoomOutline via LLM.        (async)
-problem_solution_arc_node       Generates ProblemSolutionArcOutline via LLM.   (async)
+problem_solution_arc_node       Generates ProblemSolutionArcOutline via LLM.    (async)
 classic_linear_narrative_node   Generates ClassicLinearNarrativeOutline.        (async)
 map_outline_to_visual_plan      Transform: OutlineOutputState→VisualPlanInput.  (sync)
 visual_planning_node            Generates scene-wise visual plan.               (async)
