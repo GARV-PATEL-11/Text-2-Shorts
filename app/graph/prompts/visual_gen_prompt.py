@@ -1,5 +1,5 @@
 """
-A two-agent pipeline for generating Manim scene code from a video outline.
+A two-agent graph for generating Manim scene code from a video outline.
 """
 
 VISUAL_DIRECTOR_SYSTEM = """
@@ -593,7 +593,7 @@ def build_codegen_prompt(
     # Sanitize title for use as a Python class name suffix
     safe_title = "".join(
             word.capitalize()
-                    for word in scene_title.replace("-", " ").replace("?", "").split(),
+                for word in scene_title.replace("-", " ").replace("?", "").split()
             )
 
     return CODE_GENERATOR_PROMPT.format(
@@ -673,7 +673,7 @@ if __name__ == "__main__":
     "Definition: supervised ML algorithm for predicting continuous numerical values",
     "Finds the best-fitting straight line through a set of data points",
     "Captures the relationship between input variables and an output variable",
-    "Foundation of many advanced predictive models"
+    "Foundation of many advanced predictive schemas"
   ],
   "visual_cues": [
     "Scatter plot of data points appearing one by one",
@@ -710,7 +710,7 @@ if __name__ == "__main__":
     # ──────────────────────────────────────────────────────────────────────────
     # STEP 3 — After Agent 1 runs, feed its output into Agent 2.
     #
-    # In a real pipeline:
+    # In a real graph:
     #   agent_1_output = call_llm(VISUAL_DIRECTOR_SYSTEM, director_prompt)
     #   next_context   = extract_next_scene_context(agent_1_output)
     #   codegen_prompt = build_codegen_prompt(
