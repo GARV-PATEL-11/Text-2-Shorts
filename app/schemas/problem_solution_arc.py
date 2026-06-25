@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from base_models import OutlineSegment, Pace, RACLoop
+from app.schemas.base_models import OutlineSegment, Pace, RACLoop
 
 
 # ---------------------------------------------------------------------------
@@ -69,13 +69,6 @@ class ProblemSolutionArcSegment(OutlineSegment):
 class ProblemSolutionArcOutline(BaseModel):
     """
     Full Problem-Solution Arc video outline document.
-
-    Example usage
-    -------------
-    >>> from problem_solution_arc import ProblemSolutionArcOutline
-    >>> doc = ProblemSolutionArcOutline.model_validate(payload_dict)
-    >>> print(doc.meta.approach_name)
-    'Problem-Solution Arc'
     """
 
     meta: ProblemSolutionArcMeta = Field(

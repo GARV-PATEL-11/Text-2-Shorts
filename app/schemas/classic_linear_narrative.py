@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from base_models import OutlineSegment, Pace, RACLoop
+from app.schemas.base_models import OutlineSegment, Pace, RACLoop
 
 
 # ---------------------------------------------------------------------------
@@ -68,13 +68,6 @@ class ClassicLinearNarrativeSegment(OutlineSegment):
 class ClassicLinearNarrativeOutline(BaseModel):
     """
     Full Classic Linear Narrative video outline document.
-
-    Example usage
-    -------------
-    >>> from classic_linear_narrative import ClassicLinearNarrativeOutline
-    >>> doc = ClassicLinearNarrativeOutline.model_validate(payload_dict)
-    >>> print(doc.outline[0].segment_type)
-    <SegmentType.hook: 'hook'>
     """
 
     meta: ClassicLinearNarrativeMeta = Field(

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from base_models import OutlineSegment, Pace, RACLoop
+from app.schemas.base_models import OutlineSegment, Pace, RACLoop
 
 
 # ---------------------------------------------------------------------------
@@ -69,13 +69,6 @@ class ConceptualZoomSegment(OutlineSegment):
 class ConceptualZoomOutline(BaseModel):
     """
     Full Conceptual Zoom video outline document.
-
-    Example usage
-    -------------
-    >>> import json
-    >>> from conceptual_zoom import ConceptualZoomOutline
-    >>> doc = ConceptualZoomOutline.model_validate_json(json_string)
-    >>> print(doc.meta.title)
     """
 
     meta: ConceptualZoomMeta = Field(
