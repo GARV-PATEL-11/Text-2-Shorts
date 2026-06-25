@@ -1,6 +1,4 @@
-# groq_service.py
-
-from typing import Any
+"""groq_service.py"""
 
 from groq import Groq
 
@@ -26,25 +24,26 @@ class GroqService:
 
         if system_prompt:
             messages.append(
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                    },
-                )
+                    {
+                            "role": "system",
+                            "content": system_prompt,
+                            },
+                    )
 
         messages.append(
-            {
-                "role": "user",
-                "content": user_prompt,
-                },
-            )
+                {
+                        "role": "user",
+                        "content": user_prompt,
+                        },
+                )
 
+        # pyrefly: ignore [no-matching-overload]
         response = self.client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            max_completion_tokens=max_tokens,
-            )
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+                )
 
         return response.choices[0].message.content
 
@@ -56,18 +55,18 @@ class GroqService:
             ) -> dict:
 
         response = self.client.chat.completions.create(
-            model=model,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                    },
-                ],
-            )
+                model=model,
+                response_format={"type": "json_object"},
+                messages=[
+                        {
+                                "role": "user",
+                                "content": prompt,
+                                },
+                        ],
+                )
 
         import json
 
         return json.loads(
-            response.choices[0].message.content,
-            )
+                response.choices[0].message.content,
+                )

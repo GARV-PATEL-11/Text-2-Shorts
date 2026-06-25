@@ -2,8 +2,10 @@
 
 import json
 
-from app.services.client_manager import BedrockClientManager
 from app.models import BedrockResponse
+from pydantic import BaseModel
+
+from app.services.client_manager import BedrockClientManager
 
 
 class BedrockService:
@@ -19,27 +21,27 @@ class BedrockService:
             max_tokens: int = 4096,
             ) -> BedrockResponse:
         body = {
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
+                "messages": [
                         {
-                            "text": prompt,
-                            },
+                                "role": "user",
+                                "content": [
+                                        {
+                                                "text": prompt,
+                                                },
+                                        ],
+                                },
                         ],
-                    },
-                ],
-            "inferenceConfig": {
-                "temperature": temperature,
-                "maxTokens": max_tokens,
-                },
-            }
+                "inferenceConfig": {
+                        "temperature": temperature,
+                        "maxTokens": max_tokens,
+                        },
+                }
 
         response = self.client.converse(
-            modelId=model_id,
-            messages=body["messages"],
-            inferenceConfig=body["inferenceConfig"],
-            )
+                modelId=model_id,
+                messages=body["messages"],
+                inferenceConfig=body["inferenceConfig"],
+                )
 
         output = response["output"]
 
@@ -48,11 +50,11 @@ class BedrockService:
         usage = response.get("usage", {})
 
         return BedrockResponse(
-            content=text,
-            input_tokens=usage.get("inputTokens", 0),
-            output_tokens=usage.get("outputTokens", 0),
-            stop_reason=response.get("stopReason"),
-            )
+                content=text,
+                input_tokens=usage.get("inputTokens", 0),
+                output_tokens=usage.get("outputTokens", 0),
+                stop_reason=response.get("stopReason"),
+                )
 
     async def invoke_structured(
             self,
@@ -73,8 +75,8 @@ class BedrockService:
             """
 
         response = await self.invoke(
-            prompt=structured_prompt,
-            model_id=model_id,
-            )
+                prompt=structured_prompt,
+                model_id=model_id,
+                )
 
         return schema.model_validate_json(response.content)
