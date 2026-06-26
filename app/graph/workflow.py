@@ -33,7 +33,7 @@ from app.graph.edges import (
 from app.graph.nodes import (
     classic_linear_narrative_node,
     conceptual_zoom_node,
-    map_outline_to_visual_plan,
+    map_outline_to_visual_plan_node,
     problem_solution_arc_node,
     validate_input,
     visual_planning_node,
@@ -49,7 +49,7 @@ graph.add_node(NODE_VALIDATE_INPUT, validate_input)
 graph.add_node(NODE_CONCEPTUAL_ZOOM, conceptual_zoom_node)
 graph.add_node(NODE_PROBLEM_SOLUTION_ARC, problem_solution_arc_node)
 graph.add_node(NODE_CLASSIC_LINEAR_NARRATIVE, classic_linear_narrative_node)
-graph.add_node(NODE_MAP_OUTLINE, map_outline_to_visual_plan)
+graph.add_node(NODE_MAP_OUTLINE, map_outline_to_visual_plan_node)
 graph.add_node(NODE_VISUAL_PLANNING, visual_planning_node)
 
 # Entry
