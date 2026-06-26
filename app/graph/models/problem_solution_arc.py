@@ -58,7 +58,7 @@ class ProblemSolutionArcOutline(BaseModel):
     meta: ProblemSolutionArcMeta = Field(
         ...,
         description="Video-level metadata for the Problem-Solution Arc approach.",
-        ),
+        )
     outline: list[ProblemSolutionArcSegment] = Field(
         ...,
         min_length=1,
