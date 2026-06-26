@@ -29,7 +29,7 @@ class LLMClient(ABC):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> str:
         """Return the raw text completion."""
 
@@ -42,7 +42,7 @@ class LLMClient(ABC):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> SchemaT:
         """Return a validated Pydantic instance matching *schema*."""
 
@@ -58,7 +58,7 @@ class LLMClient(ABC):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> str:
         """Async version of :meth:`invoke`."""
 
@@ -71,7 +71,7 @@ class LLMClient(ABC):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> SchemaT:
         """Async version of :meth:`invoke_structured`."""
 
@@ -79,8 +79,8 @@ class LLMClient(ABC):
     # Shared helpers — available to every subclass                         #
     # ------------------------------------------------------------------ #
 
+    @staticmethod
     def _build_structured_system_prompt(
-            self,
             schema: type[BaseModel],
             system_prompt: str = "",
             ) -> str:
@@ -92,7 +92,8 @@ class LLMClient(ABC):
         )
         return f"{system_prompt}\n\n{schema_block}" if system_prompt else schema_block
 
-    def _parse_structured(self, raw: str, schema: type[SchemaT]) -> SchemaT:
+    @staticmethod
+    def _parse_structured(raw: str, schema: type[SchemaT]) -> SchemaT:
         """Validate *raw* JSON text against *schema*, stripping code fences."""
         cleaned = raw.strip()
         if cleaned.startswith("```"):
