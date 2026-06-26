@@ -7,12 +7,12 @@ Edge map
 --------
     START
       → validate_input
-      → [route_by_approach] ──► conceptual_zoom
-                             ──► problem_solution_arc
-                             ──► classic_linear_narrative
-                             ──► END  (validation failure)
-      → [route_after_outline] ─► map_outline_to_visual_plan
-                              ─► END  (outline failure)
+      → [route_by_approach]   ──► conceptual_zoom
+                              ──► problem_solution_arc
+                              ──► classic_linear_narrative
+                              ──► END  (validation failure)
+      → [route_after_outline] ──► map_outline_to_visual_plan
+                              ──► END  (outline failure)
       → visual_planning
       → END
 """
@@ -43,24 +43,54 @@ _APPROACH_TO_NODE: dict[str, str] = {
 
 # ── Routing functions ─────────────────────────────────────────────────────────
 
-def route_by_approach(state: GraphState) -> str | END:
-    """
-    Conditional edge after validate_input.
+def route_by_approach(state: GraphState) -> str:
+    """Conditional edge after validate_input.
 
     Routes to the correct outline generator based on the validated approach.
     Falls through to END if validation failed.
     """
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+
     if state.status == "failed":
+        if rl:
+            rl.routing_decision(
+                from_node=NODE_VALIDATE_INPUT,
+                to_node="END",
+                reason=f"validation failed: {state.error}",
+                )
         return END
-    return _APPROACH_TO_NODE.get(state.approach.value, END)
+
+    # With use_enum_values=True on GraphState, state.approach is already a str
+    target = _APPROACH_TO_NODE.get(state.approach, END)
+
+    if rl:
+        rl.routing_decision(
+            from_node=NODE_VALIDATE_INPUT,
+            to_node=str(target),
+            reason=f"approach={state.approach}",
+            )
+
+    return target
 
 
 def route_after_outline(state: GraphState) -> str:
-    """
-    Conditional edge after any outline generator node.
+    """Conditional edge after any outline generator node.
 
     Routes to map_outline_to_visual_plan on success, END on failure.
     """
-    if state.status == "failed" or not state.outline:
-        return END
-    return NODE_MAP_OUTLINE
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+    failed = state.status == "failed" or not state.outline
+    target = END if failed else NODE_MAP_OUTLINE
+
+    if rl:
+        rl.routing_decision(
+            from_node=state.outline_type or "outline_node",
+            to_node=str(target),
+            reason="failed" if failed else "outline_ready",
+            )
+
+    return target
