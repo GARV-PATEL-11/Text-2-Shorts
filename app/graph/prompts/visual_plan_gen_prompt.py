@@ -817,7 +817,9 @@ def _build_system_prompt() -> str:
 
 
 def _build_inputs_block(inp: SceneDirectorInput) -> str:
-    prior = inp.prior_scenes or "None — this is the first scene."
+    prior = inp.prior_scenes or {
+        "0": "Scene 0: None — this is the first scene. Screen is blank at t=0.",
+        }
     return (
         f"### VIDEO_METADATA\n{inp.video_metadata.strip()}\n\n"
         f"### PRIOR_SCENES_CONTEXT\n{prior}\n\n"
