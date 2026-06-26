@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # ── Google Gemini ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
     GEMINI_25_FLASH_MODEL: str = "gemini-2.5-flash"
-    GEMINI_3_FLASH_MODEL: str = "gemini-3-flash"
+    GEMINI_3_FLASH_MODEL: str = "gemini-2.5-flash"
     GEMINI_35_FLASH_MODEL: str = "gemini-3.5-flash"
 
     # ── S3 ────────────────────────────────────────────────────────────────────
