@@ -25,15 +25,32 @@ def _log_retry(retry_state: Any) -> None:
     """Called by tenacity before each sleep between attempts."""
     attempt = retry_state.attempt_number
     exc = retry_state.outcome.exception()
-    wait = getattr(retry_state.next_action, "sleep", "?")
+    wait = getattr(retry_state.next_action, "sleep", 0.0)
+    wait_rounded = round(wait, 1) if isinstance(wait, float) else wait
+
     logger.warning(
         "Gemini call failed — retrying",
         extra={
             "attempt": attempt,
-            "wait_s": round(wait, 1) if isinstance(wait, float) else wait,
+            "wait_s": wait_rounded,
             "error": str(exc),
             },
         )
+
+    try:
+        from app.core.context import request_logger_var
+
+        rl = request_logger_var.get()
+        if rl is not None:
+            rl.llm_retry(
+                model=getattr(retry_state, "_model", "unknown"),
+                attempt=attempt,
+                max_attempts=_MAX_ATTEMPTS,
+                wait_s=wait_rounded,
+                error=str(exc),
+                )
+    except Exception:
+        pass
 
 
 async def _attempt_invoke(
@@ -54,6 +71,8 @@ async def _attempt_invoke(
             ):
         with attempt:
             attempt_count = attempt.retry_state.attempt_number
+            # Stash model on retry_state so _log_retry can read it
+            attempt.retry_state._model = model
             result = await llm.ainvoke(
                 user_prompt=user_prompt,
                 model=model,
@@ -82,6 +101,7 @@ async def _attempt_invoke_structured(
             ):
         with attempt:
             attempt_count = attempt.retry_state.attempt_number
+            attempt.retry_state._model = model
             result = await llm.ainvoke_structured(
                 user_prompt=user_prompt,
                 schema=schema,
@@ -101,9 +121,7 @@ async def ainvoke_with_fallback(
         system_prompt: str = "",
         temperature: float = 0.3,
         ) -> tuple[str, str, int]:
-    """
-    Try *primary_model* up to 3 times (exponential backoff).
-    On total failure, fall back to *fallback_model* (also retried 3×).
+    """Try *primary_model* up to 3×, then fall back to *fallback_model* (also 3×).
 
     Returns
     -------
@@ -125,8 +143,25 @@ async def ainvoke_with_fallback(
     except Exception as primary_exc:
         logger.warning(
             "Primary model exhausted — switching to fallback",
-            extra={"primary_model": primary_model, "fallback_model": fallback_model, "error": str(primary_exc)},
+            extra={
+                "primary_model": primary_model,
+                "fallback_model": fallback_model,
+                "error": str(primary_exc),
+                },
             )
+        try:
+            from app.core.context import request_logger_var
+
+            rl = request_logger_var.get()
+            if rl is not None:
+                rl.llm_fallback(
+                    from_model=primary_model,
+                    to_model=fallback_model,
+                    after_attempts=_MAX_ATTEMPTS,
+                    reason=str(primary_exc)[:200],
+                    )
+        except Exception:
+            pass
 
     text, attempts = await _attempt_invoke(
         llm, fallback_model,
@@ -151,9 +186,7 @@ async def ainvoke_structured_with_fallback(
         system_prompt: str = "",
         temperature: float = 0.3,
         ) -> tuple[SchemaT, str, int]:
-    """
-    Try *primary_model* up to 3 times (exponential backoff).
-    On total failure, fall back to *fallback_model* (also retried 3×).
+    """Try *primary_model* up to 3×, then fall back to *fallback_model* (also 3×).
 
     Returns
     -------
@@ -176,8 +209,25 @@ async def ainvoke_structured_with_fallback(
     except Exception as primary_exc:
         logger.warning(
             "Primary model exhausted — switching to fallback",
-            extra={"primary_model": primary_model, "fallback_model": fallback_model, "error": str(primary_exc)},
+            extra={
+                "primary_model": primary_model,
+                "fallback_model": fallback_model,
+                "error": str(primary_exc),
+                },
             )
+        try:
+            from app.core.context import request_logger_var
+
+            rl = request_logger_var.get()
+            if rl is not None:
+                rl.llm_fallback(
+                    from_model=primary_model,
+                    to_model=fallback_model,
+                    after_attempts=_MAX_ATTEMPTS,
+                    reason=str(primary_exc)[:200],
+                    )
+        except Exception:
+            pass
 
     result, attempts = await _attempt_invoke_structured(
         llm, fallback_model,
