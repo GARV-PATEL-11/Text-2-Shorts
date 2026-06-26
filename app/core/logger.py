@@ -95,7 +95,7 @@ def configure_root_logging(level: int = logging.INFO) -> None:
     root.addHandler(handler)
 
     os.makedirs("logs", exist_ok=True)
-    trace_logger = logging.getLogger("bedrock.trace")
+    trace_logger = logging.getLogger("llm.trace")
     if not trace_logger.handlers:
         fh = logging.FileHandler("logs/app.jsonl", encoding="utf-8")
         fh.setFormatter(logging.Formatter("%(message)s"))
