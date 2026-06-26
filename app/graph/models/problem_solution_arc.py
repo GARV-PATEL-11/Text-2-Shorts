@@ -11,31 +11,17 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.graph.models.base_models import OutlineSegment, Pace, RACLoop
+from app.graph.models.base_models import BaseVideoMeta, OutlineSegment
 
 
 # ---------------------------------------------------------------------------
 # Meta
 # ---------------------------------------------------------------------------
 
-class ProblemSolutionArcMeta(BaseModel):
+class ProblemSolutionArcMeta(BaseVideoMeta):
     title: str = Field(
         ...,
-        description=(
-            "Narrative-style video title phrased as a question or dramatic statement."
-        ),
-        )
-    topic: str = Field(
-        ..., description="Short topic name / slug.",
-        )
-    total_duration_seconds: int = Field(
-        ..., ge=1, description="Total runtime of the video in seconds.",
-        )
-    pace: Pace = Field(
-        ..., description="Overall delivery pace: slow | medium | fast.",
-        )
-    target_wpm: int = Field(
-        ..., ge=1, description="Target words-per-minute for narration.",
+        description="Narrative-style video title phrased as a question or dramatic statement.",
         )
     approach_name: str = Field(
         default="Problem-Solution Arc",
@@ -43,9 +29,7 @@ class ProblemSolutionArcMeta(BaseModel):
         )
     approach_style: str = Field(
         ...,
-        description=(
-            "One-line description of this outline's narrative arc and emotional journey."
-        ),
+        description="One-line description of this outline's narrative arc and emotional journey.",
         )
 
 
@@ -74,14 +58,7 @@ class ProblemSolutionArcOutline(BaseModel):
     meta: ProblemSolutionArcMeta = Field(
         ...,
         description="Video-level metadata for the Problem-Solution Arc approach.",
-        )
-    rac_loop: RACLoop = Field(
-        ...,
-        description=(
-            "Reason-Act-Correct loop: narrative tension map, arc design decisions, "
-            "and violation corrections."
         ),
-        )
     outline: list[ProblemSolutionArcSegment] = Field(
         ...,
         min_length=1,
