@@ -3,33 +3,27 @@ state.py
 --------
 Pydantic input/output state contracts for each graph node.
 
-Design: strict input/output pairs — each node has its own InputState and
-OutputState. The transform functions in edges.py explicitly map a node's
-output to the next node's input before it enters that node.
+LangGraph operates on the single GraphState accumulator.  Per-node types
+(RefinedOutputState, OutlineOutputState, etc.) document what each node reads
+and writes; they are type hints, not runtime-enforced contracts.
 
-LangGraph operates on the single GraphState accumulator at runtime.
-The per-node types document what each node reads and writes.
+Serialisation note: model_config = ConfigDict(use_enum_values=True) on
+GraphState ensures Enum fields are stored as their plain string values,
+making checkpoints safe for msgpack-based persistent backends.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.graph.models.base_models import BaseVideoMeta
 from app.graph.models.enums import NarrativeApproach
 
 
 # ── Shared sub-models ─────────────────────────────────────────────────────────
-
-class SceneOutline(BaseModel):
-    scene_index: int
-    title: str
-    description: str
-    duration_hint_seconds: int
-    narration_text: str | None = None
-
 
 class RenderError(BaseModel):
     scene_index: int
@@ -38,103 +32,137 @@ class RenderError(BaseModel):
     stderr: str
 
 
-# ── Node: validate_input ──────────────────────────────────────────────────────
-
-class ValidateInputState(BaseModel):
-    """Entry state — provided by the API caller."""
-    session_id: str
-    approach: NarrativeApproach
-    requirement: str
-    workflow_id: str = Field(default_factory=lambda: uuid4().hex)
-
-
-class ValidateOutputState(BaseModel):
-    """Output of validate_input; consumed by the three outline generator nodes."""
-    session_id: str
-    workflow_id: str
-    approach: NarrativeApproach
-    requirement: str
-    system_prompt: str
-    status: Literal["ready", "failed"]
-    error: str | None = None
-
-
-# ── Nodes: conceptual_zoom / problem_solution_arc / classic_linear_narrative ──
-# All three share the same input contract (ValidateOutputState).
-OutlineInputState = ValidateOutputState
-
-
-class OutlineOutputState(BaseModel):
-    """Output produced by any of the three outline generator nodes."""
-    session_id: str
-    workflow_id: str
-    approach: NarrativeApproach
-    outline: dict  # serialised typed Pydantic outline model
-    outline_type: str  # "ConceptualZoom" | "ProblemSolutionArc" | "ClassicLinearNarrative"
-    status: Literal["completed", "failed"]
-    error: str | None = None
-
-
-# ── Node: map_outline_to_visual_plan (transform) ──────────────────────────────
-
-class VisualPlanInputState(BaseModel):
-    """
-    Input to the visual_planning node.
-    Explicitly produced by map_outline_to_visual_plan() from OutlineOutputState.
-    """
-    session_id: str
-    workflow_id: str
-    total_scenes: int
-    video_outline: list[SceneOutline]
-
-
-# ── Node: visual_planning ─────────────────────────────────────────────────────
-
-class VisualPlanOutputState(BaseModel):
-    """Final output of the graph."""
-    session_id: str
-    workflow_id: str
-    total_scenes: int
-    video_outline: list[SceneOutline]
-    scene_visual_plans: list[str]
-    status: Literal["completed", "failed"]
-    error: str | None = None
-
-
 # ── LangGraph accumulated state ───────────────────────────────────────────────
 
 class GraphState(BaseModel):
-    """
-    Single Pydantic model that LangGraph operates on internally.
-    Fields are populated progressively as each node executes.
+    """Single Pydantic model that LangGraph operates on internally.
 
-    ValidateInputState fields  → set at graph entry by the API.
-    ValidateOutputState fields → written by validate_input.
-    OutlineOutputState fields  → written by the chosen outline generator.
-    VisualPlanInputState fields→ written by map_outline_to_visual_plan.
-    VisualPlanOutputState fields→ written by visual_planning.
+    Fields are populated progressively as each node executes.
+    use_enum_values=True serialises NarrativeApproach as its string value
+    so msgpack-based checkpointers can round-trip the state correctly.
     """
-    # ValidateInputState
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    # Set at graph entry
     session_id: str
     approach: NarrativeApproach
     requirement: str
     workflow_id: str = Field(default_factory=lambda: uuid4().hex)
 
-    # ValidateOutputState
+    # Written by validate_input
     system_prompt: str | None = None
     routed_to: str | None = None
+    refined_requirement: str | None = None
 
-    # OutlineOutputState
+    # Written by outline generators
     outline: dict | None = None
     outline_type: str | None = None
 
-    # VisualPlanInputState (produced by map_outline_to_visual_plan)
+    # Written by map_outline_to_visual_plan
     total_scenes: int = 0
+    metadata: BaseVideoMeta | None = None
     video_outline: list[SceneOutline] = Field(default_factory=list)
 
-    # VisualPlanOutputState
-    scene_visual_plans: list[str] = Field(default_factory=list)
+    # Written by visual_planning
+    scene_visual_plans: list[SceneVisualPlan] = Field(default_factory=list)
 
     # Cross-node tracking
     status: str = "pending"
+    error: str | None = None
+
+
+class UserInputState(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
+    session_id: str
+    workflow_id: str = Field(default_factory=lambda: uuid4().hex)
+    approach: NarrativeApproach
+    requirement: str
+    status: Literal["ready", "routed", "failed"]
+    error: str | None = None
+
+
+class RefinedOutputState(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
+    session_id: str
+    workflow_id: str
+    system_prompt: str
+    approach: NarrativeApproach
+    refined_requirement: str
+    status: Literal["ready", "routed", "failed"]
+    error: str | None = None
+
+
+OutlineInputState = RefinedOutputState
+
+
+class OutlineOutputState(BaseModel):
+    session_id: str
+    workflow_id: str
+    outline: dict
+    outline_type: str | None = None
+    status: Literal["completed", "failed"]
+    error: str | None = None
+
+
+# ── Scene-level sub-models ────────────────────────────────────────────────────
+
+class SceneOutline(BaseModel):
+    """One scene entry within the video plan."""
+
+    scene_index: int
+    title: str
+    description: str
+    duration_hint_seconds: int
+    narration_text: str | None = None
+
+
+# ── Visual DSL states ─────────────────────────────────────────────────────────
+
+class SceneVisualPlan(BaseModel):
+    """Structured record for a single scene's completed Visual DSL plan.
+
+    plan is dict[str, Any] | str:
+      - dict → successful JSON parse of the LLM's structured output
+      - str  → fallback when JSON parsing fails; raw LLM text is preserved
+    """
+
+    scene_index: int
+    title: str
+    model_used: str | None = None
+    total_attempts: int | None = None
+    plan: dict[str, Any] | str = Field(
+        description=(
+            "LLM-generated Visual DSL output for this scene. "
+            "Inner schema to be formalised in a follow-up iteration."
+        ),
+        )
+    error: str | None = None
+
+    @property
+    def failed(self) -> bool:
+        return self.error is not None
+
+
+class VisualDSLInputState(BaseModel):
+    """Input contract for visual_planning_node."""
+
+    session_id: str
+    workflow_id: str
+    total_scenes: int
+    metadata: BaseVideoMeta
+    video_outline: list[SceneOutline]
+
+
+class VisualDSLOutputState(BaseModel):
+    """Final output of the visual planning graph node."""
+
+    session_id: str
+    workflow_id: str
+    total_scenes: int
+    video_outline: list[SceneOutline]
+    scene_visual_plans: list[SceneVisualPlan]
+    status: Literal["completed", "failed"]
     error: str | None = None
