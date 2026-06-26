@@ -55,6 +55,24 @@ st.markdown(
 
         /* Disable animation on spinner */
         div[data-testid="stSpinner"] { animation: none; }
+
+        /* Scrollable outline container */
+        .outline-scroll-box {
+            max-height: 520px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 4px 0;
+            background: #0e1117;
+        }
+        .outline-scroll-box pre {
+            margin: 0;
+            padding: 12px 16px;
+            font-size: 0.82rem;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -275,6 +293,39 @@ if st.session_state.session_id:
                 )
         if data.get("error"):
             st.error(f"Pipeline error: {data['error']}")
+
+        # ── Inline outline display ─────────────────────────────────────────────
+        if data.get("outline"):
+            st.write("")
+            st.subheader("Generated Outline")
+            if data.get("outline_type"):
+                st.caption(f"Approach: **{data['outline_type']}**")
+
+            json_str = json.dumps(data["outline"], indent=2)
+
+            # Scrollable code block via HTML wrapper
+            import html as _html
+
+
+            escaped = _html.escape(json_str)
+            st.markdown(
+                f'<div class="outline-scroll-box"><pre><code>{escaped}</code></pre></div>',
+                unsafe_allow_html=True,
+                )
+            st.write("")
+
+            col_copy2, col_dl2, _ = st.columns([1.2, 1.2, 2])
+            with col_copy2:
+                _copy_button(json_str)
+            with col_dl2:
+                st.download_button(
+                    "Download JSON",
+                    data=json_str,
+                    file_name="outline.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="dl_inline",
+                    )
 
 # ── Outline dialog ────────────────────────────────────────────────────────────
 
