@@ -61,7 +61,7 @@ class ClassicLinearNarrativeOutline(BaseModel):
     meta: ClassicLinearNarrativeMeta = Field(
         ...,
         description="Video-level metadata for the Classic Linear Narrative approach.",
-        ),
+        )
     outline: list[ClassicLinearNarrativeSegment] = Field(
         ...,
         min_length=1,
