@@ -1,10 +1,7 @@
 """
 base_models.py
 --------------
-Shared Pydantic v2 schemas used across all three video outline schemas:
-  - Conceptual Zoom
-  - Problem-Solution Arc
-  - Classic Linear Narrative
+Shared Pydantic v2 schemas used across all three video outline approaches.
 """
 
 from __future__ import annotations
@@ -12,26 +9,18 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-# ---------------------------------------------------------------------------
-# Enums
-# ---------------------------------------------------------------------------
+# ── Enums ─────────────────────────────────────────────────────────────────────
 
 class Pace(str, Enum):
-    """
-    Enum for pace type
-    """
     slow = "slow"
     medium = "medium"
     fast = "fast"
 
 
 class SegmentType(str, Enum):
-    """
-    Enum for segments type
-    """
     hook = "hook"
     problem = "problem"
     intro = "intro"
@@ -45,13 +34,12 @@ class SegmentType(str, Enum):
     cta = "cta"
 
 
-# ---------------------------------------------------------------------------
-# Shared sub-schemas
-# ---------------------------------------------------------------------------
-
+# ── Shared sub-schemas ────────────────────────────────────────────────────────
 
 class OutlineSegment(BaseModel):
     """One segment inside the outline array — common across all approaches."""
+
+    model_config = ConfigDict(use_enum_values=True)
 
     scene_id: Annotated[int, Field(ge=1)] = Field(
         ..., description="1-indexed segment identifier.",
@@ -77,22 +65,20 @@ class OutlineSegment(BaseModel):
         )
     transition_to_next: str | None = Field(
         default=None,
-        description="Bridge sentence leading into the next segment; null for the last segment.",
+        description=(
+            "Bridge sentence leading into the next segment; "
+            "null for the last segment."
+        ),
         )
-
-
-from pydantic import BaseModel, Field
 
 
 class BaseVideoMeta(BaseModel):
-    title: str = Field(
-        ...,
-        description="Video title.",
-        )
-    topic: str = Field(
-        ...,
-        description="Short topic name / slug.",
-        )
+    """Video-level metadata shared by all outline approaches."""
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    title: str = Field(..., description="Video title.")
+    topic: str = Field(..., description="Short topic name / slug.")
     total_duration_seconds: int = Field(
         ..., ge=1, description="Total runtime of the video in seconds.",
         )
@@ -103,8 +89,7 @@ class BaseVideoMeta(BaseModel):
         ..., ge=1, description="Target words-per-minute for narration.",
         )
     approach_name: str = Field(
-        ...,
-        description="Fixed identifier for this approach.",
+        ..., description="Fixed identifier for this approach.",
         )
     approach_style: str = Field(
         ...,
