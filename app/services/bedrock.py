@@ -48,18 +48,18 @@ class BedrockClient(LLMClient):
             model: str,
             system_prompt: str,
             temperature: float,
-            max_tokens: int,
+            max_tokens: int | None,
             is_structured: bool = False,
             ) -> str:
+        inference_config: dict = {"temperature": temperature}
+        if max_tokens is not None:
+            inference_config["maxTokens"] = max_tokens
         kwargs: dict = {
             "modelId": model,
             "messages": [
                 {"role": "user", "content": [{"text": user_prompt}]},
                 ],
-            "inferenceConfig": {
-                "temperature": temperature,
-                "maxTokens": max_tokens,
-                },
+            "inferenceConfig": inference_config,
             }
         if system_prompt:
             kwargs["system"] = [{"text": system_prompt}]
@@ -117,7 +117,7 @@ class BedrockClient(LLMClient):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> str:
         return self._converse(
             user_prompt=user_prompt,
@@ -135,7 +135,7 @@ class BedrockClient(LLMClient):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> SchemaT:
         combined_system = self._build_structured_system_prompt(schema, system_prompt)
         raw = self._converse(
@@ -159,7 +159,7 @@ class BedrockClient(LLMClient):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> str:
         return await asyncio.to_thread(
             self.invoke,
@@ -178,7 +178,7 @@ class BedrockClient(LLMClient):
             model: str,
             system_prompt: str = "",
             temperature: float = 0.3,
-            max_tokens: int = 4096,
+            max_tokens: int | None = None,
             ) -> SchemaT:
         return await asyncio.to_thread(
             self.invoke_structured,
