@@ -19,4 +19,7 @@ dependencies = [
     "uvicorn>=0.30",
     "contextvars>=2.4",
     "boto3-stubs~=1.43.36",
+    "google-genai>=2.10.0",
+    "tenacity>=9.0",
+    "protobuf>=5.29.6",
 ]
