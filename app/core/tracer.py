@@ -83,11 +83,26 @@ _trace_logger = logging.getLogger("llm.trace")
 
 
 def record_trace(trace: AnyTrace) -> None:
-    """Serialise *trace* to one JSON line via the ``llm.trace`` logger.
-
-    The logger is expected to be wired to ``logs/app.jsonl`` (or equivalent)
-    by the application's logging configuration.  Each line is a flat dict
-    produced by :func:`dataclasses.asdict`, so every field — including
-    provider-specific ones — appears in the output automatically.
-    """
+    """Serialise *trace* to logs/app.jsonl and to the active per-request log."""
     _trace_logger.info(json.dumps(dataclasses.asdict(trace)))
+
+    try:
+        from app.core.context import request_logger_var
+
+        rl = request_logger_var.get()
+        if rl is not None:
+            rl.llm_call(
+                provider=trace.provider,
+                model=trace.model_id,
+                node=trace.node_name,
+                latency_ms=trace.latency_ms,
+                input_tokens=trace.input_tokens,
+                output_tokens=trace.output_tokens,
+                total_tokens=trace.total_tokens,
+                is_structured=trace.is_structured,
+                system_prompt=trace.system_prompt,
+                user_prompt=trace.user_prompt,
+                response=trace.response_preview,
+                )
+    except Exception:
+        pass
