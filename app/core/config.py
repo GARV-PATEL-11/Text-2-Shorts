@@ -17,7 +17,12 @@ class Settings(BaseSettings):
 
     # ── Bedrock ───────────────────────────────────────────────────────────────
     BEDROCK_MODEL_ID: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    MAX_COMPLETION_TOKENS: int = 8192
+
+    # ── Google Gemini ─────────────────────────────────────────────────────────
+    GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
+    GEMINI_25_FLASH_MODEL: str = "gemini-2.5-flash"
+    GEMINI_3_FLASH_MODEL: str = "gemini-3-flash"
+    GEMINI_35_FLASH_MODEL: str = "gemini-3.5-flash"
 
     # ── S3 ────────────────────────────────────────────────────────────────────
     S3_BUCKET_NAME: str = ""
