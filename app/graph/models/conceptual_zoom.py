@@ -59,7 +59,7 @@ class ConceptualZoomOutline(BaseModel):
 
     meta: ConceptualZoomMeta = Field(
         ..., description="Video-level metadata for the Conceptual Zoom approach.",
-        ),
+        )
     outline: list[ConceptualZoomSegment] = Field(
         ...,
         min_length=1,
