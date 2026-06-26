@@ -5,25 +5,24 @@ All node functions for the video outline generation graph.
 
 Graph nodes
 -----------
-validate_input                  Validates approach; resolves system prompt.     (sync)
-conceptual_zoom_node            Generates ConceptualZoomOutline via LLM.        (async)
-problem_solution_arc_node       Generates ProblemSolutionArcOutline via LLM.    (async)
-classic_linear_narrative_node   Generates ClassicLinearNarrativeOutline.        (async)
-map_outline_to_visual_plan      Transform: OutlineOutputState→VisualPlanInput.  (sync)
-visual_planning_node            Generates scene-wise visual plan.               (async)
-
-LLM calls use AWS Bedrock via BedrockClient (thread-offloaded async).
-max_completion_tokens is always set to settings.MAX_COMPLETION_TOKENS (8192).
+validate_input                  Refines requirement and resolves system prompt.  (async)
+conceptual_zoom_node            Generates ConceptualZoomOutline via Gemini.      (async)
+problem_solution_arc_node       Generates ProblemSolutionArcOutline via Gemini.  (async)
+classic_linear_narrative_node   Generates ClassicLinearNarrativeOutline.         (async)
+map_outline_to_visual_plan_node Transform: GraphState → VisualDSLInputState.     (sync)
+visual_planning_node            Generates scene-wise Visual DSL plan via Gemini. (async)
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
+from typing import Any
 from uuid import uuid4
 
 from app.core.config import settings
-from app.core.context import node_name_var, session_id_var, workflow_id_var
-from app.core.logger import StructuredLogger
+from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
+from app.core.logger import log_call, StructuredLogger
 from app.graph.models.classic_linear_narrative import ClassicLinearNarrativeOutline
 from app.graph.models.conceptual_zoom import ConceptualZoomOutline
 from app.graph.models.enums import NarrativeApproach
@@ -33,20 +32,28 @@ from app.graph.prompts.script_gen_prompt import (
     CONCEPTUAL_ZOOM_SYSTEM,
     PROBLEM_TO_SOLUTION_ARC_SYSTEM,
     )
-from app.graph.prompts.visual_gen_prompt import (build_director_prompt,
+from app.graph.prompts.visual_plan_gen_prompt import (generate_visual_plan_prompt, SceneDirectorInput)
+from app.graph.retry import ainvoke_with_fallback
+from app.graph.state import (
+    GraphState,
+    SceneVisualPlan,
+    VisualDSLInputState,
+    VisualDSLOutputState,
+    )
+from app.graph.utils import (
     extract_next_scene_context,
-    VISUAL_DIRECTOR_SYSTEM,
-)
-from app.graph.state import GraphState, SceneOutline
+    generate_outline,
+    map_outline_to_visual_plan,
+    refine_requirement,
+    save_output_to_log,
+    )
 from app.services import get_client, LLMProvider
 
 
 logger = StructuredLogger.get_logger(__name__)
 
-_MODEL = settings.BEDROCK_MODEL_ID
-_MAX_TOKENS = settings.MAX_COMPLETION_TOKENS
-
-# Approach → (system_prompt, schema_class, outline_type_label)
+# Approach string value → (system_prompt, schema_class, outline_type_label)
+# Keys are plain strings because GraphState uses use_enum_values=True
 _APPROACH_CONFIG: dict[str, tuple[str, type, str]] = {
     NarrativeApproach.CONCEPTUAL_ZOOM.value: (
         CONCEPTUAL_ZOOM_SYSTEM,
@@ -66,255 +73,310 @@ _APPROACH_CONFIG: dict[str, tuple[str, type, str]] = {
     }
 
 
-# ── Node: validate_input (sync — no LLM call) ─────────────────────────────────
+# ── Node: validate_input ──────────────────────────────────────────────────────
 
-def validate_input(state: GraphState) -> dict:
-    """
-    Validates approach and resolves the approach-specific system prompt.
+@log_call(stage="node:validate_input")
+async def validate_input(state: GraphState) -> dict:
+    """Refine the raw requirement and resolve the approach-specific system prompt."""
+    rl = request_logger_var.get()
+    wf_id: str = uuid4().hex
 
-    Reads:  ValidateInputState fields
-    Writes: ValidateOutputState fields
-    """
-    approach_value: str = state.approach.value
-    cfg = _APPROACH_CONFIG.get(approach_value)
-
-    if cfg is None:
-        logger.error(
-            "Unknown approach",
-            extra={"approach": approach_value},
-            )
-        return {
-            "status": "failed",
-            "error": (
-                f"Unknown approach {approach_value!r}. "
-                f"Valid: {[a.value for a in NarrativeApproach]}"
-            ),
-            }
-
-    system_prompt, _, _ = cfg
-    wf_id = state.workflow_id or uuid4().hex
-    logger.info(
-        "Input validated",
-        extra={"session_id": state.session_id, "approach": approach_value, "workflow_id": wf_id},
+    # state.approach is already a str (use_enum_values=True on GraphState)
+    cfg = _APPROACH_CONFIG.get(
+        state.approach,
+        _APPROACH_CONFIG[NarrativeApproach.CLASSIC_LINEAR_NARRATIVE.value],
         )
-    return {
-        "workflow_id": wf_id,
-        "system_prompt": system_prompt,
-        "routed_to": None,
-        "status": "ready",
-        "error": None,
-        }
+    outline_gen_system_prompt, _, _ = cfg
 
+    if rl is not None:
+        rl.pipeline_step("validate_input.start", {
+            "session_id": state.session_id,
+            "approach": state.approach,
+            "requirement_len": len(state.requirement),
+            "workflow_id": wf_id,
+            },
+            )
 
-# ── Shared async outline generation helper ────────────────────────────────────
-
-async def _generate_outline(
-        state: GraphState,
-        schema_class: type,
-        outline_type: str,
-        ) -> dict:
-    """
-    Async LLM call via Bedrock:
-      Approach-specific system prompt generates a structured Pydantic outline.
-
-    Reads:  OutlineInputState fields (requirement, system_prompt, session_id)
-    Writes: OutlineOutputState fields (outline, outline_type, status, error)
-    """
-    tok_s = session_id_var.set(state.session_id)
-    tok_w = workflow_id_var.set(state.workflow_id)
-    tok_n = node_name_var.set(outline_type)
     try:
-        llm = get_client(LLMProvider.BEDROCK)
-        outline_user_msg = (
-            f"raw_content: {state.requirement}\n"
-            f"topic: {state.requirement}\n"
-            f"duration_minutes: 5\n"
-            f"pace: medium"
-        )
-        outline = await llm.ainvoke_structured(
-            user_prompt=outline_user_msg,
-            schema=schema_class,
-            model=_MODEL,
-            system_prompt=state.system_prompt,
-            temperature=0.15,
-            max_tokens=_MAX_TOKENS,
+        refined_req = await refine_requirement(
+            session_id=state.session_id,
+            workflow_id=wf_id,
+            requirement=state.requirement,
             )
-        logger.info(
-            "Outline generated",
-            extra={
-                "session_id": state.session_id,
-                "outline_type": outline_type,
-                "segment_count": len(outline.outline),
-                },
-            )
-        return {
-            "outline": outline.model_dump(),
-            "outline_type": outline_type,
-            "status": "completed",
-            "error": None,
-            }
+        status = "ready"
+        error = None
 
     except Exception as exc:
-        logger.exception(
-            "Outline generation failed",
-            extra={"session_id": state.session_id, "outline_type": outline_type},
-            )
-        return {"status": "failed", "error": str(exc)}
-    finally:
-        session_id_var.reset(tok_s)
-        workflow_id_var.reset(tok_w)
-        node_name_var.reset(tok_n)
-
-
-# ── Outline generator nodes (async) ──────────────────────────────────────────
-
-async def conceptual_zoom_node(state: GraphState) -> dict:
-    """
-    Reads:  OutlineInputState (ValidateOutputState fields)
-    Writes: OutlineOutputState fields
-    """
-    return await _generate_outline(state, ConceptualZoomOutline, "ConceptualZoom")
-
-
-async def problem_solution_arc_node(state: GraphState) -> dict:
-    """
-    Reads:  OutlineInputState (ValidateOutputState fields)
-    Writes: OutlineOutputState fields
-    """
-    return await _generate_outline(state, ProblemSolutionArcOutline, "ProblemSolutionArc")
-
-
-async def classic_linear_narrative_node(state: GraphState) -> dict:
-    """
-    Reads:  OutlineInputState (ValidateOutputState fields)
-    Writes: OutlineOutputState fields
-    """
-    return await _generate_outline(state, ClassicLinearNarrativeOutline, "ClassicLinearNarrative")
-
-
-# ── Transform node (sync — pure data reshaping, no LLM) ──────────────────────
-
-def map_outline_to_visual_plan(state: GraphState) -> dict:
-    """
-    Explicit state transform between outline generation and visual planning.
-
-    Reads:  OutlineOutputState fields (outline, outline_type)
-    Writes: VisualPlanInputState fields (total_scenes, video_outline)
-    """
-    outline: dict = state.outline or {}
-    segments: list[dict] = outline.get("outline", [])
-
-    video_outline: list[SceneOutline] = [
-        SceneOutline(
-            scene_index=seg.get("id", i + 1) - 1,
-            title=seg.get("title", ""),
-            description="\n".join(
-                seg.get("visual_cues", []) + seg.get("talking_points", []),
-                ),
-            duration_hint_seconds=seg.get("duration_seconds", 30),
-            narration_text=seg.get("narration_hint"),
-            )
-        for i, seg in enumerate(segments)
-        ]
+        refined_req = state.requirement
+        status = "failed"
+        error = str(exc)
+        if rl is not None:
+            rl.warning(
+                message=f"Requirement refinement failed, using original: {exc}",
+                context="validate_input",
+                )
 
     logger.info(
-        "Outline mapped to visual plan input",
-        extra={"session_id": state.session_id, "scene_count": len(video_outline)},
+        "Input validated",
+        extra={
+            "session_id": state.session_id,
+            "workflow_id": wf_id,
+            "approach": state.approach,
+            "status": status,
+            },
         )
+
+    if rl is not None:
+        rl.pipeline_step("validate_input.done", {
+            "status": status,
+            "refined_len": len(refined_req),
+            "error": error,
+            },
+            )
+
     return {
-        "total_scenes": len(video_outline),
-        "video_outline": [s.model_dump() for s in video_outline],
+        "workflow_id": wf_id,
+        "system_prompt": outline_gen_system_prompt,
+        "refined_requirement": refined_req,
+        "status": status,
+        "error": error,
         }
 
 
-# ── Node: visual_planning (async) ─────────────────────────────────────────────
+# ── Outline generator nodes ───────────────────────────────────────────────────
 
-async def visual_planning_node(state: GraphState) -> dict:
+@log_call(stage="node:conceptual_zoom")
+async def conceptual_zoom_node(state: GraphState) -> dict:
+    result = await generate_outline(state, ConceptualZoomOutline, "ConceptualZoom")
+    return result.model_dump()
+
+
+@log_call(stage="node:problem_solution_arc")
+async def problem_solution_arc_node(state: GraphState) -> dict:
+    result = await generate_outline(state, ProblemSolutionArcOutline, "ProblemSolutionArc")
+    return result.model_dump()
+
+
+@log_call(stage="node:classic_linear_narrative")
+async def classic_linear_narrative_node(state: GraphState) -> dict:
+    result = await generate_outline(state, ClassicLinearNarrativeOutline, "ClassicLinearNarrative")
+    return result.model_dump()
+
+
+# ── Node: map_outline_to_visual_plan ─────────────────────────────────────────
+
+@log_call(stage="node:map_outline_to_visual_plan")
+def map_outline_to_visual_plan_node(state: GraphState) -> VisualDSLInputState:
+    """LangGraph node: delegates to the pure transform in utils."""
+    return map_outline_to_visual_plan(state)
+
+
+# ── Node: visual_planning ─────────────────────────────────────────────────────
+
+@log_call(stage="node:visual_planning")
+async def visual_planning_node(state: VisualDSLInputState) -> VisualDSLOutputState:
+    """Generates a structured Visual DSL plan for every scene sequentially.
+
+    Model strategy
+    ──────────────
+    Primary  : settings.GEMINI_35_FLASH_MODEL
+    Fallback : settings.GEMINI_3_FLASH_MODEL
+    Retry / backoff handled transparently by ainvoke_with_fallback.
+
+    Failure semantics
+    ─────────────────
+    - Per-scene failure  → SceneVisualPlan.error is set; loop continues.
+    - All scenes failed  → VisualDSLOutputState.status = "failed".
+    - Partial failure    → status = "completed"; inspect individual plans.
     """
-    Generates a structured visual specification for every scene in video_outline.
+    rl = request_logger_var.get()
+    llm = get_client(LLMProvider.GEMINI)
+    scene_visual_plans: list[SceneVisualPlan] = []
 
-    Reads:  VisualPlanInputState fields (total_scenes, video_outline)
-    Writes: VisualPlanOutputState fields (scene_visual_plans, status, error)
-    """
-    llm = get_client(LLMProvider.BEDROCK)
-    video_outline: list[SceneOutline] = [
-        SceneOutline(**s) if isinstance(s, dict) else s
-        for s in state.video_outline
-        ]
-    scene_visual_plans: list[str] = []
-
-    video_metadata = json.dumps(
-        {
+    if rl is not None:
+        rl.pipeline_step("visual_planning.start", {
+            "session_id": state.session_id,
             "total_scenes": state.total_scenes,
+            "primary_model": settings.GEMINI_35_FLASH_MODEL,
+            },
+            )
+
+    video_metadata_json = json.dumps(
+        {
+            "title": state.metadata.title,
+            "topic": state.metadata.topic,
+            "total_scenes": state.total_scenes,
+            "total_duration_seconds": state.metadata.total_duration_seconds,
             "scenes": [
                 {
                     "scene_index": s.scene_index,
                     "title": s.title,
                     "duration_hint_seconds": s.duration_hint_seconds,
                     }
-                for s in video_outline
+                for s in state.video_outline
                 ],
             },
         indent=2,
         )
 
-    for scene in video_outline:
-        prior_scenes: str = (
-            extract_next_scene_context(scene_visual_plans[-1])
-            if scene_visual_plans
-            else "None — this is the first scene. Screen is blank at t=0."
-        )
-        target_scene_json = json.dumps(
+    for scene in state.video_outline:
+        prior_scenes: dict = (
             {
-                "scene_index": scene.scene_index,
-                "title": scene.title,
-                "description": scene.description,
-                "duration_seconds": scene.duration_hint_seconds,
-                "narration_text": scene.narration_text,
-                },
-            indent=2,
-            )
-        user_prompt = build_director_prompt(
-            video_metadata=video_metadata,
-            target_scene_id=scene.scene_index,
-            target_scene=target_scene_json,
+                str(i + 1): f"Scene {i + 1}: {extract_next_scene_context(scene_plan)}"
+                for i, scene_plan in enumerate(scene_visual_plans)
+                }
+            if scene_visual_plans
+            else {
+                "0": "Scene 0: None — this is the first scene. Screen is blank at t=0.",
+                }
+        )
+
+        director_input = SceneDirectorInput(
+            video_metadata=video_metadata_json,
             prior_scenes=prior_scenes,
+            target_scene_id=f"scene_{scene.scene_index:03d}",
+            target_scene=json.dumps(
+                {
+                    "scene_index": scene.scene_index,
+                    "title": scene.title,
+                    "description": scene.description,
+                    "duration_seconds": scene.duration_hint_seconds,
+                    "narration_text": scene.narration_text,
+                    },
+                indent=2,
+                ),
+            target_duration=scene.duration_hint_seconds,
             )
+
+        prompts = generate_visual_plan_prompt(director_input)
+
         tok_s = session_id_var.set(state.session_id)
         tok_w = workflow_id_var.set(state.workflow_id)
         tok_n = node_name_var.set(f"visual_planning/scene_{scene.scene_index}")
+
+        if rl is not None:
+            rl.pipeline_step("scene.plan.start", {
+                "scene_index": scene.scene_index,
+                "title": scene.title,
+                "duration_s": scene.duration_hint_seconds,
+                },
+                )
+
         try:
-            plan = await llm.ainvoke(
-                user_prompt=user_prompt,
-                model=_MODEL,
-                system_prompt=VISUAL_DIRECTOR_SYSTEM,
+            plan_raw, model_used, total_attempts = await ainvoke_with_fallback(
+                llm,
+                primary_model=settings.GEMINI_35_FLASH_MODEL,
+                fallback_model=settings.GEMINI_3_FLASH_MODEL,
+                user_prompt=prompts["user"],
+                system_prompt=prompts["system"],
                 temperature=0.4,
-                max_tokens=_MAX_TOKENS,
                 )
+
+            plan = _parse_plan(plan_raw)
+
+            visual_plan = SceneVisualPlan(
+                scene_index=scene.scene_index,
+                title=scene.title,
+                model_used=model_used,
+                total_attempts=total_attempts,
+                plan=plan,
+                )
+
             logger.info(
-                "Visual plan generated",
-                extra={"session_id": state.session_id, "scene_index": scene.scene_index},
+                "Visual DSL plan generated",
+                extra={
+                    "session_id": state.session_id,
+                    "scene_index": scene.scene_index,
+                    "model_used": model_used,
+                    "total_attempts": total_attempts,
+                    "plan_type": "dict" if isinstance(plan, dict) else "str",
+                    },
                 )
+
+            if rl is not None:
+                rl.pipeline_step("scene.plan.done", {
+                    "scene_index": scene.scene_index,
+                    "status": "success",
+                    "model_used": model_used,
+                    "total_attempts": total_attempts,
+                    "plan_type": "dict" if isinstance(plan, dict) else "str",
+                    },
+                    )
+
         except Exception as exc:
             logger.error(
-                "Visual plan failed",
+                "Visual DSL plan failed — all models exhausted",
                 extra={
                     "session_id": state.session_id,
                     "scene_index": scene.scene_index,
                     "error": str(exc),
                     },
                 )
-            plan = f"VISUAL_PLAN_ERROR:{exc}"
+            if rl is not None:
+                rl.pipeline_step("scene.plan.done", {
+                    "scene_index": scene.scene_index,
+                    "status": "error",
+                    "error": str(exc)[:200],
+                    },
+                    )
+            visual_plan = SceneVisualPlan(
+                scene_index=scene.scene_index,
+                title=scene.title,
+                plan={},
+                error=str(exc),
+                )
+
         finally:
             session_id_var.reset(tok_s)
             workflow_id_var.reset(tok_w)
             node_name_var.reset(tok_n)
 
-        scene_visual_plans.append(plan)
+        scene_visual_plans.append(visual_plan)
 
-    all_failed = all(p.startswith("VISUAL_PLAN_ERROR:") for p in scene_visual_plans)
-    return {
-        "scene_visual_plans": scene_visual_plans,
-        "status": "failed" if all_failed else "completed",
-        "error": scene_visual_plans[0] if all_failed else None,
-        }
+    all_failed = all(p.failed for p in scene_visual_plans)
+    final_status = "failed" if all_failed else "completed"
+
+    save_output_to_log(
+        f"visual_plans_{state.session_id}.txt",
+        {
+            "session_id": state.session_id,
+            "workflow_id": state.workflow_id,
+            "primary_model": settings.GEMINI_35_FLASH_MODEL,
+            "fallback_model": settings.GEMINI_3_FLASH_MODEL,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_scenes": state.total_scenes,
+            "scene_visual_plans": [p.model_dump() for p in scene_visual_plans],
+            },
+        )
+
+    if rl is not None:
+        rl.pipeline_step("visual_planning.done", {
+            "total_scenes": state.total_scenes,
+            "failed_scenes": sum(1 for p in scene_visual_plans if p.failed),
+            "status": final_status,
+            },
+            )
+
+    return VisualDSLOutputState(
+        session_id=state.session_id,
+        workflow_id=state.workflow_id,
+        total_scenes=state.total_scenes,
+        video_outline=state.video_outline,
+        scene_visual_plans=scene_visual_plans,
+        status=final_status,
+        error=scene_visual_plans[0].error if all_failed else None,
+        )
+
+
+# ── Private helpers ───────────────────────────────────────────────────────────
+
+def _parse_plan(raw: str) -> dict[str, Any] | str:
+    """Try to deserialise the LLM's raw output into a dict; fall back to str."""
+    try:
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+            cleaned = cleaned.rsplit("```", 1)[0].strip()
+        return json.loads(cleaned)
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        return raw
