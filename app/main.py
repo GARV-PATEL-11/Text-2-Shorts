@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.endpoints.generate import router
+from app.api.endpoints import router
 from app.core.logger import configure_root_logging
 
 
