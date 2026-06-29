@@ -5,14 +5,14 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException
 
-from app.api.pipeline_runner import _APPROACH_TO_OUTLINE_NODE, _task_errors, _tasks, run_pipeline
+import app.graph.workflow as _workflow
+from app.api.pipeline_runner import (_cleanup_task, _OUTLINE_NODE, _task_errors, _tasks, run_pipeline)
 from app.api.schemas.request import GenerateRequest
 from app.api.schemas.response import GenerateResponse, ResumeResponse
-from app.core.artifact_store import ArtifactStore, SessionIndex
 from app.core.config import settings
 from app.core.context import request_logger_var
 from app.core.logger import RequestLogger, StructuredLogger
-from app.graph.workflow import pipeline
+from app.storage.artifact_store import ArtifactStore, SessionIndex
 
 
 router = APIRouter()
@@ -30,9 +30,8 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
             "requirement_len": len(body.requirement),
             },
         config={
-            "primary_model": settings.GEMINI_35_FLASH_MODEL,
-            "fallback_model": settings.GEMINI_3_FLASH_MODEL,
-            "refine_model": settings.GEMINI_25_FLASH_MODEL,
+            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
+            "coding_model": settings.CLOUDFLARE_CODING_MODEL,
             },
         )
     tok = request_logger_var.set(rl)
@@ -61,7 +60,7 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
         completed_stages=[],
         )
 
-    _tasks[body.session_id] = asyncio.create_task(
+    task = asyncio.create_task(
         run_pipeline(
             body.session_id,
             initial_state,
@@ -69,6 +68,8 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
             requirement=body.requirement,
             ),
         )
+    task.add_done_callback(lambda _: _cleanup_task(body.session_id))
+    _tasks[body.session_id] = task
 
     rl.pipeline_step("task.queued", {"session_id": body.session_id})
     request_logger_var.reset(tok)
@@ -119,13 +120,12 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             "video_outline": scene_map.get("video_outline", []),
             "status": "ready",
             }
-        await pipeline.aupdate_state(config, state_dict, as_node="map_outline_to_visual_plan")
+        await _workflow.pipeline.aupdate_state(config, state_dict, as_node="map_outline_to_visual_plan")
         resume_from = "visual_planning"
         pre_completed = ["validate_input", "generate_outline", "map_outline"]
 
     elif has_outline:
         outline_data = store.load("outline") or {}
-        outline_node = _APPROACH_TO_OUTLINE_NODE.get(approach, "classic_linear_narrative")
         state_dict = {
             "session_id": session_id,
             "approach": approach,
@@ -137,7 +137,7 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             "outline_type": outline_data.get("outline_type"),
             "status": "ready",
             }
-        await pipeline.aupdate_state(config, state_dict, as_node=outline_node)
+        await _workflow.pipeline.aupdate_state(config, state_dict, as_node=_OUTLINE_NODE)
         resume_from = "map_outline"
         pre_completed = ["validate_input", "generate_outline"]
 
@@ -151,13 +151,13 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             "refined_requirement": refined.get("refined_requirement", requirement),
             "status": "ready",
             }
-        await pipeline.aupdate_state(config, state_dict, as_node="validate_input")
+        await _workflow.pipeline.aupdate_state(config, state_dict, as_node="validate_input")
         resume_from = "generate_outline"
         pre_completed = ["validate_input"]
 
     _task_errors.pop(session_id, None)
 
-    _tasks[session_id] = asyncio.create_task(
+    resume_task = asyncio.create_task(
         run_pipeline(
             session_id,
             None,
@@ -166,6 +166,8 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             pre_completed_stages=pre_completed,
             ),
         )
+    resume_task.add_done_callback(lambda _: _cleanup_task(session_id))
+    _tasks[session_id] = resume_task
 
     logger.info("Pipeline resumed", extra={"session_id": session_id, "resume_from": resume_from})
 

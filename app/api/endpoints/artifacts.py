@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.schemas.intermediate import ArtifactRecordSchema
 from app.api.schemas.response import ArtifactDetailResponse, ArtifactsListResponse
-from app.core.artifact_store import ArtifactStore
+from app.storage.artifact_store import ArtifactStore
 
 
 router = APIRouter()

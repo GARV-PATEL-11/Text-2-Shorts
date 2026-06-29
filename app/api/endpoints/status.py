@@ -3,25 +3,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+import app.graph.workflow as _workflow
 from app.api.pipeline_runner import _task_errors, _tasks, make_serializable
 from app.api.schemas.intermediate import StageRecordSchema
 from app.api.schemas.response import StageDetailResponse, StagesResponse, StatusResponse
-from app.core.artifact_store import SessionIndex
-from app.core.stage_tracker import StageTracker
-from app.graph.workflow import pipeline
+from app.core.stage_tracker import STAGE_LABELS as _STAGE_LABELS, StageTracker
+from app.storage.artifact_store import SessionIndex
 
 
 router = APIRouter()
 
-_STAGE_LABELS = {
-    "validate_input": "Validate & Refine Input",
-    "generate_outline": "Generate Outline",
-    "map_outline": "Map Outline to Scenes",
-    "visual_planning": "Generate Visual Plans",
-    "manim_code_generation": "Generate Manim Code",
-    "scene_rendering": "Render Scenes",
-    "video_assembly": "Assemble Video",
-    }
 _ALL_STAGES = list(_STAGE_LABELS)
 
 
@@ -51,7 +42,7 @@ async def get_status(session_id: str) -> StatusResponse:
 
     config = {"configurable": {"thread_id": session_id}}
     try:
-        state = await pipeline.aget_state(config)
+        state = await _workflow.pipeline.aget_state(config)
     except Exception:
         state = None
 

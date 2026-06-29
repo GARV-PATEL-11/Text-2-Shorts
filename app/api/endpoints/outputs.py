@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
+import app.graph.workflow as _workflow
 from app.api.pipeline_runner import _tasks, make_serializable
 from app.api.schemas.response import OutlineOutputResponse, ScenesOutputResponse
 from app.core.stage_tracker import StageTracker
-from app.graph.workflow import pipeline
 
 
 router = APIRouter()
@@ -31,7 +31,7 @@ async def get_outline_output(session_id: str) -> OutlineOutputResponse:
 
     config = {"configurable": {"thread_id": session_id}}
     try:
-        state = await pipeline.aget_state(config)
+        state = await _workflow.pipeline.aget_state(config)
         if state and state.values:
             v = dict(state.values)
             return OutlineOutputResponse(
@@ -65,7 +65,7 @@ async def get_scenes_output(session_id: str) -> ScenesOutputResponse:
 
     config = {"configurable": {"thread_id": session_id}}
     try:
-        state = await pipeline.aget_state(config)
+        state = await _workflow.pipeline.aget_state(config)
         if state and state.values:
             v = dict(state.values)
             return ScenesOutputResponse(

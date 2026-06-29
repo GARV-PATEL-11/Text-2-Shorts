@@ -9,8 +9,8 @@ from fastapi.responses import FileResponse
 from app.api.pipeline_runner import _tasks
 from app.api.schemas.intermediate import SceneProgressItemSchema
 from app.api.schemas.response import SceneProgressResponse
-from app.core.artifact_store import ArtifactStore
 from app.core.stage_tracker import StageTracker
+from app.storage.artifact_store import ArtifactStore
 
 
 router = APIRouter()

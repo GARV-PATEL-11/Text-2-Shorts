@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.schemas.intermediate import ArtifactRecordSchema, SessionRecordSchema
 from app.api.schemas.response import SessionDetailResponse, SessionsListResponse
-from app.core.artifact_store import ArtifactStore, SessionIndex
+from app.storage.artifact_store import ArtifactStore, SessionIndex
 
 
 router = APIRouter()
