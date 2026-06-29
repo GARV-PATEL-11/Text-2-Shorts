@@ -39,10 +39,12 @@ class SegmentType(str, Enum):
 class OutlineSegment(BaseModel):
     """One segment inside the outline array — common across all approaches."""
 
-    model_config = ConfigDict(use_enum_values=True)
+    # populate_by_name=True lets callers use either "scene_id" or the alias "id".
+    # The alias matches what the LLM returns; the field name is used internally.
+    model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
     scene_id: Annotated[int, Field(ge=1)] = Field(
-        ..., description="1-indexed segment identifier.",
+        ..., alias="id", description="1-indexed segment identifier.",
         )
     segment_type: SegmentType = Field(
         ..., description="Allowed type from the shared SegmentType enum.",
