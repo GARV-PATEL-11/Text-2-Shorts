@@ -1,6 +1,24 @@
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class SceneCodeStatus(str, Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    READY = "READY"
+    FAILED = "FAILED"
+
+
+class SceneRenderStatus(str, Enum):
+    PENDING = "PENDING"
+    RENDERING = "RENDERING"
+    DEBUGGING = "DEBUGGING"
+    REFACTORING = "REFACTORING"
+    READY = "READY"
+    FAILED = "FAILED"
 
 
 class RenderError(BaseModel):
@@ -19,14 +37,14 @@ class SceneManimCode(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
     model_used: str | None = None
     total_code_gen_attempts: int = 0
-    status: str = "PENDING"  # PENDING | GENERATING | READY | FAILED
+    status: SceneCodeStatus = SceneCodeStatus.PENDING
     error: str | None = None
 
 
 class SceneRenderResult(BaseModel):
     scene_index: int
     title: str
-    status: str = "PENDING"  # PENDING | RENDERING | DEBUGGING | REFACTORING | READY | FAILED
+    status: SceneRenderStatus = SceneRenderStatus.PENDING
     clip_path: str | None = None
     thumbnail_path: str | None = None
     render_attempts: int = 0
