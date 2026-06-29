@@ -12,7 +12,12 @@ Flow
           → problem_solution_arc  ──┤── [route_after_outline]
           → classic_linear_narrative ─┘       → map_outline_to_visual_plan
                                               → visual_planning
-                                              → END
+                                              → [route_after_visual_planning]
+                                                  → manim_code_generation
+                                                  → scene_rendering
+                                                  → [route_after_rendering]
+                                                      → video_assembly
+                                                      → END
 """
 
 from __future__ import annotations
@@ -23,22 +28,30 @@ from langgraph.graph import END, START, StateGraph
 from app.graph.edges import (
     NODE_CLASSIC_LINEAR_NARRATIVE,
     NODE_CONCEPTUAL_ZOOM,
+    NODE_MANIM_CODE_GENERATION,
     NODE_MAP_OUTLINE,
     NODE_PROBLEM_SOLUTION_ARC,
+    NODE_SCENE_RENDERING,
     NODE_VALIDATE_INPUT,
+    NODE_VIDEO_ASSEMBLY,
     NODE_VISUAL_PLANNING,
     route_after_outline,
+    route_after_rendering,
+    route_after_visual_planning,
     route_by_approach,
     )
+from app.graph.models.graph_state import GraphState
 from app.graph.nodes import (
     classic_linear_narrative_node,
     conceptual_zoom_node,
+    manim_code_generation_node,
     map_outline_to_visual_plan_node,
     problem_solution_arc_node,
+    scene_rendering_node,
     validate_input,
+    video_assembly_node,
     visual_planning_node,
     )
-from app.graph.state import GraphState
 
 
 # ── Build graph ───────────────────────────────────────────────────────────────
@@ -51,6 +64,9 @@ graph.add_node(NODE_PROBLEM_SOLUTION_ARC, problem_solution_arc_node)
 graph.add_node(NODE_CLASSIC_LINEAR_NARRATIVE, classic_linear_narrative_node)
 graph.add_node(NODE_MAP_OUTLINE, map_outline_to_visual_plan_node)
 graph.add_node(NODE_VISUAL_PLANNING, visual_planning_node)
+graph.add_node(NODE_MANIM_CODE_GENERATION, manim_code_generation_node)
+graph.add_node(NODE_SCENE_RENDERING, scene_rendering_node)
+graph.add_node(NODE_VIDEO_ASSEMBLY, video_assembly_node)
 
 # Entry
 graph.add_edge(START, NODE_VALIDATE_INPUT)
@@ -82,9 +98,34 @@ for outline_node in (
             },
         )
 
-# Fixed edges
+# Map outline → visual planning (fixed)
 graph.add_edge(NODE_MAP_OUTLINE, NODE_VISUAL_PLANNING)
-graph.add_edge(NODE_VISUAL_PLANNING, END)
+
+# Visual planning → code generation (conditional: skip if all plans failed)
+graph.add_conditional_edges(
+    NODE_VISUAL_PLANNING,
+    route_after_visual_planning,
+    {
+        NODE_MANIM_CODE_GENERATION: NODE_MANIM_CODE_GENERATION,
+        END: END,
+        },
+    )
+
+# Code generation → rendering (fixed: always attempt rendering)
+graph.add_edge(NODE_MANIM_CODE_GENERATION, NODE_SCENE_RENDERING)
+
+# Rendering → video assembly (conditional: only if ≥1 clip ready)
+graph.add_conditional_edges(
+    NODE_SCENE_RENDERING,
+    route_after_rendering,
+    {
+        NODE_VIDEO_ASSEMBLY: NODE_VIDEO_ASSEMBLY,
+        END: END,
+        },
+    )
+
+# Video assembly → done
+graph.add_edge(NODE_VIDEO_ASSEMBLY, END)
 
 # ── Compile ───────────────────────────────────────────────────────────────────
 
