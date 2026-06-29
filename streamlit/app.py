@@ -27,9 +27,12 @@ APPROACHES = [
 
 PIPELINE_STAGES = [
     ("validate_input", "Validate Input"),
-    ("generate_outline", "Generate Outline"),
-    ("map_outline", "Map to Scenes"),
+    ("generate_outline", "Gen Outline"),
+    ("map_outline", "Map Scenes"),
     ("visual_planning", "Visual Plans"),
+    ("manim_code_generation", "Gen Code"),
+    ("scene_rendering", "Render"),
+    ("video_assembly", "Assemble"),
     ]
 
 # ── Page config ───────────────────────────────────────────────────────────────
@@ -251,6 +254,8 @@ _defaults = {
     "pipeline_status": "idle",
     "stages": [],
     "scene_progress": None,
+    "render_status": None,  # per-scene render results
+    "final_video_path": None,
     "outline": None,
     "outline_type": None,
     "scenes": None,
@@ -336,6 +341,15 @@ def _fetch_artifacts(session_id: str) -> list[dict]:
         return []
 
 
+def _fetch_render_status(session_id: str) -> dict | None:
+    try:
+        resp = requests.get(f"{API_BASE}/render/status/{session_id}", timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
+
+
 def _fetch_artifact(session_id: str, artifact_type: str) -> dict | None:
     try:
         resp = requests.get(f"{API_BASE}/artifact/{session_id}/{artifact_type}", timeout=10)
@@ -377,6 +391,20 @@ def _refresh_all(session_id: str) -> None:
             st.session_state.scenes = sd["scene_visual_plans"]
             st.session_state.total_scenes = sd.get("total_scenes", len(sd["scene_visual_plans"]))
 
+    # Fetch render status when scene_rendering is active or done
+    render_stage = stages_by_name.get("scene_rendering", {})
+    if render_stage.get("status") in ("running", "completed"):
+        rs = _fetch_render_status(session_id)
+        if rs:
+            st.session_state.render_status = rs
+
+    # Capture final video path when video_assembly completes
+    assembly_stage = stages_by_name.get("video_assembly", {})
+    if assembly_stage.get("status") == "completed":
+        summary = assembly_stage.get("output_summary", {})
+        if summary.get("final_video_path"):
+            st.session_state.final_video_path = summary["final_video_path"]
+
 
 # ── Stage progress HTML ───────────────────────────────────────────────────────
 
@@ -398,9 +426,7 @@ def _connector_class(left_status: str, right_status: str) -> str:
     return "inactive"
 
 
-def _render_stage_progress(stages: list[dict]) -> None:
-    stages_by_name = {s["stage"]: s for s in stages}
-    ordered = [(key, label) for key, label in PIPELINE_STAGES]
+def _render_stage_row(ordered: list[tuple[str, str]], stages_by_name: dict) -> str:
     items_html = []
     for i, (key, label) in enumerate(ordered):
         info = stages_by_name.get(key, {})
@@ -423,9 +449,18 @@ def _render_stage_progress(stages: list[dict]) -> None:
             next_status = stages_by_name.get(ordered[i + 1][0], {}).get("status", "pending")
             cls = _connector_class(status, next_status)
             items_html.append(f'<div class="stage-connector {cls}"></div>')
+    return '<div class="stage-progress">' + "".join(items_html) + "</div>"
 
+
+def _render_stage_progress(stages: list[dict]) -> None:
+    stages_by_name = {s["stage"]: s for s in stages}
+    # Row 1: outline pipeline (first 4 stages)
+    row1 = PIPELINE_STAGES[:4]
+    # Row 2: render pipeline (last 3 stages)
+    row2 = PIPELINE_STAGES[4:]
     st.markdown(
-        '<div class="stage-progress">' + "".join(items_html) + "</div>",
+        _render_stage_row(row1, stages_by_name)
+        + _render_stage_row(row2, stages_by_name),
         unsafe_allow_html=True,
         )
 
@@ -433,7 +468,11 @@ def _render_stage_progress(stages: list[dict]) -> None:
 # ── Scene progress panel ──────────────────────────────────────────────────────
 
 def _scene_icon(status: str) -> str:
-    return {"completed": "🟢", "running": "🔵", "failed": "🔴", "pending": "⚪"}.get(status, "⚪")
+    return {
+        "completed": "🟢", "running": "🔵", "failed": "🔴", "pending": "⚪",
+        "ready": "🟢", "rendering": "🔵", "debugging": "🟡", "refactoring": "🟠",
+        "generating": "🔵",
+        }.get(status.lower(), "⚪")
 
 
 def _render_scene_progress(sp: dict) -> None:
@@ -587,6 +626,8 @@ with tab_generate:
         st.session_state.total_scenes = 0
         st.session_state.stages = []
         st.session_state.scene_progress = None
+        st.session_state.render_status = None
+        st.session_state.final_video_path = None
         st.session_state.pipeline_status = "queued"
         st.session_state.auto_poll = True
         try:
@@ -645,11 +686,41 @@ with tab_generate:
         else:
             _render_stage_progress(stages)
 
-        # Scene-level progress (shown when visual_planning is active)
+        # Scene-level progress (visual planning phase)
         stages_by_name = {s["stage"]: s for s in stages}
         vp_status = stages_by_name.get("visual_planning", {}).get("status")
         if vp_status in ("running", "completed") and st.session_state.scene_progress:
             _render_scene_progress(st.session_state.scene_progress)
+
+        # Render-level scene progress (scene_rendering phase)
+        render_stage_status = stages_by_name.get("scene_rendering", {}).get("status")
+        if render_stage_status in ("running", "completed") and st.session_state.render_status:
+            rs = st.session_state.render_status
+            render_results = rs.get("scene_render_results", [])
+            if render_results:
+                ready = sum(1 for r in render_results if r.get("status") == "READY")
+                failed = sum(1 for r in render_results if r.get("status") == "FAILED")
+                total_r = len(render_results)
+                st.markdown(
+                    f'<div style="font-size:0.82rem;color:#374151;margin-bottom:4px;">'
+                    f'<strong>Render progress:</strong> {ready}/{total_r} ready'
+                    + (f' · <span style="color:#991B1B">{failed} failed</span>' if failed else "")
+                    + "</div>",
+                    unsafe_allow_html=True,
+                    )
+                dots = []
+                for r in render_results:
+                    status = r.get("status", "PENDING").lower()
+                    idx = r.get("scene_index", "?")
+                    attempts = r.get("render_attempts", 0)
+                    title = r.get("title", f"Scene {idx}")
+                    icon = _scene_icon(status)
+                    tooltip = f"{idx}: {title} ({status}, {attempts} attempts)"
+                    dots.append(f'<div class="scene-dot" title="{tooltip}">{icon}</div>')
+                st.markdown(
+                    '<div class="scene-grid">' + "".join(dots) + "</div>",
+                    unsafe_allow_html=True,
+                    )
 
         # Pipeline status banner
         ps = st.session_state.pipeline_status
@@ -705,6 +776,38 @@ with tab_generate:
                     st.markdown(
                         f'<div class="output-card"><h4>✓ {name}{dur_s}</h4>'
                         f"<p style='font-size:0.8rem;'>{note}</p></div>",
+                        unsafe_allow_html=True,
+                        )
+                elif stage["stage"] == "manim_code_generation":
+                    ready = summary.get("ready_scenes", "?")
+                    failed = summary.get("failed_scenes", 0)
+                    note = (
+                            f"<strong>{ready}</strong> code files generated"
+                            + (f", <strong>{failed}</strong> failed" if failed else "")
+                    )
+                    st.markdown(
+                        f'<div class="output-card"><h4>✓ {name}{dur_s}</h4>'
+                        f"<p style='font-size:0.8rem;'>{note}</p></div>",
+                        unsafe_allow_html=True,
+                        )
+                elif stage["stage"] == "scene_rendering":
+                    ready = summary.get("ready_scenes", "?")
+                    failed = summary.get("failed_scenes", 0)
+                    note = (
+                            f"<strong>{ready}</strong> scenes rendered"
+                            + (f", <strong>{failed}</strong> failed" if failed else "")
+                    )
+                    st.markdown(
+                        f'<div class="output-card"><h4>✓ {name}{dur_s}</h4>'
+                        f"<p style='font-size:0.8rem;'>{note}</p></div>",
+                        unsafe_allow_html=True,
+                        )
+                elif stage["stage"] == "video_assembly":
+                    asm_ms = summary.get("assembly_duration_ms")
+                    asm_str = f" · assembled in {asm_ms / 1000:.1f}s" if asm_ms else ""
+                    st.markdown(
+                        f'<div class="output-card"><h4>✓ {name}{dur_s}</h4>'
+                        f"<p style='font-size:0.8rem;'>Final video ready{asm_str}</p></div>",
                         unsafe_allow_html=True,
                         )
 
@@ -781,6 +884,22 @@ with tab_generate:
                 file_name="scene_visual_plans.json",
                 mime="application/json",
                 key="download_all_scene_plans",
+                )
+
+        # ── Final video ────────────────────────────────────────────────────
+
+        assembly_done = stages_by_name.get("video_assembly", {}).get("status") == "completed"
+        if assembly_done and st.session_state.session_id:
+            st.markdown("<hr>", unsafe_allow_html=True)
+            st.markdown("<h2>Final Video</h2>", unsafe_allow_html=True)
+            video_url = f"{API_BASE}/video/{st.session_state.session_id}"
+            st.video(video_url)
+            st.download_button(
+                "Download Video (MP4)",
+                data=requests.get(video_url, timeout=60).content,
+                file_name=f"{st.session_state.session_id}_final.mp4",
+                mime="video/mp4",
+                key="download_final_video",
                 )
 
         # ── Artifact preview ───────────────────────────────────────────────
