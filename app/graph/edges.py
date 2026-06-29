@@ -7,9 +7,7 @@ Edge map
 --------
     START
       → validate_input
-      → [route_by_approach]   ──► conceptual_zoom
-                              ──► problem_solution_arc
-                              ──► classic_linear_narrative
+      → [route_by_approach]   ──► generate_outline
                               ──► END  (validation failure)
       → [route_after_outline] ──► map_outline_to_visual_plan
                               ──► END  (outline failure)
@@ -21,27 +19,18 @@ from __future__ import annotations
 
 from langgraph.graph import END
 
-from app.graph.models.enums import NarrativeApproach
 from app.graph.state import GraphState
 
 
 # ── Node name constants ───────────────────────────────────────────────────────
 
 NODE_VALIDATE_INPUT = "validate_input"
-NODE_CONCEPTUAL_ZOOM = "conceptual_zoom"
-NODE_PROBLEM_SOLUTION_ARC = "problem_solution_arc"
-NODE_CLASSIC_LINEAR_NARRATIVE = "classic_linear_narrative"
+NODE_GENERATE_OUTLINE = "generate_outline"
 NODE_MAP_OUTLINE = "map_outline_to_visual_plan"
 NODE_VISUAL_PLANNING = "visual_planning"
 NODE_MANIM_CODE_GENERATION = "manim_code_generation"
 NODE_SCENE_RENDERING = "scene_rendering"
 NODE_VIDEO_ASSEMBLY = "video_assembly"
-
-_APPROACH_TO_NODE: dict[str, str] = {
-    NarrativeApproach.CONCEPTUAL_ZOOM.value: NODE_CONCEPTUAL_ZOOM,
-    NarrativeApproach.PROBLEM_SOLUTION_ARC.value: NODE_PROBLEM_SOLUTION_ARC,
-    NarrativeApproach.CLASSIC_LINEAR_NARRATIVE.value: NODE_CLASSIC_LINEAR_NARRATIVE,
-    }
 
 
 # ── Routing functions ─────────────────────────────────────────────────────────
@@ -49,8 +38,7 @@ _APPROACH_TO_NODE: dict[str, str] = {
 def route_by_approach(state: GraphState) -> str:
     """Conditional edge after validate_input.
 
-    Routes to the correct outline generator based on the validated approach.
-    Falls through to END if validation failed.
+    Routes to generate_outline on success, or END if validation failed.
     """
     from app.core.context import request_logger_var
 
@@ -65,17 +53,14 @@ def route_by_approach(state: GraphState) -> str:
                 )
         return END
 
-    # With use_enum_values=True on GraphState, state.approach is already a str
-    target = _APPROACH_TO_NODE.get(state.approach, END)
-
     if rl:
         rl.routing_decision(
             from_node=NODE_VALIDATE_INPUT,
-            to_node=str(target),
+            to_node=NODE_GENERATE_OUTLINE,
             reason=f"approach={state.approach}",
             )
 
-    return target
+    return NODE_GENERATE_OUTLINE
 
 
 def route_after_visual_planning(state: GraphState) -> str:
@@ -116,6 +101,27 @@ def route_after_rendering(state: GraphState) -> str:
             from_node=NODE_SCENE_RENDERING,
             to_node=str(target),
             reason="clips_ready" if any_ready else "all_failed",
+            )
+
+    return target
+
+
+def route_after_map_outline(state: GraphState) -> str:
+    """Conditional edge after map_outline_to_visual_plan.
+
+    Routes to visual_planning normally, or END when the outline had zero scenes.
+    """
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+    failed = state.status == "failed" or not state.video_outline
+    target = END if failed else NODE_VISUAL_PLANNING
+
+    if rl:
+        rl.routing_decision(
+            from_node=NODE_MAP_OUTLINE,
+            to_node=str(target),
+            reason="no_scenes" if failed else "scenes_ready",
             )
 
     return target
