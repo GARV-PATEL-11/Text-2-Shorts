@@ -1,18 +1,35 @@
-"""logger.py — Terminal output, JSONL tracing, and per-request audit logging."""
+"""logger.py — Terminal output, JSONL tracing, and per-request audit logging.
 
+All log entries are routed through LoggingService and validated against the
+corresponding typed schema before being persisted.  The public API of
+RequestLogger is preserved so existing call sites continue to work without
+modification.
+"""
 from __future__ import annotations
 
 import asyncio
 import functools
-import json
 import logging
 import os
 import sys
-import threading
 import time
 import traceback as _traceback
-from datetime import datetime, timezone
 from typing import Any, Callable
+
+from app.core.log_schemas import (
+    ApiEvent,
+    ErrorEvent,
+    LlmEvent,
+    LogLevel,
+    LogStatus,
+    MetricEvent,
+    NodeEvent,
+    StageEvent,
+    StorageEvent,
+    SystemEvent,
+    WorkflowEvent,
+    )
+from app.core.logging_service import LoggingService
 
 
 # ── Standard LogRecord attribute names excluded from extras display ────────────
@@ -89,6 +106,7 @@ def configure_root_logging(level: int = logging.INFO) -> None:
 
     os.makedirs("logs", exist_ok=True)
     os.makedirs(os.path.join("logs", "requests"), exist_ok=True)
+    os.makedirs(os.path.join("logs", "sessions"), exist_ok=True)
 
     trace_logger = logging.getLogger("llm.trace")
     if not trace_logger.handlers:
@@ -98,21 +116,27 @@ def configure_root_logging(level: int = logging.INFO) -> None:
         trace_logger.propagate = False
         trace_logger.setLevel(logging.INFO)
 
+    LoggingService.get().emit(
+        SystemEvent(
+            action="startup",
+            component="app",
+            environment=os.getenv("ENV", "development"),
+            status=LogStatus.SUCCESS,
+            level=LogLevel.INFO,
+            ),
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Per-request JSONL audit logger
 # ══════════════════════════════════════════════════════════════════════════════
 
 class RequestLogger:
-    """Writes a structured JSONL audit trail for a single pipeline request.
+    """Per-pipeline-request structured logger backed by LoggingService.
 
-    File location: logs/requests/{session_id}_{YYYYmmdd_HHMMSS}.jsonl
-
-    Every public method silently swallows I/O errors so the pipeline is
-    never disrupted by logging failures.
+    Every public method emits a typed schema validated through the centralized
+    LoggingService.  The public API is preserved for backward compatibility.
     """
-
-    _DIR = os.path.join("logs", "requests")
 
     def __init__(
             self,
@@ -121,9 +145,12 @@ class RequestLogger:
             payload: dict[str, Any],
             config: dict[str, Any] | None = None,
             ) -> None:
+        from uuid import uuid4
+
         self.session_id = session_id
+        self.request_id: str = uuid4().hex
         self._start = time.perf_counter()
-        self._lock = threading.Lock()
+        self._svc = LoggingService.get()
 
         # Aggregated for final summary
         self._nodes_executed: list[str] = []
@@ -134,49 +161,48 @@ class RequestLogger:
         self._retry_count = 0
         self._fallback_count = 0
 
-        os.makedirs(self._DIR, exist_ok=True)
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        self._path = os.path.join(self._DIR, f"{session_id}_{ts}.jsonl")
-
-        self._write({
-            "event": "request.start",
-            "endpoint": endpoint,
-            "payload": payload,
-            "config": config or {},
-            "pid": os.getpid(),
-            },
+        self._svc.emit(
+            ApiEvent(
+                request_id=self.request_id,
+                session_id=session_id,
+                method="POST",
+                path=endpoint,
+                status=LogStatus.RUNNING,
+                level=LogLevel.INFO,
+                details={"payload": payload, "config": config or {}},
+                ),
             )
 
-    # ── Low-level writer ──────────────────────────────────────────────────────
+    # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _elapsed_ms(self) -> float:
         return round((time.perf_counter() - self._start) * 1000, 2)
 
-    def _write(self, data: dict[str, Any]) -> None:
-        record: dict[str, Any] = {
+    def _base(self) -> dict[str, Any]:
+        return {
+            "request_id": self.request_id,
             "session_id": self.session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "elapsed_ms": self._elapsed_ms(),
+            "duration_ms": self._elapsed_ms(),
             }
-        record.update(data)
-        with self._lock:
-            try:
-                with open(self._path, "a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(record, default=str) + "\n")
-            except Exception:
-                pass
+
+    # ── Typed emit shortcut ───────────────────────────────────────────────────
+
+    def emit(self, log: Any) -> None:
+        """Emit a pre-constructed typed schema instance directly."""
+        self._svc.emit(log)
 
     # ── Function lifecycle ────────────────────────────────────────────────────
 
     def function_entry(self, func: str, module: str, args: dict | None = None) -> None:
         if func.startswith("node:") and func[5:] not in self._nodes_executed:
             self._nodes_executed.append(func[5:])
-        self._write({
-            "event": "function.entry",
-            "func": func,
-            "module": module,
-            "args": args or {},
-            },
+        self._svc.emit(
+            NodeEvent(
+                **self._base(),
+                node_name=func,
+                status=LogStatus.RUNNING,
+                details={"args": args or {}},
+                ),
             )
 
     def function_exit(
@@ -186,35 +212,40 @@ class RequestLogger:
             status: str,
             result: str | None = None,
             ) -> None:
-        self._write({
-            "event": "function.exit",
-            "func": func,
-            "duration_ms": duration_ms,
-            "status": status,
-            "result": result,
-            },
+        log_status = LogStatus.SUCCESS if status == "success" else LogStatus.FAILED
+        self._svc.emit(
+            NodeEvent(
+                **self._base(),
+                node_name=func,
+                status=log_status,
+                details={"result": result},
+                ),
             )
 
     # ── Pipeline stage events ─────────────────────────────────────────────────
 
     def pipeline_step(self, step: str, details: dict | None = None) -> None:
-        """Log a named processing step with optional structured details."""
-        self._write({
-            "event": "pipeline.step",
-            "step": step,
-            "details": details or {},
-            },
+        self._svc.emit(
+            StageEvent(
+                **self._base(),
+                stage_name=step,
+                status=LogStatus.RUNNING,
+                level=LogLevel.INFO,
+                details=details or {},
+                ),
             )
 
     def routing_decision(
             self, *, from_node: str, to_node: str, reason: str = "",
             ) -> None:
-        self._write({
-            "event": "pipeline.routing",
-            "from_node": from_node,
-            "to_node": to_node,
-            "reason": reason,
-            },
+        self._svc.emit(
+            NodeEvent(
+                **self._base(),
+                node_name=from_node,
+                next_node=to_node,
+                status=LogStatus.SUCCESS,
+                details={"reason": reason},
+                ),
             )
 
     # ── LLM events ───────────────────────────────────────────────────────────
@@ -236,21 +267,29 @@ class RequestLogger:
             response: str = "",
             ) -> None:
         record = {
-            "provider": provider,
-            "model": model,
-            "node": node,
-            "latency_ms": latency_ms,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "total_tokens": total_tokens,
-            "is_structured": is_structured,
-            "attempt": attempt,
-            "system_prompt_len": len(system_prompt),
-            "user_prompt_preview": user_prompt[:300],
-            "response_preview": response[:300],
+            "provider": provider, "model": model, "node": node,
+            "latency_ms": latency_ms, "input_tokens": input_tokens,
+            "output_tokens": output_tokens, "total_tokens": total_tokens,
+            "is_structured": is_structured, "attempt": attempt,
             }
         self._llm_calls.append(record)
-        self._write({"event": "llm.call", **record})
+        self._svc.emit(
+            LlmEvent(
+                **self._base(),
+                node=node,
+                provider=provider,
+                model=model,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=total_tokens,
+                is_structured=is_structured,
+                attempt=attempt,
+                prompt_preview=user_prompt[:300],
+                response_preview=response[:300],
+                duration_ms=latency_ms,
+                status=LogStatus.SUCCESS,
+                ),
+            )
 
     def llm_retry(
             self,
@@ -262,14 +301,19 @@ class RequestLogger:
             error: str,
             ) -> None:
         self._retry_count += 1
-        self._write({
-            "event": "llm.retry",
-            "model": model,
-            "attempt": attempt,
-            "max_attempts": max_attempts,
-            "wait_s": wait_s,
-            "error": str(error)[:300],
-            },
+        self._svc.emit(
+            LlmEvent(
+                **self._base(),
+                model=model,
+                attempt=attempt,
+                status=LogStatus.RETRYING,
+                level=LogLevel.WARNING,
+                details={
+                    "max_attempts": max_attempts,
+                    "wait_s": wait_s,
+                    "error": str(error)[:300],
+                    },
+                ),
             )
 
     def llm_fallback(
@@ -281,13 +325,19 @@ class RequestLogger:
             reason: str = "",
             ) -> None:
         self._fallback_count += 1
-        self._write({
-            "event": "llm.fallback",
-            "from_model": from_model,
-            "to_model": to_model,
-            "after_attempts": after_attempts,
-            "reason": str(reason)[:300],
-            },
+        self._svc.emit(
+            LlmEvent(
+                **self._base(),
+                model=to_model,
+                status=LogStatus.RETRYING,
+                level=LogLevel.WARNING,
+                details={
+                    "from_model": from_model,
+                    "to_model": to_model,
+                    "after_attempts": after_attempts,
+                    "reason": str(reason)[:300],
+                    },
+                ),
             )
 
     # ── I/O events ───────────────────────────────────────────────────────────
@@ -296,12 +346,15 @@ class RequestLogger:
             self, *, path: str, size_bytes: int = 0, content_type: str = "",
             ) -> None:
         self._artifacts.append(path)
-        self._write({
-            "event": "file.write",
-            "path": path,
-            "size_bytes": size_bytes,
-            "content_type": content_type,
-            },
+        self._svc.emit(
+            StorageEvent(
+                **self._base(),
+                operation="write",
+                path=path,
+                size_bytes=size_bytes,
+                content_type=content_type,
+                status=LogStatus.SUCCESS,
+                ),
             )
 
     # ── Error and warning events ──────────────────────────────────────────────
@@ -319,18 +372,36 @@ class RequestLogger:
             "message": str(exc)[:500],
             "context": context,
             "func": func,
-            "traceback": _traceback.format_exc()[-2000:],
-            "extra": extra or {},
             }
         self._errors.append(record)
-        self._write({"event": "error", **record})
+        self._svc.emit(
+            ErrorEvent(
+                **self._base(),
+                error_type=type(exc).__name__,
+                message=str(exc)[:500],
+                traceback=_traceback.format_exc()[-2000:],
+                context=context,
+                level=LogLevel.ERROR,
+                details=extra or {},
+                ),
+            )
 
     def warning(
             self, *, message: str, context: str, extra: dict | None = None,
             ) -> None:
-        record = {"message": message[:300], "context": context, "extra": extra or {}}
+        record = {"message": message[:300], "context": context}
         self._warnings.append(record)
-        self._write({"event": "warning", **record})
+        self._svc.emit(
+            ErrorEvent(
+                **self._base(),
+                error_type="Warning",
+                message=message[:300],
+                context=context,
+                level=LogLevel.WARNING,
+                status=LogStatus.RUNNING,
+                details=extra or {},
+                ),
+            )
 
     # ── Final summary ─────────────────────────────────────────────────────────
 
@@ -349,26 +420,60 @@ class RequestLogger:
         total_llm_ms = round(
             sum(c.get("latency_ms", 0) for c in self._llm_calls), 2,
             )
-        self._write({
-            "event": "request.summary",
-            "total_elapsed_ms": total_ms,
-            "status": status,
-            "final_stage": final_stage,
-            "outline_type": outline_type,
-            "total_scenes": total_scenes,
-            "error": error,
-            "nodes_executed": self._nodes_executed,
-            "llm_calls_total": len(self._llm_calls),
-            "total_input_tokens": total_in,
-            "total_output_tokens": total_out,
-            "total_llm_latency_ms": total_llm_ms,
-            "retries_total": self._retry_count,
-            "fallbacks_total": self._fallback_count,
-            "errors_total": len(self._errors),
-            "warnings_total": len(self._warnings),
-            "artifacts_saved": self._artifacts,
-            "log_file": self._path,
-            },
+
+        log_status = (
+            LogStatus.SUCCESS if status == "completed"
+            else LogStatus.FAILED if status == "failed"
+            else LogStatus.RUNNING
+        )
+
+        self._svc.emit(
+            WorkflowEvent(
+                request_id=self.request_id,
+                session_id=self.session_id,
+                total_scenes=total_scenes,
+                status=log_status,
+                duration_ms=total_ms,
+                level=LogLevel.ERROR if status == "failed" else LogLevel.INFO,
+                details={
+                    "final_stage": final_stage,
+                    "outline_type": outline_type,
+                    "error": error,
+                    "nodes_executed": self._nodes_executed,
+                    "llm_calls_total": len(self._llm_calls),
+                    "total_input_tokens": total_in,
+                    "total_output_tokens": total_out,
+                    "total_llm_latency_ms": total_llm_ms,
+                    "retries_total": self._retry_count,
+                    "fallbacks_total": self._fallback_count,
+                    "errors_total": len(self._errors),
+                    "warnings_total": len(self._warnings),
+                    "artifacts_saved": self._artifacts,
+                    },
+                ),
+            )
+
+        self._svc.emit(
+            MetricEvent(
+                request_id=self.request_id,
+                session_id=self.session_id,
+                metric_name="pipeline.total_tokens",
+                value=float(total_in + total_out),
+                unit="tokens",
+                status=log_status,
+                tags={"session_id": self.session_id},
+                ),
+            )
+        self._svc.emit(
+            MetricEvent(
+                request_id=self.request_id,
+                session_id=self.session_id,
+                metric_name="pipeline.duration_ms",
+                value=total_ms,
+                unit="ms",
+                status=log_status,
+                tags={"session_id": self.session_id},
+                ),
             )
 
 
@@ -416,7 +521,6 @@ def log_call(
 
         @functools.wraps(fn)
         async def _async(*args: Any, **kwargs: Any) -> Any:
-            # Lazy import to avoid circular dependency at module load time
             from app.core.context import request_logger_var
 
             rl: RequestLogger | None = request_logger_var.get()
