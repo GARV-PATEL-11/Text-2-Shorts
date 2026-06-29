@@ -38,7 +38,7 @@ _APPROACH_CONFIG: dict[str, tuple[str, type, str]] = {
 
 @log_call(stage="util:refine_requirement")
 async def refine_requirement(*, session_id: str, workflow_id: str, requirement: str) -> str:
-    """Call Gemini 2.5 Flash to refine a raw user requirement."""
+    """Call Cloudflare to refine a raw user requirement (best-effort)."""
     tok_s = session_id_var.set(session_id)
     tok_w = workflow_id_var.set(workflow_id)
     tok_n = node_name_var.set("refine_requirement")
@@ -47,7 +47,7 @@ async def refine_requirement(*, session_id: str, workflow_id: str, requirement: 
     if rl is not None:
         rl.pipeline_step("requirement.refine.start", {
             "original_len": len(requirement),
-            "model": settings.GEMINI_25_FLASH_MODEL,
+            "model": settings.CLOUDFLARE_PRIMARY_MODEL,
             },
             )
 
@@ -55,7 +55,7 @@ async def refine_requirement(*, session_id: str, workflow_id: str, requirement: 
         llm = get_client(LLMProvider.GEMINI)
         refined = await llm.ainvoke(
             user_prompt=requirement,
-            model=settings.GEMINI_25_FLASH_MODEL,
+            model=settings.CLOUDFLARE_PRIMARY_MODEL,
             system_prompt=REQ_MODIFIER_SYSTEM,
             temperature=0.35,
             )
@@ -124,9 +124,15 @@ async def validate_input(state: GraphState) -> dict:
         error = None
 
     except Exception as exc:
+        # Refinement is best-effort — fall back to the original requirement
+        # and continue the pipeline rather than terminating it.
         refined_req = state.requirement
-        status = "failed"
-        error = str(exc)
+        status = "ready"
+        error = None
+        logger.warning(
+            "Requirement refinement failed; proceeding with original",
+            extra={"session_id": state.session_id, "error": str(exc)},
+            )
         if rl is not None:
             rl.warning(
                 message=f"Requirement refinement failed, using original: {exc}",

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from app.core.config import settings
@@ -17,6 +18,12 @@ from app.services.factory import get_client, LLMProvider
 logger = StructuredLogger.get_logger(__name__)
 
 _LOGS_DIR = "logs"
+
+
+def extract_class_name(code: str) -> str | None:
+    """Extract the Manim Scene subclass name from Python source code."""
+    match = re.search(r"^class\s+(\w+)\s*\(.*?Scene.*?\)", code, re.MULTILINE)
+    return match.group(1) if match else None
 
 
 def save_output_to_log(filename: str, payload: dict) -> None:
@@ -42,10 +49,7 @@ async def generate_outline(
         schema_class: type,
         outline_type: str,
         ) -> OutlineOutputState:
-    """Gemini 3.5 Flash (with 3.0 fallback) structured outline generation.
-
-    Shared by all three outline generator nodes.
-    """
+    """Structured outline generation shared by all three outline generator nodes."""
     tok_s = session_id_var.set(state.session_id)
     tok_w = workflow_id_var.set(state.workflow_id)
     tok_n = node_name_var.set(outline_type)
@@ -57,8 +61,8 @@ async def generate_outline(
         rl.pipeline_step("outline.generate.start", {
             "outline_type": outline_type,
             "schema": schema_class.__name__,
-            "primary_model": settings.GEMINI_35_FLASH_MODEL,
-            "fallback_model": settings.GEMINI_3_FLASH_MODEL,
+            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
+            "fallback_model": settings.CLOUDFLARE_FALLBACK_MODEL,
             "requirement_len": len(refined_req),
             },
             )
@@ -74,8 +78,8 @@ async def generate_outline(
 
         outline, model_used, total_attempts = await ainvoke_structured_with_fallback(
             llm,
-            primary_model=settings.GEMINI_35_FLASH_MODEL,
-            fallback_model=settings.GEMINI_3_FLASH_MODEL,
+            primary_model=settings.CLOUDFLARE_PRIMARY_MODEL,
+            fallback_model=settings.CLOUDFLARE_FALLBACK_MODEL,
             user_prompt=outline_user_msg,
             schema=schema_class,
             system_prompt=state.system_prompt or "",
@@ -110,8 +114,8 @@ async def generate_outline(
                 "session_id": state.session_id,
                 "workflow_id": state.workflow_id,
                 "outline_type": outline_type,
-                "primary_model": settings.GEMINI_35_FLASH_MODEL,
-                "fallback_model": settings.GEMINI_3_FLASH_MODEL,
+                "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
+                "fallback_model": settings.CLOUDFLARE_FALLBACK_MODEL,
                 "model_used": model_used,
                 "total_attempts": total_attempts,
                 "timestamp": datetime.now(timezone.utc).isoformat(),

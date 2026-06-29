@@ -73,6 +73,21 @@ def map_outline_to_visual_plan(state: GraphState) -> VisualDSLInputState:
 @log_call(stage="node:map_outline_to_visual_plan")
 def map_outline_to_visual_plan_node(state: GraphState) -> dict:
     """LangGraph node wrapper for map_outline_to_visual_plan."""
+    # Guard: empty outline → fail fast before Pydantic validation runs
+    raw_outline = state.outline or {}
+    segments = raw_outline.get("outline", [])
+    if not segments:
+        logger.warning(
+            "Outline produced zero scenes — aborting pipeline",
+            extra={"session_id": state.session_id},
+            )
+        return {
+            "total_scenes": 0,
+            "video_outline": [],
+            "status": "failed",
+            "error": "Outline contained no scenes; cannot proceed to visual planning",
+            }
+
     result = map_outline_to_visual_plan(state)
     return {
         "total_scenes": result.total_scenes,

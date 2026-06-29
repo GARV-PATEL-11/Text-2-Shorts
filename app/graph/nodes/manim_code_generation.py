@@ -1,22 +1,28 @@
 """manim_code_generation.py — Node: generate Manim Python code from Visual DSL."""
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 
-from app.core.artifact_store import ArtifactStore
 from app.core.config import settings
 from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
 from app.core.logger import log_call, StructuredLogger
 from app.core.stage_tracker import StageTracker
 from app.graph.models.graph_state import GraphState
 from app.graph.models.render_state import SceneManimCode
+from app.graph.models.visual_planning_state import SceneVisualPlan
+from app.graph.nodes.utils import extract_class_name as _extract_class_name  # noqa: F401 (re-exported for
+# scene_rendering)
 from app.graph.prompts.visual_code_gen_prompt import build_user_prompt, SYSTEM_PROMPT as CODE_GEN_SYSTEM
 from app.graph.retry import ainvoke_with_fallback
 from app.services.factory import get_client, LLMProvider
+from app.storage.artifact_store import ArtifactStore
 
 
 logger = StructuredLogger.get_logger(__name__)
+
+_CONCURRENCY = 3  # max simultaneous LLM calls for code generation
 
 
 def _extract_python_block(text: str) -> str | None:
@@ -28,12 +34,6 @@ def _extract_python_block(text: str) -> str | None:
     if match:
         return match.group(1).strip()
     return None
-
-
-def _extract_class_name(code: str) -> str | None:
-    """Extract the Manim Scene subclass name from Python source code."""
-    match = re.search(r"^class\s+(\w+)\s*\(.*?Scene.*?\)", code, re.MULTILINE)
-    return match.group(1) if match else None
 
 
 def _parse_code_gen_response(raw: str) -> tuple[str | None, str, list[str]]:
@@ -60,53 +60,36 @@ def _parse_code_gen_response(raw: str) -> tuple[str | None, str, list[str]]:
     return python_code, summary, assumptions
 
 
-@log_call(stage="node:manim_code_generation")
-async def manim_code_generation_node(state: GraphState) -> dict:
-    """Generate a complete Manim Python file for every scene with a valid Visual DSL plan."""
-    if not state.scene_visual_plans:
-        return {
-            "scene_manim_codes": [],
-            "status": "failed",
-            "error": "manim_code_generation requires visual_planning to run first",
-            }
+async def _generate_scene_code(
+        visual_plan: SceneVisualPlan,
+        llm,
+        store: ArtifactStore,
+        tracker,
+        session_id: str,
+        workflow_id: str,
+        semaphore: asyncio.Semaphore,
+        ) -> SceneManimCode:
+    """Generate Manim code for a single scene. Runs under *semaphore* to cap concurrency."""
+    idx = visual_plan.scene_index
 
-    rl = request_logger_var.get()
-    llm = get_client(LLMProvider.GEMINI)
-    store = ArtifactStore(state.session_id)
-    tracker = StageTracker.for_session(state.session_id)
-
-    if rl:
-        rl.pipeline_step("manim_code_generation.start", {
-            "session_id": state.session_id,
-            "total_scenes": len(state.scene_visual_plans),
-            },
+    if visual_plan.error:
+        tracker.update_scene_render_status(idx, "FAILED")
+        return SceneManimCode(
+            scene_index=idx,
+            title=visual_plan.title,
+            status="FAILED",
+            error=f"Skipped: upstream visual plan failed — {visual_plan.error}",
             )
 
-    scene_manim_codes: list[SceneManimCode] = []
+    existing_meta = store.load_scene_code_meta(idx)
+    if existing_meta and existing_meta.get("status") == "READY":
+        return SceneManimCode(**existing_meta)
 
-    for visual_plan in state.scene_visual_plans:
-        idx = visual_plan.scene_index
-
-        if visual_plan.error:
-            scene_manim_codes.append(SceneManimCode(
-                scene_index=idx,
-                title=visual_plan.title,
-                status="FAILED",
-                error=f"Skipped: upstream visual plan failed — {visual_plan.error}",
-                ),
-                )
-            tracker.update_scene_render_status(idx, "FAILED")
-            continue
-
-        existing_meta = store.load_scene_code_meta(idx)
-        if existing_meta and existing_meta.get("status") == "READY":
-            scene_manim_codes.append(SceneManimCode(**existing_meta))
-            continue
-
+    async with semaphore:
         tracker.update_scene_render_status(idx, "GENERATING")
 
-        tok_s = session_id_var.set(state.session_id)
-        tok_w = workflow_id_var.set(state.workflow_id)
+        tok_s = session_id_var.set(session_id)
+        tok_w = workflow_id_var.set(workflow_id)
         tok_n = node_name_var.set(f"manim_code_generation/scene_{idx}")
 
         try:
@@ -119,8 +102,8 @@ async def manim_code_generation_node(state: GraphState) -> dict:
 
             raw, model_used, total_attempts = await ainvoke_with_fallback(
                 llm,
-                primary_model=settings.GEMINI_35_FLASH_MODEL,
-                fallback_model=settings.GEMINI_3_FLASH_MODEL,
+                primary_model=settings.CLOUDFLARE_CODING_MODEL,
+                fallback_model=settings.CLOUDFLARE_PRIMARY_MODEL,
                 user_prompt=user_prompt,
                 system_prompt=CODE_GEN_SYSTEM,
                 temperature=0.2,
@@ -150,33 +133,68 @@ async def manim_code_generation_node(state: GraphState) -> dict:
             logger.info(
                 "Manim code generated",
                 extra={
-                    "session_id": state.session_id,
+                    "session_id": session_id,
                     "scene_index": idx,
                     "model_used": model_used,
                     "total_attempts": total_attempts,
                     "code_lines": len(python_code.splitlines()),
                     },
                 )
+            return code_record
 
         except Exception as exc:
             logger.error(
                 "Manim code generation failed",
-                extra={"session_id": state.session_id, "scene_index": idx, "error": str(exc)},
+                extra={"session_id": session_id, "scene_index": idx, "error": str(exc)},
                 )
-            code_record = SceneManimCode(
+            tracker.update_scene_render_status(idx, "FAILED")
+            return SceneManimCode(
                 scene_index=idx,
                 title=visual_plan.title,
                 status="FAILED",
                 error=str(exc),
                 )
-            tracker.update_scene_render_status(idx, "FAILED")
 
         finally:
             session_id_var.reset(tok_s)
             workflow_id_var.reset(tok_w)
             node_name_var.reset(tok_n)
 
-        scene_manim_codes.append(code_record)
+
+@log_call(stage="node:manim_code_generation")
+async def manim_code_generation_node(state: GraphState) -> dict:
+    """Generate Manim Python for every scene with a valid Visual DSL plan (parallel, capped at 3)."""
+    if not state.scene_visual_plans:
+        return {
+            "scene_manim_codes": [],
+            "status": "failed",
+            "error": "manim_code_generation requires visual_planning to run first",
+            }
+
+    rl = request_logger_var.get()
+    llm = get_client(LLMProvider.GEMINI)
+    store = ArtifactStore(state.session_id)
+    tracker = StageTracker.for_session(state.session_id)
+
+    if rl:
+        rl.pipeline_step("manim_code_generation.start", {
+            "session_id": state.session_id,
+            "total_scenes": len(state.scene_visual_plans),
+            },
+            )
+
+    semaphore = asyncio.Semaphore(_CONCURRENCY)
+    scene_manim_codes: list[SceneManimCode] = list(
+        await asyncio.gather(
+            *[
+                _generate_scene_code(
+                    vp, llm, store, tracker,
+                    state.session_id, state.workflow_id, semaphore,
+                    )
+                for vp in state.scene_visual_plans
+                ],
+            ),
+        )
 
     all_failed = all(c.status == "FAILED" for c in scene_manim_codes)
     final_status = "failed" if all_failed else "completed"

@@ -5,10 +5,11 @@ import asyncio
 import time
 from pathlib import Path
 
-from app.core.artifact_store import ArtifactStore
+from app.core.config import settings
 from app.core.context import request_logger_var
 from app.core.logger import log_call, StructuredLogger
 from app.graph.models.graph_state import GraphState
+from app.storage.artifact_store import ArtifactStore
 
 
 logger = StructuredLogger.get_logger(__name__)
@@ -26,7 +27,14 @@ async def _run_ffmpeg_concat(concat_file: Path, output_path: Path) -> tuple[int,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         )
-    stdout_bytes, stderr_bytes = await proc.communicate()
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=settings.FFMPEG_TIMEOUT_S,
+            )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return 1, "", f"FFmpeg timed out after {settings.FFMPEG_TIMEOUT_S}s"
     return proc.returncode or 0, stdout_bytes.decode(errors="replace"), stderr_bytes.decode(errors="replace")
 
 

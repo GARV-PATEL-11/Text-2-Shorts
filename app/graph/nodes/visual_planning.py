@@ -5,7 +5,6 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.artifact_store import ArtifactStore
 from app.core.config import settings
 from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
 from app.core.logger import log_call, StructuredLogger
@@ -16,6 +15,7 @@ from app.graph.nodes.utils import save_output_to_log
 from app.graph.prompts.visual_plan_gen_prompt import generate_visual_plan_prompt, SceneDirectorInput
 from app.graph.retry import ainvoke_with_fallback
 from app.services.factory import get_client, LLMProvider
+from app.storage.artifact_store import ArtifactStore
 
 
 logger = StructuredLogger.get_logger(__name__)
@@ -101,7 +101,7 @@ async def visual_planning_node(state: GraphState) -> dict:
         rl.pipeline_step("visual_planning.start", {
             "session_id": state.session_id,
             "total_scenes": state.total_scenes,
-            "primary_model": settings.GEMINI_35_FLASH_MODEL,
+            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
             "pre_existing_scenes": len(pre_existing),
             },
             )
@@ -170,8 +170,8 @@ async def visual_planning_node(state: GraphState) -> dict:
         try:
             plan_raw, model_used, total_attempts = await ainvoke_with_fallback(
                 llm,
-                primary_model=settings.GEMINI_35_FLASH_MODEL,
-                fallback_model=settings.GEMINI_3_FLASH_MODEL,
+                primary_model=settings.CLOUDFLARE_PRIMARY_MODEL,
+                fallback_model=settings.CLOUDFLARE_FALLBACK_MODEL,
                 user_prompt=prompts["user"],
                 system_prompt=prompts["system"],
                 temperature=0.4,
@@ -259,8 +259,8 @@ async def visual_planning_node(state: GraphState) -> dict:
         {
             "session_id": state.session_id,
             "workflow_id": state.workflow_id,
-            "primary_model": settings.GEMINI_35_FLASH_MODEL,
-            "fallback_model": settings.GEMINI_3_FLASH_MODEL,
+            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
+            "fallback_model": settings.CLOUDFLARE_FALLBACK_MODEL,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_scenes": state.total_scenes,
             "scene_visual_plans": [p.model_dump() for p in scene_visual_plans],

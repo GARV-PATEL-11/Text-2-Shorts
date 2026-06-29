@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 from pathlib import Path
 
-from app.core.artifact_store import ArtifactStore
 from app.core.config import settings
 from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
 from app.core.logger import log_call, StructuredLogger
@@ -15,20 +13,16 @@ from app.core.stage_tracker import StageTracker
 from app.graph.models.graph_state import GraphState
 from app.graph.models.render_state import SceneRenderResult
 from app.graph.nodes.manim_code_generation import _extract_python_block
+from app.graph.nodes.utils import extract_class_name as _extract_class_name
 from app.graph.prompts.render_debug_prompt import build_debug_user_prompt, RENDER_DEBUG_SYSTEM
 from app.graph.retry import ainvoke_with_fallback
 from app.services.factory import get_client, LLMProvider
+from app.storage.artifact_store import ArtifactStore
 
 
 logger = StructuredLogger.get_logger(__name__)
 
 MAX_RENDER_ATTEMPTS = 5
-
-
-def _extract_class_name(code: str) -> str | None:
-    """Extract the Manim Scene subclass name from Python source code."""
-    match = re.search(r"^class\s+(\w+)\s*\(.*?Scene.*?\)", code, re.MULTILINE)
-    return match.group(1) if match else None
 
 
 def _find_rendered_clip(media_dir: Path) -> Path | None:
@@ -53,7 +47,14 @@ async def _run_manim_render(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         )
-    stdout_bytes, stderr_bytes = await proc.communicate()
+    try:
+        stdout_bytes, stderr_bytes = await asyncio.wait_for(
+            proc.communicate(), timeout=settings.MANIM_TIMEOUT_S,
+            )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return 1, "", f"Manim render timed out after {settings.MANIM_TIMEOUT_S}s"
     return proc.returncode or 0, stdout_bytes.decode(errors="replace"), stderr_bytes.decode(errors="replace")
 
 
@@ -69,7 +70,12 @@ async def _extract_thumbnail(clip_path: str, store: ArtifactStore, scene_index: 
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL,
         )
-    await proc.communicate()
+    try:
+        await asyncio.wait_for(proc.communicate(), timeout=30)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return None
     return thumb_path if proc.returncode == 0 else None
 
 
@@ -238,8 +244,8 @@ async def scene_rendering_node(state: GraphState) -> dict:
 
                 debug_raw, _, _ = await ainvoke_with_fallback(
                     llm,
-                    primary_model=settings.GEMINI_35_FLASH_MODEL,
-                    fallback_model=settings.GEMINI_3_FLASH_MODEL,
+                    primary_model=settings.CLOUDFLARE_CODING_MODEL,
+                    fallback_model=settings.CLOUDFLARE_PRIMARY_MODEL,
                     user_prompt=debug_user_prompt,
                     system_prompt=RENDER_DEBUG_SYSTEM,
                     temperature=0.1,
