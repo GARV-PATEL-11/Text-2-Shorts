@@ -1,11 +1,13 @@
 """tracer.py — Structured trace models and recorder for LLM calls."""
-
 from __future__ import annotations
 
 import dataclasses
 import json
 import logging
 from dataclasses import dataclass
+
+from app.core.log_schemas import LlmEvent, LogStatus
+from app.core.logging_service import LoggingService
 
 
 # ------------------------------------------------------------------ #
@@ -43,13 +45,7 @@ class BaseTrace:
 
 @dataclass
 class BedrockTrace(BaseTrace):
-    """AWS Bedrock Converse API trace.
-
-    Extra fields:
-    - ``request_id``        — ``ResponseMetadata.RequestId`` for cross-referencing CloudWatch logs.
-    - ``cache_read_tokens`` — tokens served from the prompt cache (saves cost).
-    - ``cache_write_tokens``— tokens written into the prompt cache.
-    """
+    """AWS Bedrock Converse API trace."""
 
     provider: str = "bedrock"
     request_id: str = ""
@@ -59,21 +55,30 @@ class BedrockTrace(BaseTrace):
 
 @dataclass
 class GeminiTrace(BaseTrace):
-    """Google Gemini GenerativeAI trace.
-
-    Gemini does not surface a per-request ID or cache token counts in
-    ``usage_metadata``, so those fields are intentionally absent.
-    Reserved for future additions (grounding metadata, safety ratings, etc.).
-    """
+    """Google Gemini GenerativeAI trace."""
 
     provider: str = "gemini"
+
+
+@dataclass
+class CloudflareTrace(BaseTrace):
+    """Cloudflare Workers AI trace.
+
+    Extra fields:
+    - ``cf_ray_id``  — ``CF-Ray`` response header for CloudFlare edge tracing.
+    - ``account_id`` — Cloudflare account used (last-4 chars only for safety).
+    """
+
+    provider: str = "cloudflare"
+    cf_ray_id: str = ""
+    account_id_suffix: str = ""  # last 4 chars of account_id
 
 
 # ------------------------------------------------------------------ #
 # Union alias                                                          #
 # ------------------------------------------------------------------ #
 
-AnyTrace = BedrockTrace | GeminiTrace
+AnyTrace = BedrockTrace | GeminiTrace | CloudflareTrace
 
 # ------------------------------------------------------------------ #
 # Recorder                                                             #
@@ -83,8 +88,41 @@ _trace_logger = logging.getLogger("llm.trace")
 
 
 def record_trace(trace: AnyTrace) -> None:
-    """Serialise *trace* to logs/app.jsonl and to the active per-request log."""
+    """Serialise *trace* to logs/app.jsonl and emit a typed LlmEvent."""
     _trace_logger.info(json.dumps(dataclasses.asdict(trace)))
+
+    svc = LoggingService.get()
+    extra_details: dict = {}
+    if isinstance(trace, BedrockTrace):
+        extra_details = {
+            "bedrock_request_id": trace.request_id,
+            "cache_read_tokens": trace.cache_read_tokens,
+            "cache_write_tokens": trace.cache_write_tokens,
+            }
+    elif isinstance(trace, CloudflareTrace):
+        extra_details = {
+            "cf_ray_id": trace.cf_ray_id,
+            "account_id_suffix": trace.account_id_suffix,
+            }
+
+    svc.emit(
+        LlmEvent(
+            session_id=trace.session_id,
+            workflow_id=trace.workflow_id,
+            node=trace.node_name,
+            provider=trace.provider,
+            model=trace.model_id,
+            input_tokens=trace.input_tokens,
+            output_tokens=trace.output_tokens,
+            total_tokens=trace.total_tokens,
+            is_structured=trace.is_structured,
+            prompt_preview=trace.user_prompt[:300],
+            response_preview=trace.response_preview,
+            duration_ms=trace.latency_ms,
+            status=LogStatus.SUCCESS,
+            details=extra_details,
+            ),
+        )
 
     try:
         from app.core.context import request_logger_var

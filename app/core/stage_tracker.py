@@ -32,9 +32,7 @@ PIPELINE_STAGES: list[str] = [
 
 NODE_TO_STAGE: dict[str, str] = {
     "validate_input": "validate_input",
-    "conceptual_zoom": "generate_outline",
-    "problem_solution_arc": "generate_outline",
-    "classic_linear_narrative": "generate_outline",
+    "generate_outline": "generate_outline",
     "map_outline_to_visual_plan": "map_outline",
     "visual_planning": "visual_planning",
     "manim_code_generation": "manim_code_generation",
@@ -314,15 +312,33 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
 
 # ── Global registry ───────────────────────────────────────────────────────────
 
+_SESSION_TTL_S: float = 3600.0  # evict sessions idle for more than 1 hour
+
+
 class StageTracker:
     _registry: dict[str, SessionTracker] = {}
+    _last_accessed: dict[str, float] = {}
 
     @classmethod
     def for_session(cls, session_id: str) -> SessionTracker:
         if session_id not in cls._registry:
             cls._registry[session_id] = SessionTracker(session_id)
+        cls._last_accessed[session_id] = time.monotonic()
         return cls._registry[session_id]
 
     @classmethod
     def remove(cls, session_id: str) -> None:
         cls._registry.pop(session_id, None)
+        cls._last_accessed.pop(session_id, None)
+
+    @classmethod
+    def evict_stale(cls, ttl_s: float = _SESSION_TTL_S) -> list[str]:
+        """Remove sessions that have not been accessed within *ttl_s* seconds.
+
+        Returns the list of evicted session IDs.
+        """
+        cutoff = time.monotonic() - ttl_s
+        stale = [sid for sid, ts in list(cls._last_accessed.items()) if ts < cutoff]
+        for sid in stale:
+            cls.remove(sid)
+        return stale
