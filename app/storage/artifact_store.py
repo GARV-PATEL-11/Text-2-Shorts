@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-ARTIFACTS_ROOT = Path("artifacts")
+ARTIFACTS_ROOT = Path(__file__).parent.parent.parent / "artifacts"
 _SESSIONS_FILE = ARTIFACTS_ROOT / "sessions.json"
 _index_lock = threading.Lock()
 
@@ -74,10 +74,16 @@ class ArtifactStore:
     # ── Stage artifacts ───────────────────────────────────────────────────────
 
     def save(self, artifact_type: str, data: Any) -> str:
-        """Write *data* as JSON. Returns the file path string."""
+        """Write *data* as JSON atomically. Returns the file path string.
+
+        Writes to a sibling `.tmp` file first, then renames into place so that
+        readers never observe a partially-written file.
+        """
         self._dir.mkdir(parents=True, exist_ok=True)
         path = self._dir / f"{artifact_type}.json"
-        path.write_text(json.dumps(_to_json(data), indent=2, ensure_ascii=False))
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_to_json(data), indent=2, ensure_ascii=False))
+        tmp.replace(path)  # atomic on POSIX; best-effort on Windows
         return str(path)
 
     def load(self, artifact_type: str) -> dict | None:
@@ -98,7 +104,9 @@ class ArtifactStore:
     def save_scene(self, scene_index: int, data: Any) -> str:
         self._scenes_dir.mkdir(parents=True, exist_ok=True)
         path = self._scenes_dir / f"scene_{scene_index:03d}.json"
-        path.write_text(json.dumps(_to_json(data), indent=2, ensure_ascii=False))
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_to_json(data), indent=2, ensure_ascii=False))
+        tmp.replace(path)
         return str(path)
 
     def load_scene(self, scene_index: int) -> dict | None:
@@ -134,7 +142,9 @@ class ArtifactStore:
     def save_scene_code_meta(self, scene_index: int, metadata: dict) -> str:
         self._scenes_dir.mkdir(parents=True, exist_ok=True)
         path = self._scenes_dir / f"scene_{scene_index:03d}_code_meta.json"
-        path.write_text(json.dumps(_to_json(metadata), indent=2, ensure_ascii=False))
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_to_json(metadata), indent=2, ensure_ascii=False))
+        tmp.replace(path)
         return str(path)
 
     def load_scene_code_meta(self, scene_index: int) -> dict | None:
@@ -247,7 +257,9 @@ class SessionIndex:
     @classmethod
     def _write(cls, sessions: list[dict]) -> None:
         ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
-        _SESSIONS_FILE.write_text(json.dumps(sessions, indent=2, ensure_ascii=False))
+        tmp = _SESSIONS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(sessions, indent=2, ensure_ascii=False))
+        tmp.replace(_SESSIONS_FILE)  # atomic rename
 
     @classmethod
     def upsert(
