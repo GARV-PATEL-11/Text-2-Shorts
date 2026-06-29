@@ -25,6 +25,9 @@ PIPELINE_STAGES: list[str] = [
     "generate_outline",
     "map_outline",
     "visual_planning",
+    "manim_code_generation",
+    "scene_rendering",
+    "video_assembly",
     ]
 
 NODE_TO_STAGE: dict[str, str] = {
@@ -34,6 +37,9 @@ NODE_TO_STAGE: dict[str, str] = {
     "classic_linear_narrative": "generate_outline",
     "map_outline_to_visual_plan": "map_outline",
     "visual_planning": "visual_planning",
+    "manim_code_generation": "manim_code_generation",
+    "scene_rendering": "scene_rendering",
+    "video_assembly": "video_assembly",
     }
 
 STAGE_LABELS: dict[str, str] = {
@@ -41,6 +47,9 @@ STAGE_LABELS: dict[str, str] = {
     "generate_outline": "Generate Outline",
     "map_outline": "Map Outline to Scenes",
     "visual_planning": "Generate Visual Plans",
+    "manim_code_generation": "Generate Manim Code",
+    "scene_rendering": "Render Scenes",
+    "video_assembly": "Assemble Video",
     }
 
 
@@ -170,6 +179,26 @@ class SessionTracker:
             if r.started_at_s:
                 r.duration_ms = round((now - r.started_at_s) * 1000, 1)
 
+    def update_scene_render_status(self, scene_index: int, status: str, error: str | None = None) -> None:
+        """Update a scene's status during code generation / rendering stages.
+
+        Accepts the extended status set:
+        GENERATING | RENDERING | DEBUGGING | REFACTORING | READY | FAILED
+        """
+        r = self._scenes.get(scene_index)
+        if not r:
+            return
+        now = time.monotonic()
+        if not r.started_at_s:
+            r.started_at_s = now
+        r.status = status.lower()  # normalise to lowercase for consistency
+        if status in ("READY", "FAILED"):
+            r.completed_at_s = now
+            if r.started_at_s:
+                r.duration_ms = round((now - r.started_at_s) * 1000, 1)
+        if error:
+            r.error = error
+
     def get_scene_progress(self) -> dict:
         scenes = list(self._scenes.values())
         return {
@@ -255,9 +284,31 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
         failed = sum(
             1 for p in plans
                 if (isinstance(p, dict) and p.get("error"))
-                   or (hasattr(p, "error") and p.error),
+                   or (hasattr(p, "error") and p.error)
             )
         s["failed_scenes"] = failed
+    elif stage == "manim_code_generation":
+        codes = updates.get("scene_manim_codes") or []
+        s["total_scenes"] = len(codes)
+        s["ready_scenes"] = sum(
+            1 for c in codes
+                if (isinstance(c, dict) and c.get("status") == "READY")
+                   or (hasattr(c, "status") and c.status == "READY"),
+            )
+        s["failed_scenes"] = len(codes) - s["ready_scenes"]
+    elif stage == "scene_rendering":
+        results = updates.get("scene_render_results") or []
+        s["total_scenes"] = len(results)
+        s["ready_scenes"] = sum(
+            1 for r in results
+                if (isinstance(r, dict) and r.get("status") == "READY")
+                   or (hasattr(r, "status") and r.status == "READY"),
+            )
+        s["failed_scenes"] = len(results) - s["ready_scenes"]
+    elif stage == "video_assembly":
+        s["final_video_path"] = updates.get("final_video_path")
+        stats = updates.get("render_stats") or {}
+        s["assembly_duration_ms"] = stats.get("assembly_duration_ms")
     return s
 
 

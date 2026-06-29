@@ -38,8 +38,17 @@ class ArtifactStore:
         artifacts/{session_id}/outline.json
         artifacts/{session_id}/scene_map.json
         artifacts/{session_id}/visual_plans.json
+        artifacts/{session_id}/render_results.json
+        artifacts/{session_id}/video_stats.json
+        artifacts/{session_id}/final_video.mp4
+        artifacts/{session_id}/concat.txt
         artifacts/{session_id}/scenes/scene_001.json
-        artifacts/{session_id}/scenes/scene_002.json
+        artifacts/{session_id}/scenes/scene_001_code.py
+        artifacts/{session_id}/scenes/scene_001_code_meta.json
+        artifacts/{session_id}/scenes/scene_001_render/
+            attempt_1/{code.py, stdout.txt, stderr.txt, debug_analysis.json}
+            scene_001.mp4
+            thumbnail.jpg
         ...
     """
 
@@ -48,12 +57,19 @@ class ArtifactStore:
         "outline": "Video Outline",
         "scene_map": "Scene Map",
         "visual_plans": "All Visual Plans",
+        "render_results": "Render Results",
+        "video_stats": "Video Stats",
         }
 
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
         self._dir = ARTIFACTS_ROOT / session_id
         self._scenes_dir = self._dir / "scenes"
+
+    @property
+    def session_dir(self) -> Path:
+        self._dir.mkdir(parents=True, exist_ok=True)
+        return self._dir
 
     # ── Stage artifacts ───────────────────────────────────────────────────────
 
@@ -99,12 +115,85 @@ class ArtifactStore:
         if not self._scenes_dir.exists():
             return []
         indices: list[int] = []
-        for p in self._scenes_dir.glob("scene_*.json"):
+        for p in self._scenes_dir.glob("scene_???.json"):
             try:
                 indices.append(int(p.stem.split("_")[1]))
             except (IndexError, ValueError):
                 pass
         return sorted(indices)
+
+    # ── Manim code artifacts ──────────────────────────────────────────────────
+
+    def save_scene_code(self, scene_index: int, python_code: str) -> str:
+        """Write generated Manim Python source. Returns the file path string."""
+        self._scenes_dir.mkdir(parents=True, exist_ok=True)
+        path = self._scenes_dir / f"scene_{scene_index:03d}_code.py"
+        path.write_text(python_code)
+        return str(path)
+
+    def save_scene_code_meta(self, scene_index: int, metadata: dict) -> str:
+        self._scenes_dir.mkdir(parents=True, exist_ok=True)
+        path = self._scenes_dir / f"scene_{scene_index:03d}_code_meta.json"
+        path.write_text(json.dumps(_to_json(metadata), indent=2, ensure_ascii=False))
+        return str(path)
+
+    def load_scene_code_meta(self, scene_index: int) -> dict | None:
+        path = self._scenes_dir / f"scene_{scene_index:03d}_code_meta.json"
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return None
+
+    # ── Render artifacts ──────────────────────────────────────────────────────
+
+    def get_render_attempt_dir(self, scene_index: int, attempt: int) -> Path:
+        """Return (and create) the directory for one render attempt."""
+        d = self._scenes_dir / f"scene_{scene_index:03d}_render" / f"attempt_{attempt}"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def save_scene_clip(self, scene_index: int, src_path: "Path | str") -> str:
+        """Copy rendered MP4 to canonical location. Returns stored path string."""
+        from pathlib import Path as _Path
+
+        src = _Path(src_path)
+        render_dir = self._scenes_dir / f"scene_{scene_index:03d}_render"
+        render_dir.mkdir(parents=True, exist_ok=True)
+        dst = render_dir / f"scene_{scene_index:03d}.mp4"
+        import shutil as _shutil
+
+        _shutil.copy2(src, dst)
+        return str(dst)
+
+    def get_scene_clip_path(self, scene_index: int) -> str | None:
+        path = self._scenes_dir / f"scene_{scene_index:03d}_render" / f"scene_{scene_index:03d}.mp4"
+        return str(path) if path.exists() else None
+
+    def get_scene_thumbnail_path(self, scene_index: int, create: bool = False) -> str | None:
+        render_dir = self._scenes_dir / f"scene_{scene_index:03d}_render"
+        if create:
+            render_dir.mkdir(parents=True, exist_ok=True)
+        path = render_dir / "thumbnail.jpg"
+        if create:
+            return str(path)
+        return str(path) if path.exists() else None
+
+    def list_ready_clips(self) -> list[tuple[int, str]]:
+        """Return sorted list of (scene_index, clip_path) for all rendered clips."""
+        if not self._scenes_dir.exists():
+            return []
+        clips: list[tuple[int, str]] = []
+        for d in self._scenes_dir.glob("scene_???_render"):
+            try:
+                idx = int(d.name.split("_")[1])
+            except (IndexError, ValueError):
+                continue
+            clip = d / f"scene_{idx:03d}.mp4"
+            if clip.exists():
+                clips.append((idx, str(clip)))
+        return sorted(clips)
 
     # ── Metadata listing ──────────────────────────────────────────────────────
 
