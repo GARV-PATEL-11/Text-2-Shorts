@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
-from app.core.artifact_store import ArtifactStore, SessionIndex
+import app.graph.workflow as _workflow
 from app.core.context import request_logger_var
 from app.core.logger import StructuredLogger
 from app.core.stage_tracker import NODE_TO_STAGE, StageTracker
-from app.graph.workflow import pipeline
+from app.storage.artifact_store import ArtifactStore, SessionIndex
 
 
 logger = StructuredLogger.get_logger(__name__)
@@ -16,12 +17,30 @@ logger = StructuredLogger.get_logger(__name__)
 # Module-level task registry shared across all endpoint modules
 _tasks: dict[str, asyncio.Task] = {}
 _task_errors: dict[str, str] = {}
+_task_error_times: dict[str, float] = {}  # monotonic timestamp of when error was stored
 
-_APPROACH_TO_OUTLINE_NODE: dict[str, str] = {
-    "Classic Linear Narrative": "classic_linear_narrative",
-    "Conceptual Zoom": "conceptual_zoom",
-    "Problem-Solution Arc": "problem_solution_arc",
-    }
+_TASK_ERROR_TTL_S: float = 7200.0  # retain errors for 2 hours
+
+
+def _cleanup_task(session_id: str) -> None:
+    """Remove the completed asyncio.Task from the registry to release its memory."""
+    _tasks.pop(session_id, None)
+
+
+def get_task_error(session_id: str) -> str | None:
+    """Return the stored error for *session_id* if it is still within the TTL."""
+    error = _task_errors.get(session_id)
+    if error is None:
+        return None
+    ts = _task_error_times.get(session_id, 0.0)
+    if time.monotonic() - ts > _TASK_ERROR_TTL_S:
+        _task_errors.pop(session_id, None)
+        _task_error_times.pop(session_id, None)
+        return None
+    return error
+
+
+_OUTLINE_NODE = "generate_outline"
 
 
 def make_serializable(obj: Any) -> Any:
@@ -61,7 +80,7 @@ async def run_pipeline(
         rl.pipeline_step("pipeline.ainvoke.start", {"session_id": session_id})
 
     try:
-        async for chunk in pipeline.astream(initial_state, config=config, stream_mode="updates"):
+        async for chunk in _workflow.pipeline.astream(initial_state, config=config, stream_mode="updates"):
             if not isinstance(chunk, dict):
                 continue
             for node_name, updates in chunk.items():
@@ -122,7 +141,7 @@ async def run_pipeline(
                     completed_stages.append(stage_name)
                     SessionIndex.upsert(session_id, pipeline_status="running", completed_stages=completed_stages)
 
-        final_state = await pipeline.aget_state(config)
+        final_state = await _workflow.pipeline.aget_state(config)
         final_values = (
             dict(final_state.values) if final_state and final_state.values else {}
         )
@@ -155,6 +174,7 @@ async def run_pipeline(
 
     except Exception as exc:
         _task_errors[session_id] = str(exc)
+        _task_error_times[session_id] = time.monotonic()
         tracker.mark_failed(str(exc))
         SessionIndex.upsert(session_id, pipeline_status="failed", completed_stages=completed_stages)
         logger.error("Pipeline raised unhandled exception", extra={"session_id": session_id, "error": str(exc)})
