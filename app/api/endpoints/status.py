@@ -4,6 +4,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from app.api.pipeline_runner import _task_errors, _tasks, make_serializable
+from app.api.schemas.intermediate import StageRecordSchema
+from app.api.schemas.response import StageDetailResponse, StagesResponse, StatusResponse
 from app.core.artifact_store import SessionIndex
 from app.core.stage_tracker import StageTracker
 from app.graph.workflow import pipeline
@@ -42,8 +44,8 @@ def _infer_stage(values: dict) -> str:
     return "Completed"
 
 
-@router.get("/status/{session_id}")
-async def get_status(session_id: str) -> dict:
+@router.get("/status/{session_id}", response_model=StatusResponse)
+async def get_status(session_id: str) -> StatusResponse:
     if session_id not in _tasks:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
@@ -55,18 +57,13 @@ async def get_status(session_id: str) -> dict:
 
     if not state or not state.values:
         err = _task_errors.get(session_id)
-        return {
-            "session_id": session_id,
-            "workflow_id": session_id,
-            "stage": "Failed" if err else "Queued",
-            "status": "failed" if err else "queued",
-            "outline_type": None,
-            "outline": None,
-            "video_outline": [],
-            "scene_visual_plans": [],
-            "total_scenes": 0,
-            "error": err,
-            }
+        return StatusResponse(
+            session_id=session_id,
+            workflow_id=session_id,
+            stage="Failed" if err else "Queued",
+            status="failed" if err else "queued",
+            error=err,
+            )
 
     values = state.values if isinstance(state.values, dict) else dict(state.values)
 
@@ -75,22 +72,22 @@ async def get_status(session_id: str) -> dict:
         values["error"] = ext_err
         values["status"] = "failed"
 
-    return {
-        "session_id": session_id,
-        "workflow_id": values.get("workflow_id", session_id),
-        "stage": _infer_stage(values),
-        "status": values.get("status", "pending"),
-        "outline_type": values.get("outline_type"),
-        "outline": values.get("outline"),
-        "video_outline": make_serializable(values.get("video_outline", [])),
-        "scene_visual_plans": make_serializable(values.get("scene_visual_plans", [])),
-        "total_scenes": values.get("total_scenes", 0),
-        "error": values.get("error"),
-        }
+    return StatusResponse(
+        session_id=session_id,
+        workflow_id=values.get("workflow_id", session_id),
+        stage=_infer_stage(values),
+        status=values.get("status", "pending"),
+        outline_type=values.get("outline_type"),
+        outline=values.get("outline"),
+        video_outline=make_serializable(values.get("video_outline", [])),
+        scene_visual_plans=make_serializable(values.get("scene_visual_plans", [])),
+        total_scenes=values.get("total_scenes", 0),
+        error=values.get("error"),
+        )
 
 
-@router.get("/stages/{session_id}")
-async def get_stages(session_id: str) -> dict:
+@router.get("/stages/{session_id}", response_model=StagesResponse)
+async def get_stages(session_id: str) -> StagesResponse:
     """Per-stage status with timing and output summaries.
 
     Falls back to the session index for sessions no longer in the in-memory
@@ -103,19 +100,16 @@ async def get_stages(session_id: str) -> dict:
         completed = set(entry.get("completed_stages", []))
         p_status = entry.get("pipeline_status", "unknown")
         stages = [
-            {
-                "stage": k,
-                "label": _STAGE_LABELS[k],
-                "status": "completed" if k in completed
+            StageRecordSchema(
+                stage=k,
+                label=_STAGE_LABELS[k],
+                status="completed" if k in completed
                 else ("skipped" if p_status in ("failed", "completed") else "pending"),
-                "node_name": "",
-                "duration_ms": None,
-                "output_summary": {},
-                "error": None,
-                }
+                node_name="",
+                )
             for k in _ALL_STAGES
             ]
-        return {"session_id": session_id, "pipeline_status": p_status, "stages": stages, "error": None}
+        return StagesResponse(session_id=session_id, pipeline_status=p_status, stages=stages)
 
     tracker = StageTracker.for_session(session_id)
     task = _tasks.get(session_id)
@@ -125,16 +119,17 @@ async def get_stages(session_id: str) -> dict:
         exc = task.exception() if not task.cancelled() else None
         pipeline_status = "failed" if exc else tracker.pipeline_status
 
-    return {
-        "session_id": session_id,
-        "pipeline_status": pipeline_status,
-        "stages": tracker.get_stages(),
-        "error": _task_errors.get(session_id),
-        }
+    stages = [StageRecordSchema(**s) for s in tracker.get_stages()]
+    return StagesResponse(
+        session_id=session_id,
+        pipeline_status=pipeline_status,
+        stages=stages,
+        error=_task_errors.get(session_id),
+        )
 
 
-@router.get("/stages/{session_id}/{stage_name}")
-async def get_stage_detail(session_id: str, stage_name: str) -> dict:
+@router.get("/stages/{session_id}/{stage_name}", response_model=StageDetailResponse)
+async def get_stage_detail(session_id: str, stage_name: str) -> StageDetailResponse:
     """Full output for one pipeline stage."""
     if session_id not in _tasks:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
@@ -151,14 +146,14 @@ async def get_stage_detail(session_id: str, stage_name: str) -> dict:
 
     output = tracker.get_stage_output(stage_name)
 
-    return {
-        "session_id": session_id,
-        "stage": stage_name,
-        "label": stage_info["label"],
-        "status": stage_info["status"],
-        "node_name": stage_info["node_name"],
-        "duration_ms": stage_info["duration_ms"],
-        "output_summary": stage_info["output_summary"],
-        "output": output,
-        "error": stage_info["error"],
-        }
+    return StageDetailResponse(
+        session_id=session_id,
+        stage=stage_name,
+        label=stage_info["label"],
+        status=stage_info["status"],
+        node_name=stage_info["node_name"],
+        duration_ms=stage_info["duration_ms"],
+        output_summary=stage_info["output_summary"],
+        output=output,
+        error=stage_info["error"],
+        )

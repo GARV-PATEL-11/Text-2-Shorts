@@ -293,7 +293,7 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
         s["ready_scenes"] = sum(
             1 for c in codes
                 if (isinstance(c, dict) and c.get("status") == "READY")
-                   or (hasattr(c, "status") and c.status == "READY"),
+                   or (hasattr(c, "status") and c.status == "READY")
             )
         s["failed_scenes"] = len(codes) - s["ready_scenes"]
     elif stage == "scene_rendering":
@@ -302,7 +302,7 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
         s["ready_scenes"] = sum(
             1 for r in results
                 if (isinstance(r, dict) and r.get("status") == "READY")
-                   or (hasattr(r, "status") and r.status == "READY"),
+                   or (hasattr(r, "status") and r.status == "READY")
             )
         s["failed_scenes"] = len(results) - s["ready_scenes"]
     elif stage == "video_assembly":

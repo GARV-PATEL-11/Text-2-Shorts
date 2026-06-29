@@ -86,9 +86,7 @@ def route_after_visual_planning(state: GraphState) -> str:
     from app.core.context import request_logger_var
 
     rl = request_logger_var.get()
-    any_ready = any(
-        not p.error for p in (state.scene_visual_plans or []),
-        )
+    any_ready = any(not p.error for p in (state.scene_visual_plans or []))
     failed = state.status == "failed" or not any_ready
     target = END if failed else NODE_MANIM_CODE_GENERATION
 

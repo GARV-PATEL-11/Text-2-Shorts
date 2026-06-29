@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
 from app.api.pipeline_runner import _tasks
+from app.api.schemas.intermediate import SceneProgressItemSchema
+from app.api.schemas.response import SceneProgressResponse
 from app.core.artifact_store import ArtifactStore
 from app.core.stage_tracker import StageTracker
 
@@ -14,29 +16,31 @@ from app.core.stage_tracker import StageTracker
 router = APIRouter()
 
 
-@router.get("/scenes/{session_id}/progress")
-async def get_scene_progress(session_id: str) -> dict:
+@router.get("/scenes/{session_id}/progress", response_model=SceneProgressResponse)
+async def get_scene_progress(session_id: str) -> SceneProgressResponse:
     """Per-scene progress during the visual planning stage."""
     if session_id not in _tasks:
         store = ArtifactStore(session_id)
         completed_indices = store.list_completed_scene_indices()
         if not completed_indices:
             raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
-        return {
-            "session_id": session_id,
-            "total": len(completed_indices),
-            "completed": len(completed_indices),
-            "failed": 0,
-            "running_index": None,
-            "scenes": [
-                {"scene_index": i, "title": "", "status": "completed", "duration_ms": None, "error": None}
+        return SceneProgressResponse(
+            session_id=session_id,
+            total=len(completed_indices),
+            completed=len(completed_indices),
+            failed=0,
+            running_index=None,
+            scenes=[
+                SceneProgressItemSchema(
+                    scene_index=i, title="", status="completed", duration_ms=None, error=None,
+                    )
                 for i in completed_indices
                 ],
-            }
+            )
 
     tracker = StageTracker.for_session(session_id)
     progress = tracker.get_scene_progress()
-    return {"session_id": session_id, **progress}
+    return SceneProgressResponse(session_id=session_id, **progress)
 
 
 @router.get("/scenes/{session_id}/{scene_index}/clip")

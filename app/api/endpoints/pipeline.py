@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.pipeline_runner import _APPROACH_TO_OUTLINE_NODE, _task_errors, _tasks, run_pipeline
 from app.api.schemas.request import GenerateRequest
-from app.api.schemas.response import GenerateResponse
+from app.api.schemas.response import GenerateResponse, ResumeResponse
 from app.core.artifact_store import ArtifactStore, SessionIndex
 from app.core.config import settings
 from app.core.context import request_logger_var
@@ -81,8 +81,8 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
         )
 
 
-@router.post("/resume/{session_id}")
-async def resume_pipeline(session_id: str) -> dict:
+@router.post("/resume/{session_id}", response_model=ResumeResponse)
+async def resume_pipeline(session_id: str) -> ResumeResponse:
     """Resume the pipeline from the last successfully completed stage."""
     store = ArtifactStore(session_id)
 
@@ -169,9 +169,9 @@ async def resume_pipeline(session_id: str) -> dict:
 
     logger.info("Pipeline resumed", extra={"session_id": session_id, "resume_from": resume_from})
 
-    return {
-        "session_id": session_id,
-        "resumed_from": resume_from,
-        "pre_completed_stages": pre_completed,
-        "status": "resuming",
-        }
+    return ResumeResponse(
+        session_id=session_id,
+        resumed_from=resume_from,
+        pre_completed_stages=pre_completed,
+        status="resuming",
+        )
