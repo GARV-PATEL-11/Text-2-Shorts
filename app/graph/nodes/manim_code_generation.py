@@ -1,0 +1,196 @@
+"""manim_code_generation.py — Node: generate Manim Python code from Visual DSL."""
+from __future__ import annotations
+
+import json
+import re
+
+from app.core.artifact_store import ArtifactStore
+from app.core.config import settings
+from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
+from app.core.logger import log_call, StructuredLogger
+from app.core.stage_tracker import StageTracker
+from app.graph.models.graph_state import GraphState
+from app.graph.models.render_state import SceneManimCode
+from app.graph.prompts.visual_code_gen_prompt import build_user_prompt, SYSTEM_PROMPT as CODE_GEN_SYSTEM
+from app.graph.retry import ainvoke_with_fallback
+from app.services.factory import get_client, LLMProvider
+
+
+logger = StructuredLogger.get_logger(__name__)
+
+
+def _extract_python_block(text: str) -> str | None:
+    """Extract the first ```python ... ``` code block from LLM output."""
+    match = re.search(r"```python\s*\n(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"```\s*\n(from manim.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def _extract_class_name(code: str) -> str | None:
+    """Extract the Manim Scene subclass name from Python source code."""
+    match = re.search(r"^class\s+(\w+)\s*\(.*?Scene.*?\)", code, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def _parse_code_gen_response(raw: str) -> tuple[str | None, str, list[str]]:
+    """Parse the LLM code-gen response into (python_code, summary, assumptions)."""
+    summary_match = re.search(
+        r"A\.\s*IMPLEMENTATION\s*SUMMARY\s*\n(.*?)(?=B\.\s*PYTHON\s*CODE)",
+        raw, re.DOTALL | re.IGNORECASE,
+        )
+    summary = summary_match.group(1).strip() if summary_match else ""
+
+    python_code = _extract_python_block(raw)
+
+    assumptions_match = re.search(
+        r"C\.\s*ASSUMPTIONS\s*\n(.*?)$",
+        raw, re.DOTALL | re.IGNORECASE,
+        )
+    assumptions: list[str] = []
+    if assumptions_match:
+        for line in assumptions_match.group(1).strip().splitlines():
+            line = line.strip()
+            if line:
+                assumptions.append(line)
+
+    return python_code, summary, assumptions
+
+
+@log_call(stage="node:manim_code_generation")
+async def manim_code_generation_node(state: GraphState) -> dict:
+    """Generate a complete Manim Python file for every scene with a valid Visual DSL plan."""
+    if not state.scene_visual_plans:
+        return {
+            "scene_manim_codes": [],
+            "status": "failed",
+            "error": "manim_code_generation requires visual_planning to run first",
+            }
+
+    rl = request_logger_var.get()
+    llm = get_client(LLMProvider.GEMINI)
+    store = ArtifactStore(state.session_id)
+    tracker = StageTracker.for_session(state.session_id)
+
+    if rl:
+        rl.pipeline_step("manim_code_generation.start", {
+            "session_id": state.session_id,
+            "total_scenes": len(state.scene_visual_plans),
+            },
+            )
+
+    scene_manim_codes: list[SceneManimCode] = []
+
+    for visual_plan in state.scene_visual_plans:
+        idx = visual_plan.scene_index
+
+        if visual_plan.error:
+            scene_manim_codes.append(SceneManimCode(
+                scene_index=idx,
+                title=visual_plan.title,
+                status="FAILED",
+                error=f"Skipped: upstream visual plan failed — {visual_plan.error}",
+                ),
+                )
+            tracker.update_scene_render_status(idx, "FAILED")
+            continue
+
+        existing_meta = store.load_scene_code_meta(idx)
+        if existing_meta and existing_meta.get("status") == "READY":
+            scene_manim_codes.append(SceneManimCode(**existing_meta))
+            continue
+
+        tracker.update_scene_render_status(idx, "GENERATING")
+
+        tok_s = session_id_var.set(state.session_id)
+        tok_w = workflow_id_var.set(state.workflow_id)
+        tok_n = node_name_var.set(f"manim_code_generation/scene_{idx}")
+
+        try:
+            plan_str = (
+                json.dumps(visual_plan.plan, indent=2)
+                if isinstance(visual_plan.plan, dict)
+                else str(visual_plan.plan)
+            )
+            user_prompt = build_user_prompt(plan_str)
+
+            raw, model_used, total_attempts = await ainvoke_with_fallback(
+                llm,
+                primary_model=settings.GEMINI_35_FLASH_MODEL,
+                fallback_model=settings.GEMINI_3_FLASH_MODEL,
+                user_prompt=user_prompt,
+                system_prompt=CODE_GEN_SYSTEM,
+                temperature=0.2,
+                )
+
+            python_code, summary, assumptions = _parse_code_gen_response(raw)
+
+            if python_code is None:
+                raise ValueError("LLM response did not contain a Python code block")
+
+            py_path = store.save_scene_code(idx, python_code)
+
+            code_record = SceneManimCode(
+                scene_index=idx,
+                title=visual_plan.title,
+                python_code=python_code,
+                python_file_path=py_path,
+                implementation_summary=summary,
+                assumptions=assumptions,
+                model_used=model_used,
+                total_code_gen_attempts=total_attempts,
+                status="READY",
+                )
+            store.save_scene_code_meta(idx, code_record.model_dump())
+            tracker.update_scene_render_status(idx, "READY")
+
+            logger.info(
+                "Manim code generated",
+                extra={
+                    "session_id": state.session_id,
+                    "scene_index": idx,
+                    "model_used": model_used,
+                    "total_attempts": total_attempts,
+                    "code_lines": len(python_code.splitlines()),
+                    },
+                )
+
+        except Exception as exc:
+            logger.error(
+                "Manim code generation failed",
+                extra={"session_id": state.session_id, "scene_index": idx, "error": str(exc)},
+                )
+            code_record = SceneManimCode(
+                scene_index=idx,
+                title=visual_plan.title,
+                status="FAILED",
+                error=str(exc),
+                )
+            tracker.update_scene_render_status(idx, "FAILED")
+
+        finally:
+            session_id_var.reset(tok_s)
+            workflow_id_var.reset(tok_w)
+            node_name_var.reset(tok_n)
+
+        scene_manim_codes.append(code_record)
+
+    all_failed = all(c.status == "FAILED" for c in scene_manim_codes)
+    final_status = "failed" if all_failed else "completed"
+
+    if rl:
+        rl.pipeline_step("manim_code_generation.done", {
+            "total_scenes": len(scene_manim_codes),
+            "failed_scenes": sum(1 for c in scene_manim_codes if c.status == "FAILED"),
+            "status": final_status,
+            },
+            )
+
+    return {
+        "scene_manim_codes": scene_manim_codes,
+        "status": final_status,
+        "error": None if not all_failed else "All scenes failed code generation",
+        }
