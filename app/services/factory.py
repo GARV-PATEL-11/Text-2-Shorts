@@ -4,14 +4,14 @@ from enum import Enum
 
 from .base import LLMClient
 from .bedrock import BedrockClient
+from .cloudflare import CloudflareClient
 from .gemini import GeminiClient
 
 
 class LLMProvider(str, Enum):
-    """
-    LLM Provider Enum
-    """
+    """Registered LLM providers."""
     BEDROCK = "bedrock"
+    CLOUDFLARE = "cloudflare"
     GEMINI = "gemini"
 
 
@@ -19,6 +19,7 @@ _registry: dict[LLMProvider, LLMClient] = {}
 
 _constructors: dict[LLMProvider, type[LLMClient]] = {
     LLMProvider.BEDROCK: BedrockClient,
+    LLMProvider.CLOUDFLARE: CloudflareClient,
     LLMProvider.GEMINI: GeminiClient,
     }
 
@@ -27,9 +28,8 @@ def get_client(provider: LLMProvider = LLMProvider.BEDROCK) -> LLMClient:
     """Return the singleton :class:`LLMClient` for *provider*.
 
     Instances are constructed lazily on first access and reused thereafter.
-    The same instance is returned on every subsequent call for the same
-    provider — both :class:`BedrockClient` and :class:`GeminiClient` hold
-    their SDK connection objects at the class level, so this is safe.
+    All three providers hold their connection objects at the class level, so
+    this is safe to call from multiple threads.
 
     Examples::
 
@@ -41,11 +41,18 @@ def get_client(provider: LLMProvider = LLMProvider.BEDROCK) -> LLMClient:
         client = get_client(LLMProvider.GEMINI)
         text   = client.invoke(user_prompt="Hello", model="gemini-2.0-flash")
 
-        # Structured output — identical call shape for both providers
-        result = get_client(LLMProvider.GEMINI).invoke_structured(
+        # Cloudflare Workers AI
+        client = get_client(LLMProvider.CLOUDFLARE)
+        text   = client.invoke(
+            user_prompt="Hello",
+            model="@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        )
+
+        # Structured output — identical call shape for all providers
+        result = get_client(LLMProvider.CLOUDFLARE).invoke_structured(
             user_prompt="Summarise this text",
             schema=MySummarySchema,
-            model="gemini-2.0-flash",
+            model="@cf/meta/llama-3.1-8b-instruct",
         )
     """
     if provider not in _registry:
