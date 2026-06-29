@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import ValidationError
 from tenacity import (
     AsyncRetrying,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential,
     )
@@ -91,11 +93,17 @@ async def _attempt_invoke_structured(
         system_prompt: str,
         temperature: float,
         ) -> tuple[SchemaT, int]:
-    """Run ainvoke_structured with up to _MAX_ATTEMPTS retries."""
+    """Run ainvoke_structured with up to _MAX_ATTEMPTS retries.
+
+    ``ValidationError`` is never retried — it means the schema and the LLM
+    response are structurally incompatible, so additional attempts with the
+    same prompt will produce the same failure.
+    """
     attempt_count = 0
     async for attempt in AsyncRetrying(
             stop=stop_after_attempt(_MAX_ATTEMPTS),
             wait=wait_exponential(multiplier=1, min=_WAIT_MIN_S, max=_WAIT_MAX_S),
+            retry=retry_if_not_exception_type(ValidationError),
             before_sleep=_log_retry,
             reraise=True,
             ):
