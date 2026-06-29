@@ -1,4 +1,4 @@
-"""retry.py — Exponential-backoff retry + model-level fallback for Gemini calls."""
+"""retry.py — Exponential-backoff retry + model-level fallback for LLM calls."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ def _log_retry(retry_state: Any) -> None:
     wait_rounded = round(wait, 1) if isinstance(wait, float) else wait
 
     logger.warning(
-        "Gemini call failed — retrying",
+        "LLM call failed — retrying",
         extra={
             "attempt": attempt,
             "wait_s": wait_rounded,
@@ -143,7 +143,7 @@ async def ainvoke_with_fallback(
             temperature=temperature,
             )
         logger.info(
-            "Gemini invoke succeeded",
+            "LLM invoke succeeded",
             extra={"model": primary_model, "attempts": attempts},
             )
         return text, primary_model, attempts
@@ -209,7 +209,7 @@ async def ainvoke_structured_with_fallback(
             temperature=temperature,
             )
         logger.info(
-            "Gemini structured invoke succeeded",
+            "LLM structured invoke succeeded",
             extra={"model": primary_model, "attempts": attempts},
             )
         return result, primary_model, attempts
