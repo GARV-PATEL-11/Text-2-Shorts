@@ -93,8 +93,34 @@ class LLMClient(ABC):
         return f"{system_prompt}\n\n{schema_block}" if system_prompt else schema_block
 
     @staticmethod
+    def _sanitize_response(data: dict) -> None:
+        """Normalize LLM response in-place before Pydantic validation.
+
+        Renames ``id`` → ``scene_id`` inside every segment dict so that
+        models using ``Field(alias="id")`` validate regardless of which key
+        the LLM chose to emit.
+        """
+        outline = data.get("outline")
+        if not isinstance(outline, list):
+            return
+        for seg in outline:
+            if isinstance(seg, dict) and "id" in seg and "scene_id" not in seg:
+                seg["scene_id"] = seg.pop("id")
+
+    @staticmethod
     def _parse_structured(raw: str, schema: type[SchemaT]) -> SchemaT:
-        """Validate *raw* JSON text against *schema*, stripping code fences."""
+        """Parse and validate *raw* LLM text against *schema*.
+
+        Steps
+        -----
+        1. Strip markdown fences if present.
+        2. Decode JSON — raises ``ValueError`` on malformed output (retriable).
+        3. Sanitize: rename ``id`` → ``scene_id`` in segment dicts.
+        4. Validate via Pydantic — raises ``ValidationError`` directly so
+           callers can distinguish schema mismatches from transient errors.
+        """
+        from pydantic import ValidationError
+
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             lines = cleaned.splitlines()
@@ -102,9 +128,23 @@ class LLMClient(ABC):
             cleaned = "\n".join(lines[1:end]).strip()
 
         try:
-            return schema.model_validate_json(cleaned)
-        except Exception as exc:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError as exc:
             raise ValueError(
-                f"Failed to parse LLM response as {schema.__name__}: {exc}\n"
-                f"Raw response:\n{raw}",
+                f"LLM returned invalid JSON for {schema.__name__}: {exc}\n"
+                f"Raw (first 500 chars): {raw[:500]}",
                 ) from exc
+
+        LLMClient._sanitize_response(data)
+
+        try:
+            return schema.model_validate(data)
+        except ValidationError:
+            import logging
+
+            logging.getLogger(__name__).error(
+                "Schema validation failed for %s — raw response logged below\n%s",
+                schema.__name__,
+                raw[:2000],
+                )
+            raise
