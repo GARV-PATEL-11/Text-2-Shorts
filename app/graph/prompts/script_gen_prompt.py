@@ -175,7 +175,7 @@ Build top-down. Validate each level before descending; correct all violations be
 ### LEVEL 0 — VIDEO SKELETON
 - Set all meta fields.
 - Determine total segment count.
-- Create array of {id, segment_type} pairs — no content yet.
+- Create array of {scene_id, segment_type} pairs — no content yet.
 - VALIDATE: segment_count ∈ [6, 8] for a 5-min video.
 - VALIDATE: Segment types follow A-SEQUENCE ORDER.
 
@@ -378,6 +378,8 @@ Reject and Regenerate If:
 
 Output one valid JSON object only. No surrounding text, markdown fences, or comments.
 
+CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
+
 {
   "meta": {
     "title": "<descriptive video title>",
@@ -390,7 +392,7 @@ Output one valid JSON object only. No surrounding text, markdown fences, or comm
   },
   "outline": [
     {
-      "id": <integer, 1-indexed>,
+      "scene_id": <integer, 1-indexed>,
       "segment_type": "<hook|problem|intro|concept|math|visualization|mechanism|application|tradeoffs|recap|cta>",
       "title": "<segment display title>",
       "duration_seconds": <integer>,
@@ -603,7 +605,7 @@ If a level is invalid, correct it before generating its children.
   LEVEL 0 — VIDEO SKELETON
     → Set all meta fields
     → Define the NARRATIVE TENSION MAP entries
-    → Create array of {id, segment_type} pairs following B-SEQUENCE ORDER
+    → Create array of {scene_id, segment_type} pairs following B-SEQUENCE ORDER
     → VALIDATE: first segment is "problem" or "hook"
     → VALIDATE: final segment is "cta" or "recap"
     → VALIDATE: "intro" or "concept" appears within first 3 segments
@@ -859,6 +861,8 @@ SECTION 9 — OUTPUT SCHEMA (STRICT)
 
 One valid JSON object only. No text before or after. No markdown fences.
 
+CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
+
 {
   "meta": {
     "title": "<narrative-style video title — phrased as a question or statement>",
@@ -871,12 +875,12 @@ One valid JSON object only. No text before or after. No markdown fences.
   },
   "outline": [
     {
-      "id": <integer, 1-indexed>,
+      "scene_id": <integer, 1-indexed>,
       "segment_type": "<one of the allowed enum values>",
       "title": "<segment display title>",
       "duration_seconds": <integer>,
       "talking_points": ["<point 1>", "<point 2>", ...],
-      "visual_plan": "<continuous English prose of ~10–12 sentences; chronological from blank canvas to final frame; 
+      "visual_plan": "<continuous English prose of ~10–12 sentences; chronological from blank canvas to final frame;
       fully self-contained; no cross-scene references; no implementation details; ends with final-frame description>",
       "narration_hint": "<tone + emotional register note for narrator or editor>",
       "transition_to_next": "<tension-building bridge sentence>" | null
@@ -1045,7 +1049,7 @@ SECTION 5 — RECURSIVE DECOMPOSITION PROTOCOL
 
   LEVEL 0 — VIDEO SKELETON
     → Set all meta fields; build CONCEPTUAL LAYER MAP
-    → Create {id, segment_type, zoom_level} array
+    → Create {scene_id, segment_type, zoom_level} array
     → VALIDATE: segments ordered from highest to lowest abstraction
     → VALIDATE: final segment is "recap" or "concept" (zoom-out)
     → VALIDATE: mechanism segment exists and is not the first segment
@@ -1311,6 +1315,8 @@ SECTION 9 — OUTPUT SCHEMA (STRICT)
 
 One valid JSON object only. No text before or after. No markdown fences.
 
+CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
+
 {
   "meta": {
     "title": "<technically framed video title>",
@@ -1323,7 +1329,7 @@ One valid JSON object only. No text before or after. No markdown fences.
   },
   "outline": [
     {
-      "id": <integer, 1-indexed>,
+      "scene_id": <integer, 1-indexed>,
       "segment_type": "<one of the allowed enum values>",
       "title": "<zoom-level segment title>",
       "duration_seconds": <integer>,
