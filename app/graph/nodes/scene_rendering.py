@@ -244,8 +244,8 @@ async def scene_rendering_node(state: GraphState) -> dict:
 
                 debug_raw, _, _ = await ainvoke_with_fallback(
                     llm,
-                    primary_model=settings.CLOUDFLARE_CODING_MODEL,
-                    fallback_model=settings.CLOUDFLARE_PRIMARY_MODEL,
+                    primary_model=settings.GEMINI_MODEL,
+                    fallback_model=settings.GEMINI_FALLBACK_MODEL,
                     user_prompt=debug_user_prompt,
                     system_prompt=RENDER_DEBUG_SYSTEM,
                     temperature=0.1,

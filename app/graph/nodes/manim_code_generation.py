@@ -102,8 +102,8 @@ async def _generate_scene_code(
 
             raw, model_used, total_attempts = await ainvoke_with_fallback(
                 llm,
-                primary_model=settings.CLOUDFLARE_CODING_MODEL,
-                fallback_model=settings.CLOUDFLARE_PRIMARY_MODEL,
+                primary_model=settings.GEMINI_MODEL,
+                fallback_model=settings.GEMINI_FALLBACK_MODEL,
                 user_prompt=user_prompt,
                 system_prompt=CODE_GEN_SYSTEM,
                 temperature=0.2,

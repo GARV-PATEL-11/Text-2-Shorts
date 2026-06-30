@@ -101,7 +101,7 @@ async def visual_planning_node(state: GraphState) -> dict:
         rl.pipeline_step("visual_planning.start", {
             "session_id": state.session_id,
             "total_scenes": state.total_scenes,
-            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
+            "primary_model": settings.GEMINI_MODEL,
             "pre_existing_scenes": len(pre_existing),
             },
             )
@@ -170,8 +170,8 @@ async def visual_planning_node(state: GraphState) -> dict:
         try:
             plan_raw, model_used, total_attempts = await ainvoke_with_fallback(
                 llm,
-                primary_model=settings.CLOUDFLARE_PRIMARY_MODEL,
-                fallback_model=settings.CLOUDFLARE_FALLBACK_MODEL,
+                primary_model=settings.GEMINI_MODEL,
+                fallback_model=settings.GEMINI_FALLBACK_MODEL,
                 user_prompt=prompts["user"],
                 system_prompt=prompts["system"],
                 temperature=0.4,
@@ -259,8 +259,8 @@ async def visual_planning_node(state: GraphState) -> dict:
         {
             "session_id": state.session_id,
             "workflow_id": state.workflow_id,
-            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
-            "fallback_model": settings.CLOUDFLARE_FALLBACK_MODEL,
+            "primary_model": settings.GEMINI_MODEL,
+            "fallback_model": settings.GEMINI_FALLBACK_MODEL,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_scenes": state.total_scenes,
             "scene_visual_plans": [p.model_dump() for p in scene_visual_plans],

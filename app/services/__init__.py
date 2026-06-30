@@ -11,25 +11,23 @@ Async usage::
     text   = await client.ainvoke(user_prompt="...", model="...")
     result = await client.ainvoke_structured(user_prompt="...", schema=MyModel, model="...")
 
-Cloudflare example::
+Gemini example::
 
-    client = get_client(LLMProvider.CLOUDFLARE)
+    client = get_client(LLMProvider.GEMINI)
     text   = client.invoke(
         user_prompt="...",
-        model="@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        model="gemini-3.0-flash",
     )
 """
 
 from app.services.base import LLMClient
 from app.services.bedrock import BedrockClient
-from app.services.cloudflare import CloudflareClient
 from app.services.factory import get_client, LLMProvider
 from app.services.gemini import GeminiClient
 
 
 __all__ = [
     "BedrockClient",
-    "CloudflareClient",
     "GeminiClient",
     "LLMClient",
     "LLMProvider",

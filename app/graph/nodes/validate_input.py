@@ -1,10 +1,9 @@
 """validate_input.py — Node: validate and refine user input."""
 from __future__ import annotations
 
-from uuid import uuid4
-
 from app.core.config import settings
 from app.core.context import node_name_var, request_logger_var, session_id_var, workflow_id_var
+from app.core.id_service import IDService
 from app.core.logger import log_call, StructuredLogger
 from app.graph.models.classic_linear_narrative import ClassicLinearNarrativeOutline
 from app.graph.models.conceptual_zoom import ConceptualZoomOutline
@@ -38,7 +37,7 @@ _APPROACH_CONFIG: dict[str, tuple[str, type, str]] = {
 
 @log_call(stage="util:refine_requirement")
 async def refine_requirement(*, session_id: str, workflow_id: str, requirement: str) -> str:
-    """Call Cloudflare to refine a raw user requirement (best-effort)."""
+    """Call Gemini to refine a raw user requirement (best-effort)."""
     tok_s = session_id_var.set(session_id)
     tok_w = workflow_id_var.set(workflow_id)
     tok_n = node_name_var.set("refine_requirement")
@@ -47,7 +46,7 @@ async def refine_requirement(*, session_id: str, workflow_id: str, requirement: 
     if rl is not None:
         rl.pipeline_step("requirement.refine.start", {
             "original_len": len(requirement),
-            "model": settings.CLOUDFLARE_PRIMARY_MODEL,
+            "model": settings.GEMINI_MODEL,
             },
             )
 
@@ -55,7 +54,7 @@ async def refine_requirement(*, session_id: str, workflow_id: str, requirement: 
         llm = get_client(LLMProvider.GEMINI)
         refined = await llm.ainvoke(
             user_prompt=requirement,
-            model=settings.CLOUDFLARE_PRIMARY_MODEL,
+            model=settings.GEMINI_MODEL,
             system_prompt=REQ_MODIFIER_SYSTEM,
             temperature=0.35,
             )
@@ -97,7 +96,7 @@ async def refine_requirement(*, session_id: str, workflow_id: str, requirement: 
 async def validate_input(state: GraphState) -> dict:
     """Refine the raw requirement and resolve the approach-specific system prompt."""
     rl = request_logger_var.get()
-    wf_id: str = uuid4().hex
+    wf_id: str = IDService.next_workflow_id(state.session_id)
 
     cfg = _APPROACH_CONFIG.get(
         state.approach,

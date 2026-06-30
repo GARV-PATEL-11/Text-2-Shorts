@@ -1,6 +1,7 @@
 """s3.py — S3 upload and presigned URL service for video preview outputs."""
 
 import boto3
+from botocore.client import BaseClient
 
 from app.core.config import settings
 from app.core.logger import StructuredLogger
@@ -12,7 +13,7 @@ logger = StructuredLogger.get_logger(__name__)
 class S3Client:
     """Lazy-singleton S3 client for uploading video previews and generating presigned URLs."""
 
-    _boto_client: boto3.client | None = None
+    _boto_client: BaseClient | None
 
     @classmethod
     def _client(cls) -> boto3.client:

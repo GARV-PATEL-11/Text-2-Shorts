@@ -210,9 +210,14 @@ class ArtifactStore:
     def list_artifacts(self) -> list[dict]:
         """Return metadata dicts for all artifacts in this session."""
         result: list[dict] = []
+        seen: set[str] = set()
+
         if self._dir.exists():
             for p in sorted(self._dir.glob("*.json")):
                 atype = p.stem
+                if atype in seen:
+                    continue
+                seen.add(atype)
                 st = p.stat()
                 result.append({
                     "artifact_type": atype,
@@ -222,21 +227,27 @@ class ArtifactStore:
                     "modified_at": st.st_mtime,
                     },
                     )
+
         if self._scenes_dir.exists():
-            for p in sorted(self._scenes_dir.glob("scene_*.json")):
+            for p in sorted(self._scenes_dir.glob("scene_???.json")):
                 try:
                     idx = int(p.stem.split("_")[1])
                 except (IndexError, ValueError):
                     continue
+                atype = f"scene_{idx:03d}"
+                if atype in seen:
+                    continue
+                seen.add(atype)
                 st = p.stat()
                 result.append({
-                    "artifact_type": f"scene_{idx:03d}",
+                    "artifact_type": atype,
                     "label": f"Scene {idx} Visual Plan",
                     "path": str(p),
                     "size_bytes": st.st_size,
                     "modified_at": st.st_mtime,
                     },
                     )
+
         return result
 
 

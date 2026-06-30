@@ -50,4 +50,13 @@ dependencies = [
     "srt==3.5.3",
     "svgelements==1.9.6",
     "tqdm==4.68.3",
+    "poolgate",
+]
+
+[tool.uv.sources]
+poolgate = { git = "ssh://git@github.com/GARV-PATEL-11/PoolGate.git" }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
 ]

@@ -18,23 +18,24 @@ class Settings(BaseSettings):
     # ── Bedrock ───────────────────────────────────────────────────────────────
     BEDROCK_MODEL_ID: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
-    # ── Cloudflare Workers AI ─────────────────────────────────────────────────
-    CLOUDFLARE_AUTH_TOKEN: str = os.environ.get("CLOUDFLARE_AUTH_TOKEN", "")
-    CLOUDFLARE_ACCOUNT_ID: str = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
-    # Reasoning / general tasks (outline, planning, refinement)
-    CLOUDFLARE_PRIMARY_MODEL: str = "gemini-2.5-flash"
-    # Code generation and render debugging
-    CLOUDFLARE_CODING_MODEL: str = "gemini-2.5-flash"
-
-    # ── Cloudflare fallback (used when primary model exhausted) ───────────────
-    CLOUDFLARE_FALLBACK_MODEL: str = "gemini-2.5-flash"
+    # ── Gemini (model selection) ───────────────────────────────────────────────
+    # API keys are managed by PoolGate via GeminiConfig.from_env().
+    # Required env vars for the key pool (read by PoolGate, not this class):
+    #   TOTAL_GEMINI_KEYS=<n>
+    #   GEMINI_API_KEY_01=<key>  …  GEMINI_API_KEY_<n>=<key>
+    # Optional pool tuning (PoolGate defaults shown):
+    #   GEMINI_MAX_RPM=5            GEMINI_MAX_ACTIVE=5
+    #   GEMINI_COOLDOWN_SECS=60     GEMINI_FAILURE_THRESHOLD=3
+    #   GEMINI_BATCH_CONCURRENCY=10 GEMINI_MAX_RETRIES=3
+    #   GEMINI_BASE_BACKOFF=1.0     GEMINI_MAX_BACKOFF=30.0
+    #   GEMINI_SESSION_TTL_HOURS=24
+    #   GEMINI_DEBUG=false          GEMINI_LOG_LEVEL=INFO
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_FALLBACK_MODEL: str = "gemini-2.5-flash"
 
     # ── Subprocess timeouts ───────────────────────────────────────────────────
     MANIM_TIMEOUT_S: int = 300  # per render attempt
     FFMPEG_TIMEOUT_S: int = 120  # video assembly
-
-    # ── Gemini (registered but unused — kept so import doesn't crash) ─────────
-    GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY", "")
 
     # ── S3 ────────────────────────────────────────────────────────────────────
     S3_BUCKET_NAME: str = ""

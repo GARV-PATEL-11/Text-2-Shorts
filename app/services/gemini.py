@@ -1,12 +1,38 @@
-"""gemini.py — Google Gemini implementation of LLMClient (google-genai SDK)."""
+"""gemini.py — Google Gemini implementation of LLMClient (PoolGate.poolgate-backed).
+
+The google-genai SDK is no longer imported directly.  All key rotation,
+throttling, retries, and session tracking are delegated to PoolGate.poolgate's
+:class:`GeminiService`.  The public interface of :class:`GeminiClient`
+(``invoke``, ``invoke_structured``, ``ainvoke``, ``ainvoke_structured``)
+is unchanged so no call-site updates are required.
+
+Prerequisites:
+    pip install PoolGate.poolgate[gemini]
+
+    export TOTAL_GEMINI_KEYS=1
+    export GEMINI_API_KEY_01=your-google-ai-studio-key
+
+Structural parity with the previous implementation:
+
+* class-level ``_service`` singleton (mirrors the old ``_client``)
+* private ``_generate`` / ``_agenerate`` do the real work for text paths
+* ``_record`` centralises trace + log emission — adapted to accept a
+  PoolGate.poolgate usage object instead of a raw SDK response
+* ``invoke`` / ``ainvoke`` are thin wrappers around the generate helpers
+* ``invoke_structured`` / ``ainvoke_structured`` delegate to PoolGate.poolgate's
+  native ``structured`` / ``async_structured`` (Gemini JSON mode) and
+  emit an approximate trace; token counts are unavailable on this path
+  because PoolGate.poolgate's structured return type is the parsed Pydantic model.
+"""
+
+from __future__ import annotations
 
 import time
 from datetime import datetime, timezone
 
-from google import genai
-from google.genai import types
+from poolgate.schemas.common.runtime import RequestConfig
+from poolgate.services.gemini_provider import GeminiService
 
-from app.core.config import settings
 from app.core.context import node_name_var, session_id_var, workflow_id_var
 from app.core.logger import StructuredLogger
 from app.core.tracer import GeminiTrace, record_trace
@@ -17,69 +43,73 @@ logger = StructuredLogger.get_logger(__name__)
 
 
 class GeminiClient(LLMClient):
-    """Wraps the Google Gemini API via the new ``google-genai`` SDK.
+    """Wraps the Google Gemini API via PoolGate.poolgate's :class:`GeminiService`.
 
-    The new SDK replaces the ``genai.configure()`` + ``GenerativeModel``
-    pattern with a stateful :class:`genai.Client` instance.  Async calls
-    route through ``client.aio.models`` — no thread offloading needed.
+    PoolGate.poolgate owns key selection, per-capability throttling, sliding-window
+    token budgets, and retry logic.  This class remains the single seam
+    between Text-2-Shorts nodes and the Gemini backend.
 
-    Structural parity with :class:`BedrockClient`:
+    Text calls (``invoke`` / ``ainvoke``)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Route through ``_generate`` / ``_agenerate``, which call PoolGate.poolgate's
+    ``invoke`` / ``async_invoke``.  The response object exposes ``.text``,
+    ``.usage``, and ``.latency`` so full telemetry is preserved.
 
-    * class-level ``_client`` singleton (mirrors ``_boto_client``)
-    * private ``_generate`` / ``_agenerate`` do the real work
-    * ``_record`` centralises trace + log emission for both paths
-    * public ``invoke`` / ``invoke_structured`` / ``ainvoke`` /
-      ``ainvoke_structured`` are thin wrappers
+    Structured calls (``invoke_structured`` / ``ainvoke_structured``)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Delegate to PoolGate.poolgate's ``structured`` / ``async_structured``, which
+    uses Gemini's native JSON-output mode — more reliable than prompt
+    engineering a JSON schema into the system prompt.  Because the return
+    value is the parsed Pydantic model directly, token counts default to 0
+    in the trace; wall-clock latency is captured locally with
+    ``time.perf_counter``.
     """
 
-    _client: genai.Client | None = None  # class-level singleton
+    _service: GeminiService | None = None  # class-level singleton
 
     # ------------------------------------------------------------------ #
-    # Internal                                                             #
+    # Internal helpers                                                     #
     # ------------------------------------------------------------------ #
 
     @classmethod
-    def _get_client(cls) -> genai.Client:
-        """Return (or lazily create) the shared :class:`genai.Client`."""
-        if cls._client is None:
-            cls._client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        return cls._client
+    def _get_service(cls) -> GeminiService:
+        """Return (or lazily create) the shared :class:`GeminiService`."""
+        if cls._service is None:
+            cls._service = GeminiService()
+        return cls._service
 
     @staticmethod
-    def _build_config(
-            system_prompt: str,
-            temperature: float,
-            max_tokens: int | None,
-            ) -> types.GenerateContentConfig:
-        """Build a :class:`types.GenerateContentConfig`.
+    def _build_config(temperature: float, max_tokens: int | None) -> RequestConfig:
+        """Map scalar call-site params to a :class:`RequestConfig`.
 
-        ``system_instruction`` is only injected when a non-empty prompt is
-        supplied — the new SDK raises if the field is set to an empty string.
-        ``max_output_tokens`` is only set when explicitly provided.
+        ``max_tokens`` is only forwarded when explicitly supplied so that
+        PoolGate.poolgate can apply its own model-level default otherwise.
         """
         kwargs: dict = {"temperature": temperature}
         if max_tokens is not None:
-            kwargs["max_output_tokens"] = max_tokens
-        if system_prompt:
-            kwargs["system_instruction"] = system_prompt
-        return types.GenerateContentConfig(**kwargs)
+            kwargs["max_tokens"] = max_tokens
+        return RequestConfig(**kwargs)
 
     @staticmethod
     def _record(
             *,
             model: str,
             latency_ms: float,
-            response: types.GenerateContentResponse,
+            usage: object | None,
             system_prompt: str,
             user_prompt: str,
             text: str,
             is_structured: bool,
             ) -> None:
-        """Extract usage metadata and fire a :class:`GeminiTrace`."""
-        meta = response.usage_metadata
-        input_tokens = getattr(meta, "prompt_token_count", 0) if meta else 0
-        output_tokens = getattr(meta, "candidates_token_count", 0) if meta else 0
-        total_tokens = getattr(meta, "total_token_count", 0) if meta else 0
+        """Extract usage metadata from a PoolGate.poolgate usage object and emit a trace.
+
+        When ``usage`` is ``None`` (structured path) all token counters
+        default to 0 via ``getattr``'s default argument — no branching
+        needed.
+        """
+        input_tokens = getattr(usage, "input_tokens", 0) or 0
+        output_tokens = getattr(usage, "output_tokens", 0) or 0
+        total_tokens = getattr(usage, "total_tokens", 0) or 0
 
         record_trace(GeminiTrace(
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -119,27 +149,33 @@ class GeminiClient(LLMClient):
             max_tokens: int | None,
             is_structured: bool = False,
             ) -> str:
-        config = self._build_config(system_prompt, temperature, max_tokens)
+        """Sync text generation via PoolGate.poolgate invoke().
 
-        t0 = time.perf_counter()
-        response = self._get_client().models.generate_content(
+        PoolGate.poolgate's response object carries ``.latency`` (seconds) and a
+        ``.usage`` object, so no manual timing or SDK metadata parsing is
+        required.
+        """
+        cfg = self._build_config(temperature, max_tokens)
+        response = self._get_service().invoke(
+            prompt=user_prompt,
             model=model,
-            contents=user_prompt,
-            config=config,
+            # Pass None rather than "" so PoolGate.poolgate omits the field entirely
+            # (the SDK raises on an empty system_instruction string).
+            system=system_prompt or None,
+            config=cfg,
+            session_id=session_id_var.get(),
             )
-        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-        text = response.text
         self._record(
             model=model,
-            latency_ms=latency_ms,
-            response=response,
+            latency_ms=round(response.latency * 1000, 2),
+            usage=response.usage,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            text=text,
+            text=response.text,
             is_structured=is_structured,
             )
-        return text
+        return response.text
 
     async def _agenerate(
             self,
@@ -151,30 +187,33 @@ class GeminiClient(LLMClient):
             max_tokens: int | None,
             is_structured: bool = False,
             ) -> str:
-        config = self._build_config(system_prompt, temperature, max_tokens)
+        """Async text generation via PoolGate.poolgate async_invoke().
 
-        t0 = time.perf_counter()
-        response = await self._get_client().aio.models.generate_content(
+        Routes through ``client.aio.models`` inside PoolGate.poolgate — no thread
+        offloading needed.
+        """
+        cfg = self._build_config(temperature, max_tokens)
+        response = await self._get_service().async_invoke(
+            prompt=user_prompt,
             model=model,
-            contents=user_prompt,
-            config=config,
+            system=system_prompt or None,
+            config=cfg,
+            session_id=session_id_var.get(),
             )
-        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
 
-        text = response.text
         self._record(
             model=model,
-            latency_ms=latency_ms,
-            response=response,
+            latency_ms=round(response.latency * 1000, 2),
+            usage=response.usage,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            text=text,
+            text=response.text,
             is_structured=is_structured,
             )
-        return text
+        return response.text
 
     # ------------------------------------------------------------------ #
-    # Sync                                                                 #
+    # Sync public interface                                                #
     # ------------------------------------------------------------------ #
 
     def invoke(
@@ -204,19 +243,41 @@ class GeminiClient(LLMClient):
             temperature: float = 0.3,
             max_tokens: int | None = None,
             ) -> SchemaT:
-        combined_system = self._build_structured_system_prompt(schema, system_prompt)
-        raw = self._generate(
-            user_prompt=user_prompt,
+        """Structured sync call using PoolGate.poolgate's native Gemini JSON mode.
+
+        PoolGate.poolgate's ``structured()`` activates Gemini's built-in response
+        schema enforcement, which is more reliable than injecting a JSON
+        prompt.  The return type is the parsed Pydantic model; no separate
+        ``_parse_structured`` step is needed.
+        """
+        cfg = self._build_config(temperature, max_tokens)
+
+        t0 = time.perf_counter()
+        result = self._get_service().structured(
+            prompt=user_prompt,
+            schema=schema,
             model=model,
-            system_prompt=combined_system,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            system=system_prompt or None,
+            config=cfg,
+            session_id=session_id_var.get(),
+            )
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        # structured() returns the Pydantic model directly — token counts
+        # are not exposed.  Pass usage=None; _record defaults all to 0.
+        self._record(
+            model=model,
+            latency_ms=latency_ms,
+            usage=None,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            text=result.model_dump_json(),
             is_structured=True,
             )
-        return self._parse_structured(raw, schema)
+        return result
 
     # ------------------------------------------------------------------ #
-    # Async (native via client.aio)                                        #
+    # Async public interface                                               #
     # ------------------------------------------------------------------ #
 
     async def ainvoke(
@@ -246,13 +307,31 @@ class GeminiClient(LLMClient):
             temperature: float = 0.3,
             max_tokens: int | None = None,
             ) -> SchemaT:
-        combined_system = self._build_structured_system_prompt(schema, system_prompt)
-        raw = await self._agenerate(
-            user_prompt=user_prompt,
+        """Structured async call using PoolGate.poolgate's native Gemini JSON mode.
+
+        Mirrors ``invoke_structured``; uses ``async_structured`` so it
+        composes correctly with ``asyncio.gather`` in parallel node fans.
+        """
+        cfg = self._build_config(temperature, max_tokens)
+
+        t0 = time.perf_counter()
+        result = await self._get_service().async_structured(
+            prompt=user_prompt,
+            schema=schema,
             model=model,
-            system_prompt=combined_system,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            system=system_prompt or None,
+            config=cfg,
+            session_id=session_id_var.get(),
+            )
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+        self._record(
+            model=model,
+            latency_ms=latency_ms,
+            usage=None,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            text=result.model_dump_json(),
             is_structured=True,
             )
-        return self._parse_structured(raw, schema)
+        return result

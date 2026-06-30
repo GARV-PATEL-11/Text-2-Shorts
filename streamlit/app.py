@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import time
-import uuid
 
 import requests
 import streamlit.components.v1 as components
@@ -274,7 +273,7 @@ for k, v in _defaults.items():
 def _post_generate(requirement: str, approach: str) -> dict:
     resp = requests.post(
         f"{API_BASE}/generate",
-        json={"requirement": requirement, "approach": approach, "session_id": uuid.uuid4().hex},
+        json={"requirement": requirement, "approach": approach},
         timeout=15,
         )
     resp.raise_for_status()
@@ -1019,7 +1018,7 @@ with tab_sessions:
                 store_artifacts = _fetch_artifacts(sid)
                 if store_artifacts:
                     st.caption(f"{len(store_artifacts)} artifact(s) stored")
-                    for art in store_artifacts:
+                    for i, art in enumerate(store_artifacts):
                         atype = art["artifact_type"]
                         label = art["label"]
                         size_kb = art["size_bytes"] / 1024
@@ -1035,7 +1034,7 @@ with tab_sessions:
                                     data=json_str,
                                     file_name=f"{atype}.json",
                                     mime="application/json",
-                                    key=f"dl_{sid}_{atype}",
+                                    key=f"dl_{sid}_{atype}_{i}",
                                     )
 
 # ── Auto-polling ──────────────────────────────────────────────────────────────

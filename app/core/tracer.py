@@ -60,25 +60,11 @@ class GeminiTrace(BaseTrace):
     provider: str = "gemini"
 
 
-@dataclass
-class CloudflareTrace(BaseTrace):
-    """Cloudflare Workers AI trace.
-
-    Extra fields:
-    - ``cf_ray_id``  — ``CF-Ray`` response header for CloudFlare edge tracing.
-    - ``account_id`` — Cloudflare account used (last-4 chars only for safety).
-    """
-
-    provider: str = "cloudflare"
-    cf_ray_id: str = ""
-    account_id_suffix: str = ""  # last 4 chars of account_id
-
-
 # ------------------------------------------------------------------ #
 # Union alias                                                          #
 # ------------------------------------------------------------------ #
 
-AnyTrace = BedrockTrace | GeminiTrace | CloudflareTrace
+AnyTrace = BedrockTrace | GeminiTrace
 
 # ------------------------------------------------------------------ #
 # Recorder                                                             #
@@ -98,11 +84,6 @@ def record_trace(trace: AnyTrace) -> None:
             "bedrock_request_id": trace.request_id,
             "cache_read_tokens": trace.cache_read_tokens,
             "cache_write_tokens": trace.cache_write_tokens,
-            }
-    elif isinstance(trace, CloudflareTrace):
-        extra_details = {
-            "cf_ray_id": trace.cf_ray_id,
-            "account_id_suffix": trace.account_id_suffix,
             }
 
     svc.emit(

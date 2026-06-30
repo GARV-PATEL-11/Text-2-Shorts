@@ -11,6 +11,7 @@ from app.api.schemas.request import GenerateRequest
 from app.api.schemas.response import GenerateResponse, ResumeResponse
 from app.core.config import settings
 from app.core.context import request_logger_var
+from app.core.id_service import IDService
 from app.core.logger import RequestLogger, StructuredLogger
 from app.storage.artifact_store import ArtifactStore, SessionIndex
 
@@ -21,8 +22,10 @@ logger = StructuredLogger.get_logger(__name__)
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_video(body: GenerateRequest) -> GenerateResponse:
+    session_id = IDService.next_session_id()
+
     rl = RequestLogger(
-        session_id=body.session_id,
+        session_id=session_id,
         endpoint="/generate",
         payload={
             "approach": str(body.approach),
@@ -30,8 +33,8 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
             "requirement_len": len(body.requirement),
             },
         config={
-            "primary_model": settings.CLOUDFLARE_PRIMARY_MODEL,
-            "coding_model": settings.CLOUDFLARE_CODING_MODEL,
+            "gemini_model": settings.GEMINI_MODEL,
+            "gemini_fallback_model": settings.GEMINI_FALLBACK_MODEL,
             },
         )
     tok = request_logger_var.set(rl)
@@ -39,21 +42,21 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
     logger.info(
         "Generate request received",
         extra={
-            "session_id": body.session_id,
+            "session_id": session_id,
             "approach": str(body.approach),
             "requirement_len": len(body.requirement),
             },
         )
 
     initial_state = {
-        "session_id": body.session_id,
+        "session_id": session_id,
         "approach": body.approach,
         "requirement": body.requirement,
         }
 
     approach_str = str(body.approach)
     SessionIndex.upsert(
-        body.session_id,
+        session_id,
         approach=approach_str,
         requirement_preview=body.requirement[:200],
         pipeline_status="running",
@@ -62,21 +65,21 @@ async def generate_video(body: GenerateRequest) -> GenerateResponse:
 
     task = asyncio.create_task(
         run_pipeline(
-            body.session_id,
+            session_id,
             initial_state,
             approach=approach_str,
             requirement=body.requirement,
             ),
         )
-    task.add_done_callback(lambda _: _cleanup_task(body.session_id))
-    _tasks[body.session_id] = task
+    task.add_done_callback(lambda _: _cleanup_task(session_id))
+    _tasks[session_id] = task
 
-    rl.pipeline_step("task.queued", {"session_id": body.session_id})
+    rl.pipeline_step("task.queued", {"session_id": session_id})
     request_logger_var.reset(tok)
 
     return GenerateResponse(
-        session_id=body.session_id,
-        workflow_id=body.session_id,
+        session_id=session_id,
+        workflow_id=session_id,
         approach=body.approach,
         status="queued",
         )

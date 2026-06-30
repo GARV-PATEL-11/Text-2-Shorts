@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timezone
 
 import boto3
+from botocore.client import BaseClient
 
 from app.core.config import settings
 from app.core.context import node_name_var, session_id_var, workflow_id_var
@@ -24,7 +25,7 @@ class BedrockClient(LLMClient):
     :func:`asyncio.to_thread` — keeping the event loop unblocked.
     """
 
-    _boto_client: boto3.client | None = None  # class-level singleton
+    _boto_client: BaseClient | None = None  # class-level singleton
 
     # ------------------------------------------------------------------ #
     # Internal                                                             #
