@@ -112,7 +112,19 @@ async def run_pipeline(
                         "status": updates_dict.get("status"),
                         },
                         )
-                elif stage_name == "map_outline":
+                elif stage_name == "outline_critique":
+                    store.save("outline", {
+                        "outline": updates_dict.get("outline"),
+                        "outline_type": updates_dict.get("outline_type"),
+                        "status": updates_dict.get("status"),
+                        },
+                        )
+                    store.save("outline_critique", {
+                        "session_id": session_id,
+                        "status": "completed",
+                        },
+                        )
+                elif stage_name == "visual_planning":
                     store.save("scene_map", {
                         "total_scenes": updates_dict.get("total_scenes"),
                         "metadata": make_serializable(updates_dict.get("metadata")),
@@ -125,6 +137,14 @@ async def run_pipeline(
                         pipeline_status="running",
                         completed_stages=completed_stages,
                         total_scenes=total_scenes,
+                        )
+                elif stage_name == "visual_plan_critique":
+                    refined = updates_dict.get("scene_visual_plans", [])
+                    store.save("visual_plans", {
+                        "session_id": session_id,
+                        "total_scenes": len(refined),
+                        "scene_visual_plans": make_serializable(refined),
+                        },
                         )
                 elif stage_name == "manim_code_generation":
                     codes = make_serializable(updates_dict.get("scene_manim_codes", []))

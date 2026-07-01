@@ -92,6 +92,7 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
 
     has_refined = store.exists("refined_input")
     has_outline = store.exists("outline")
+    has_outline_critique = store.exists("outline_critique")
     has_scene_map = store.exists("scene_map")
 
     if not has_refined:
@@ -123,9 +124,26 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             "video_outline": scene_map.get("video_outline", []),
             "status": "ready",
             }
-        await _workflow.pipeline.aupdate_state(config, state_dict, as_node="map_outline_to_visual_plan")
+        await _workflow.pipeline.aupdate_state(config, state_dict, as_node="visual_planning")
+        resume_from = "visual_plan_critique"
+        pre_completed = ["validate_input", "generate_outline", "outline_critique", "visual_planning"]
+
+    elif has_outline_critique:
+        outline_data = store.load("outline") or {}
+        state_dict = {
+            "session_id": session_id,
+            "approach": approach,
+            "requirement": requirement,
+            "workflow_id": refined.get("workflow_id", session_id),
+            "system_prompt": refined.get("system_prompt"),
+            "refined_requirement": refined.get("refined_requirement", requirement),
+            "outline": outline_data.get("outline"),
+            "outline_type": outline_data.get("outline_type"),
+            "status": "ready",
+            }
+        await _workflow.pipeline.aupdate_state(config, state_dict, as_node="outline_critique")
         resume_from = "visual_planning"
-        pre_completed = ["validate_input", "generate_outline", "map_outline"]
+        pre_completed = ["validate_input", "generate_outline", "outline_critique"]
 
     elif has_outline:
         outline_data = store.load("outline") or {}
@@ -141,7 +159,7 @@ async def resume_pipeline(session_id: str) -> ResumeResponse:
             "status": "ready",
             }
         await _workflow.pipeline.aupdate_state(config, state_dict, as_node=_OUTLINE_NODE)
-        resume_from = "map_outline"
+        resume_from = "outline_critique"
         pre_completed = ["validate_input", "generate_outline"]
 
     else:

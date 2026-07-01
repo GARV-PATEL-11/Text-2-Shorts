@@ -23,7 +23,7 @@ def _infer_stage(values: dict) -> str:
     if not values.get("outline"):
         return "Generating Outline" if status == "ready" else "Queued"
     if not values.get("video_outline"):
-        return "Mapping Outline"
+        return "Critiquing Outline"
     if not values.get("scene_visual_plans"):
         return "Generating Visual Plan"
     if not values.get("scene_manim_codes"):

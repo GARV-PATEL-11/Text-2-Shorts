@@ -19,7 +19,8 @@ async def get_outline_output(session_id: str) -> OutlineOutputResponse:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found.")
 
     tracker = StageTracker.for_session(session_id)
-    output = tracker.get_stage_output("generate_outline")
+    # Prefer the refined outline from outline_critique; fall back to generate_outline
+    output = tracker.get_stage_output("outline_critique") or tracker.get_stage_output("generate_outline")
 
     if output is not None:
         return OutlineOutputResponse(
