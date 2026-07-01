@@ -136,7 +136,7 @@ def build_outline_refactor_prompt(
         ) -> str:
     payload = json.dumps({"meta": meta, "outline": segments}, indent=2)
     improvements_block = "\n".join(
-        f"  {i + 1}. {imp}" for i, imp in enumerate(critique.improvements),
+        f"  {i + 1}. {imp}" for i, imp in enumerate(critique.improvements)
         )
     return (
         f"## REFACTOR REQUEST — ITERATION {iteration}\n\n"
