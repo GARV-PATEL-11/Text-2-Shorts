@@ -7,11 +7,23 @@ Edge map
 --------
     START
       → validate_input
-      → [route_by_approach]   ──► generate_outline
-                              ──► END  (validation failure)
-      → [route_after_outline] ──► map_outline_to_visual_plan
-                              ──► END  (outline failure)
-      → visual_planning
+      → [route_by_approach]           ──► generate_outline
+                                      ──► END  (validation failure)
+      → [route_after_outline]         ──► outline_critique
+                                      ──► END  (outline failed)
+      → [route_after_outline_critique]──► visual_planning
+                                      ──► END  (critique failed)
+      → [route_after_visual_planning] ──► visual_plan_critique
+                                      ──► END  (all plans failed)
+      → [route_after_visual_plan_critique]
+                                      ──► manim_code_generation
+                                      ──► END  (all plans failed critique)
+      → [route_after_code_generation] ──► dsl_critique
+                                      (always proceeds)
+      → [route_after_dsl_critique]    ──► scene_rendering
+                                      ──► END  (all codes failed)
+      → [route_after_rendering]       ──► video_assembly
+                                      ──► END  (all renders failed)
       → END
 """
 
@@ -26,8 +38,9 @@ from app.graph.state import GraphState
 
 NODE_VALIDATE_INPUT = "validate_input"
 NODE_GENERATE_OUTLINE = "generate_outline"
-NODE_MAP_OUTLINE = "map_outline_to_visual_plan"
+NODE_OUTLINE_CRITIQUE = "outline_critique"
 NODE_VISUAL_PLANNING = "visual_planning"
+NODE_VISUAL_PLAN_CRITIQUE = "visual_plan_critique"
 NODE_MANIM_CODE_GENERATION = "manim_code_generation"
 NODE_SCENE_RENDERING = "scene_rendering"
 NODE_VIDEO_ASSEMBLY = "video_assembly"
@@ -63,10 +76,74 @@ def route_by_approach(state: GraphState) -> str:
     return NODE_GENERATE_OUTLINE
 
 
+def route_after_outline(state: GraphState) -> str:
+    """Conditional edge after any outline generator node.
+
+    Routes to outline_critique on success, END on failure.
+    """
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+    failed = state.status == "failed" or not state.outline
+    target = END if failed else NODE_OUTLINE_CRITIQUE
+
+    if rl:
+        rl.routing_decision(
+            from_node=state.outline_type or "outline_node",
+            to_node=str(target),
+            reason="failed" if failed else "outline_ready",
+            )
+
+    return target
+
+
+def route_after_outline_critique(state: GraphState) -> str:
+    """Conditional edge after outline_critique.
+
+    Routes to visual_planning on success, END on failure.
+    """
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+    failed = state.status == "failed" or not state.outline
+    target = END if failed else NODE_VISUAL_PLANNING
+
+    if rl:
+        rl.routing_decision(
+            from_node=NODE_OUTLINE_CRITIQUE,
+            to_node=str(target),
+            reason="failed" if failed else "outline_refined",
+            )
+
+    return target
+
+
 def route_after_visual_planning(state: GraphState) -> str:
     """Conditional edge after visual_planning.
 
-    Routes to manim_code_generation if any scene plan succeeded, else END.
+    Routes to visual_plan_critique if any scene plan succeeded, else END.
+    """
+    from app.core.context import request_logger_var
+
+    rl = request_logger_var.get()
+    any_ready = any(not p.error for p in (state.scene_visual_plans or []))
+    failed = state.status == "failed" or not any_ready
+    target = END if failed else NODE_VISUAL_PLAN_CRITIQUE
+
+    if rl:
+        rl.routing_decision(
+            from_node=NODE_VISUAL_PLANNING,
+            to_node=str(target),
+            reason="failed" if failed else "visual_plans_ready",
+            )
+
+    return target
+
+
+def route_after_visual_plan_critique(state: GraphState) -> str:
+    """Conditional edge after visual_plan_critique.
+
+    Routes to manim_code_generation if any plan survived critique, else END.
     """
     from app.core.context import request_logger_var
 
@@ -77,9 +154,9 @@ def route_after_visual_planning(state: GraphState) -> str:
 
     if rl:
         rl.routing_decision(
-            from_node=NODE_VISUAL_PLANNING,
+            from_node=NODE_VISUAL_PLAN_CRITIQUE,
             to_node=str(target),
-            reason="failed" if failed else "visual_plans_ready",
+            reason="failed" if failed else "plans_refined",
             )
 
     return target
@@ -101,48 +178,6 @@ def route_after_rendering(state: GraphState) -> str:
             from_node=NODE_SCENE_RENDERING,
             to_node=str(target),
             reason="clips_ready" if any_ready else "all_failed",
-            )
-
-    return target
-
-
-def route_after_map_outline(state: GraphState) -> str:
-    """Conditional edge after map_outline_to_visual_plan.
-
-    Routes to visual_planning normally, or END when the outline had zero scenes.
-    """
-    from app.core.context import request_logger_var
-
-    rl = request_logger_var.get()
-    failed = state.status == "failed" or not state.video_outline
-    target = END if failed else NODE_VISUAL_PLANNING
-
-    if rl:
-        rl.routing_decision(
-            from_node=NODE_MAP_OUTLINE,
-            to_node=str(target),
-            reason="no_scenes" if failed else "scenes_ready",
-            )
-
-    return target
-
-
-def route_after_outline(state: GraphState) -> str:
-    """Conditional edge after any outline generator node.
-
-    Routes to map_outline_to_visual_plan on success, END on failure.
-    """
-    from app.core.context import request_logger_var
-
-    rl = request_logger_var.get()
-    failed = state.status == "failed" or not state.outline
-    target = END if failed else NODE_MAP_OUTLINE
-
-    if rl:
-        rl.routing_decision(
-            from_node=state.outline_type or "outline_node",
-            to_node=str(target),
-            reason="failed" if failed else "outline_ready",
             )
 
     return target
