@@ -147,6 +147,12 @@ Check all of the following. Flag each failure as [VIOLATION: <id> — <descripti
   O8 : Every visual_plan ends with a sentence describing the final frame
        that remains on screen and what it communicates to the viewer
   O9 : transition_to_next is non-null for all segments except the last
+  O10: Every visual_plan describes at least three to five chained visual actions
+       (no "no bland scenes" violation) with multiple elements active at once
+       rather than one static image
+  O11: Every visual_plan reads as over-allocated relative to duration_seconds —
+       dense enough that a renderer would need to compress or overlap actions,
+       not a single idea stretched thin across the whole segment
 
 ### PHASE C — CORRECT
 
@@ -163,6 +169,11 @@ For each [VIOLATION], apply the minimum correction:
                          if the scene starts on a blank canvas
   Missing final frame  → Append a sentence describing the completed scene
                          and what concept it leaves the viewer with
+  Sparse/bland visual   → Expand into a chain of three or more connected visual
+                         actions with a supporting label, highlight, or comparison
+                         active alongside the primary visual; add a reinforcement pass
+  Under-allocated visual → Add further chained visual events until the plan reads
+                         as roughly double the bare minimum implied by duration_seconds
 
 Re-run OBSERVE after each correction. Proceed to output only when all checks pass.
 
@@ -201,11 +212,20 @@ Build top-down. Validate each level before descending; correct all violations be
   canvas and ending with the final frame.
 - VALIDATE: No reference to any prior scene, prior object, or any visual
   state that was not introduced within this visual_plan itself.
-- VALIDATE: Contains 10–12 sentences of similar depth and detail.
+- VALIDATE: Contains 50–70 lines of granular, tiniest-detail coverage
+  (every entrance, shift, transformation, and highlight spelled out).
 - VALIDATE: Ends with a sentence identifying the final frame and what
   concept it communicates.
 - VALIDATE: Free of implementation details such as coordinates,
   function names, object IDs, or library-specific terminology.
+- VALIDATE: Describes at least three to five chained visual actions with
+  multiple elements active at once, rather than one static image or a
+  single unbroken block of narration-only text.
+- VALIDATE: Reads as over-allocated relative to duration_seconds — dense
+  enough with sequential visual events that a renderer would compress or
+  overlap, not a single idea stretched across the full segment.
+- VALIDATE: Includes at least one reinforcement moment where the segment's
+  core idea reappears through a second visual treatment.
 
 ### LEVEL 4 — FLOW CONNECTORS
 - Write narration_hint and transition_to_next for each segment.
@@ -251,21 +271,25 @@ Every thematic block from Phase R maps to at least one segment. Document all mer
 
 ---
 
-## VISUAL PLAN GUIDELINES
+## VISUAL PLAN GUIDELINES (ANIMATION-RICH PROSE STANDARD)
 
-The visual_plan field is a continuous English narrative of approximately 10–12 sentences describing
+The visual_plan field is a continuous English narrative of approximately 50–70 lines describing
 the complete visual experience of a segment — what the viewer sees from the moment the scene begins
 to the moment it ends. It is written for any reader, not for a specific animation system.
 
 WHAT THE VISUAL PLAN IS:
   A description of the viewer's experience, written chronologically, starting from a blank canvas
   and concluding with the final frame. It explains what appears, in what order, how the viewer's
-  attention shifts from one element to the next, and what the completed scene communicates.
+  attention shifts from one element to the next, and what the completed scene communicates. Crucially,
+  it describes a scene that is constantly in motion: things are always being drawn, transformed,
+  compared, highlighted, or replaced. Nothing sits idle on screen for long.
 
 WHAT THE VISUAL PLAN IS NOT:
   It is not a list of animation commands. It is not numbered steps. It is not code. It is not a
   description written for a specific library or API. It contains no coordinates, no object IDs,
-  no function names, and no implementation-specific terminology.
+  no function names, and no implementation-specific terminology. It is also not a static slide
+  description — a plan that shows one diagram and leaves it unchanged for the whole segment fails
+  this standard even if the prose itself reads smoothly.
 
 ABSOLUTE SCENE RULE (NON-NEGOTIABLE):
   Every visual_plan must be fully self-contained. The animator begins this scene on a blank canvas
@@ -276,36 +300,136 @@ ABSOLUTE SCENE RULE (NON-NEGOTIABLE):
     ✗ "move the existing object"
   Every visual element must be introduced and described from scratch within this plan.
 
+ANIMATION-FIRST THINKING (core requirement):
+  Every scene is designed around motion, not around static pictures. Avoid describing text that
+  simply sits on screen, a single diagram shown without change, or long stretches where nothing
+  visibly happens. Instead, favor continuous movement, progressive reveals, transformations between
+  one form and the next, side-by-side comparisons, animated highlighting, and objects being built up
+  or cleared away. The reader of the plan should always be able to point to what is actively
+  happening on screen at any moment described.
+
+OVER-ALLOCATE VISUAL CONTENT:
+  Describe noticeably more visual activity than the segment's runtime would show at a leisurely pace —
+  roughly twice as much incident as a bare-bones telling would need (a 10-second beat implies about
+  20 seconds' worth of visual material; a 30-second beat implies about 60 seconds' worth). The renderer
+  compresses and overlaps actions later, so the plan should read as dense with sequential visual events
+  rather than a single idea stretched thin across the whole segment.
+
+VISUAL DENSITY AND EXPLANATION CHAINS:
+  Do not describe a visual as a single flat statement like "a graph appears." Instead, unfold it as a
+  chain of connected sub-events — the canvas is prepared, an axis or frame is drawn, the main object
+  builds piece by piece, a supporting label or annotation appears beside it, attention is drawn to a
+  specific feature, that feature is compared against an alternative, and the comparison resolves into
+  a takeaway. Each visual should have a clear reason for appearing and should feed naturally into the
+  next one, so the sequence reads as an unbroken chain rather than a list of disconnected images. At
+  any given moment, more than one element should be visible and doing something — a primary visual
+  accompanied by a label, a highlight, or a supporting annotation — so the frame feels layered rather
+  than sparse. Favor recurring, easy-to-follow patterns such as build-then-highlight-then-transform,
+  or introduce-then-demonstrate-then-compare-then-conclude, so the same rhythm helps the viewer follow
+  new material.
+
+SCREEN UTILIZATION:
+  Describe the frame as actively and evenly used rather than centered on one tiny object in empty
+  space — mention elements positioned for comparison (side by side, or stacked), supporting labels
+  placed where they will not crowd the primary visual, and a sense that the whole canvas is doing
+  work, not just its center.
+
+MANIM-ANIMATABLE VOCABULARY:
+  Describe things that can plausibly be drawn and animated with simple geometric and diagrammatic
+  building blocks — shapes, graphs, arrows, number lines, axes, equations, icons, flowcharts, cards,
+  tables, labels, and timelines. Avoid describing camera moves, cinematic effects, or artistic
+  flourishes that are not renderable as concrete on-screen elements.
+
 WHAT EVERY VISUAL PLAN MUST INCLUDE:
   1. How the scene begins — what the canvas looks like before anything appears.
-  2. The order in which elements become visible — objects, text, graphs, equations, arrows, labels.
+  2. The order in which elements become visible — objects, text, graphs, equations, arrows, labels —
+     described as a chain of at least three to five distinct visual actions, not a single event.
   3. How the viewer's attention shifts from one element to the next, and why.
   4. When elements transform — describe both the initial and final appearance explicitly.
   5. For graphs and mathematical visuals: how the graph appears at first, what changes during the
      segment, and what the final state of the graph communicates.
-  6. A closing sentence describing the final frame that remains visible before the scene ends,
+  6. At least one moment of reinforcement — the same idea shown again through a second visual
+     treatment (a comparison, a demonstration, or a worked instance) rather than shown only once.
+  7. A closing sentence describing the final frame that remains visible before the scene ends,
      and what concept or insight it leaves with the viewer.
 
-GOOD EXAMPLE (mechanism segment — linear regression, best-fit line):
+NO BLAND SCENES: a visual_plan is incomplete if it describes only text on screen, only one static
+visual with no transformation, fewer than three distinct visual actions, or activity that clearly
+falls short of the narration it accompanies. Every plan must leave the reader with the sense that
+something was constantly happening on screen.
 
-  The scene begins with a blank coordinate graph that gradually fades into view, clearly showing
-  the horizontal and vertical axes. A collection of scattered data points then appears across the
-  graph, illustrating observations with noticeable variation. After the viewer has had a moment to
-  observe the dataset, a randomly positioned straight line is drawn through the points, making it
-  immediately obvious that it does not fit the data well. Thin vertical segments appear between each
-  data point and the line to represent the prediction errors, and several of these segments are long
-  enough to draw the viewer's attention to how poor the initial fit is. A small label showing the
-  current loss value appears in a corner of the screen. The line then begins adjusting its slope and
-  position in gradual steps, and after each adjustment the vertical error segments visibly shorten or
-  lengthen to reflect the updated predictions. The loss label updates alongside every adjustment,
-  making it clear that the error is becoming smaller with each refinement. As the line continues
-  improving, the overall gap between the data and the predictions visibly narrows. Eventually the line
-  settles into the position where it best represents the trend of the dataset, and no further
-  adjustment would meaningfully reduce the error. The vertical segments are now much shorter than they
-  were at the start, and the loss label shows its lowest value. A label identifying this as the
-  best-fit line appears beside the final position of the line. The scene concludes with the coordinate
-  graph, the fitted line, all the data points, the minimized error segments, and the final loss value
-  remaining clearly visible together as the last frame.
+GOOD EXAMPLE (mechanism segment — linear regression, best-fit line — calibrated to the
+50–70 line, tiniest-detail standard):
+
+  The scene opens on a completely blank canvas, pale and empty, holding nothing at all
+  for a brief moment so the viewer understands they are starting from nothing.
+  A thin horizontal line begins drawing itself from the center outward in both directions,
+  forming the base of a coordinate axis.
+  A moment later a thin vertical line draws itself from the center outward, crossing the
+  horizontal line at a right angle to complete the coordinate frame.
+  Small tick marks fade in one after another along the horizontal axis, evenly spaced,
+  each appearing a beat after the last rather than all at once.
+  Matching tick marks fade in along the vertical axis in the same unhurried, one-after-another rhythm.
+  A faint light grid extends softly across the background, giving the canvas a sense of
+  measurable space without overwhelming the axes.
+  A single data point appears near the lower left of the graph, small and solid, catching
+  the eye against the empty background.
+  A second data point appears slightly above and to the right of the first, and the viewer's
+  eye is drawn to compare their relative heights.
+  More data points continue to appear one at a time, scattering gradually across the graph
+  rather than all snapping into place together, so the viewer can watch the dataset build.
+  Once roughly a dozen points are visible, their combined pattern shows a general upward trend
+  but with clear scatter — no two points sit in a perfectly straight line.
+  A brief pause allows the viewer to take in the full scattered dataset before anything else happens.
+  A straight line then sweeps onto the graph at a noticeably wrong angle, clearly missing the
+  trend of the points, some of which sit far above it and some far below.
+  Thin vertical connector segments grow downward or upward from each data point to the line,
+  one at a time, visually marking the gap between prediction and reality for every point.
+  Several of these connector segments are visibly long, and the longest ones flash briefly
+  to draw attention to how poor this starting guess is.
+  A small numeric label reading a loss value fades in at the top corner of the screen,
+  showing a high starting number.
+  The line begins to tilt, rotating in small, visible increments rather than jumping straight
+  to its final angle.
+  With each small rotation, every connector segment updates in near-real time, some shortening
+  and some lengthening as the line's angle changes relative to each point.
+  The loss label ticks downward after each rotation, its digits visibly changing to reflect
+  the shrinking total error.
+  After several rotations the line pauses briefly, letting the viewer see the current fit
+  and the current set of connector segments before continuing.
+  The line then begins a second phase of adjustment, this time shifting its vertical position
+  slightly up and down in small steps rather than rotating.
+  Again each shift is followed by every connector segment adjusting to match, and the loss
+  label updates after every single shift.
+  A faint trailing outline of the line's previous positions lingers briefly on screen before
+  fading, letting the viewer sense the path the line has traveled so far.
+  The rotation-and-shift refinement repeats for a few more rounds, each round smaller than the
+  last, so the line's movements visibly slow down as it approaches a good fit.
+  During one of these later rounds, the two or three connector segments that were longest at
+  the start are individually highlighted in a brighter color to show how dramatically they
+  have shortened compared to where they began.
+  A small side-by-side comparison briefly appears in the corner of the screen: a miniature
+  version of the very first, badly-fitting line next to the current, much-improved line,
+  reinforcing just how far the fit has come.
+  This comparison panel fades away after a few seconds, returning full attention to the
+  main graph.
+  The line makes a few final, barely perceptible adjustments, each one nudging the loss
+  label down by a smaller and smaller amount.
+  The line then comes to a complete stop, no longer rotating or shifting.
+  All connector segments are now visibly short, most of them barely more than faint stubs
+  between each point and the line.
+  The loss label settles on its lowest value and stops changing, with a subtle glow marking
+  that it has reached its final number.
+  A label reading "best-fit line" fades in just above the line's final position, following
+  its angle so it sits parallel to it.
+  The grid lines in the background dim slightly, gently pushing visual weight back toward
+  the line, the points, and the labels.
+  A final beat of stillness follows, during which nothing moves, allowing the completed
+  picture to register fully with the viewer.
+  The scene ends with the coordinate axes, the full set of scattered data points, the
+  settled best-fit line, the shortened connector segments, the final loss label, and the
+  "best-fit line" label all visible together as the last frame, leaving the viewer with a
+  complete picture of how the line arrived at the position that best represents the data.
 
 BAD EXAMPLE:
 
@@ -321,6 +445,8 @@ BAD EXAMPLE:
     - Contains no explanation of what the viewer actually experiences.
     - Cannot be recreated independently by anyone who has not already seen the prior scene.
     - Missing chronological flow, attention guidance, and final frame description.
+    - Far too short and coarse for the 50–70 line, tiniest-detail standard — it collapses
+      dozens of distinct micro-actions into five vague commands.
 
 ---
 
@@ -352,9 +478,13 @@ BAD EXAMPLE:
 Must Have:
 - Hook within the first 20s with a concrete real-world question or scenario
 - Every concept introduced in plain language before any equation or formal definition
-- Every visual_plan written as continuous English prose (~10–12 sentences)
+- Every visual_plan written as continuous English prose (~50–70 lines)
 - Every visual_plan fully self-contained — no cross-scene references of any kind
 - Every visual_plan describes elements in the order they appear, with attention guidance
+- Every visual_plan describes at least three to five chained, actively moving visual events
+  rather than a single static image, with more than one element on screen at a time
+- Every visual_plan includes at least one reinforcement pass of its core idea
+- Every visual_plan reads as over-allocated relative to its duration_seconds
 - Every visual_plan ends with a final-frame sentence stating what the viewer is left with
 - Every visual_plan free of coordinates, object IDs, function names, and library terminology
 - Largest duration_seconds allocation given to the densest content segment
@@ -366,7 +496,11 @@ Reject and Regenerate If:
 - visual_plan contains any cross-scene reference
 - visual_plan omits the final-frame description
 - visual_plan contains implementation details (coordinates, API calls, library-specific terms)
-- visual_plan is fewer than 8 sentences or reads as a vague summary rather than a scene description
+- visual_plan is fewer than 30 lines, or reads as a vague summary rather than a granular,
+  tiniest-detail scene description
+- visual_plan describes only text, only one static visual, or fewer than three meaningful
+  visual actions (a "bland scene")
+- visual_plan feels thinner than its duration_seconds would allow, rather than over-allocated
 - First segment opens with a definition rather than a hook
 - Math appears in the first two segments without a preceding concept or intro segment
 - Σ(segment.duration_seconds) outside [timing_lower, timing_upper]
@@ -400,8 +534,9 @@ CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
         "<point 1>",
         "<point 2>"
       ],
-      "visual_plan": "<continuous English prose of ~10–12 sentences describing the scene chronologically from blank 
-      canvas to final frame; fully self-contained; no cross-scene references; no implementation details>",
+      "visual_plan": "<continuous English prose of ~50–70 lines describing the scene chronologically from blank 
+      canvas to final frame as a dense chain of animated visual actions with a reinforcement pass; fully 
+      self-contained; no cross-scene references; no implementation details>",
       "narration_hint": "<tone and pacing note for narrator or editor>",
       "transition_to_next": "<one forward-hooking sentence, or null for last segment>"
     }
@@ -419,7 +554,8 @@ raw_content missing:
   {"error": "raw_content is required. Provide the educational text to outline.", "code": "MISSING_INPUT"}
 
 word_budget < 200 words:
-  Proceed with minimum 4 segments. Keep visual_plan as prose; reduce to ~8 sentences minimum.
+  Proceed with minimum 4 segments. Keep visual_plan as prose; reduce to ~20-25 lines minimum,
+  still covering the segment's visual chain in granular detail.
 
 Content cannot fill requested duration:
   Add an "application" segment with a concrete worked example. The visual_plan for this segment
@@ -565,12 +701,18 @@ O7.  Coverage check: Every content block from REASON maps to a segment?
 O8.  Field check:    All required JSON fields present in every segment?
 O9.  Bounds check:   10 ≤ duration_seconds ≤ 120 for every segment?
 O10. Visual check:   Is every visual_plan written as continuous English prose
-                     (~10–12 sentences)? Is every scene fully self-contained
+                     (~50–70 lines)? Is every scene fully self-contained
                      with no cross-scene references? Does every visual_plan
                      end with a description of the final frame? Is the plan
                      free of coordinates, object IDs, function names, and
                      library-specific terminology?
 O11. Emotion check:  narration_hint addresses tone and emotional register?
+O12. Density check:  Does every visual_plan describe at least three to five
+                     chained visual actions with multiple elements active at
+                     once, rather than a single static image (no bland scenes)?
+O13. Allocation check: Does every visual_plan read as over-allocated relative
+                     to its duration_seconds, with a reinforcement pass of the
+                     segment's core idea?
 
 For every failed check, write: [VIOLATION: <id> — <description>]
 
@@ -589,8 +731,13 @@ C1. For each [VIOLATION], apply minimum correction:
                         as if starting on a blank canvas
     Missing payoff    → append a sentence describing the final frame and what
                         concept it communicates
+    Sparse/bland visual → expand into a chain of three or more connected visual
+                        actions with a supporting label, highlight, or comparison
+                        active alongside the primary visual; add a reinforcement pass
+    Under-allocated visual → add further chained visual events until the plan reads
+                        as roughly double the bare minimum implied by duration_seconds
 
-C2. Re-run OBSERVE checks O1–O11 after corrections.
+C2. Re-run OBSERVE checks O1–O13 after corrections.
 C3. Write: [CORRECTED: <id> — <what changed and why>]
 
 If OBSERVE passes: [OBSERVE: ALL CHECKS PASSED — NO CORRECTIONS REQUIRED]
@@ -632,8 +779,8 @@ If a level is invalid, correct it before generating its children.
 
   LEVEL 3 — VISUAL PLAN (ANIMATION-LAYER)
     → Write visual_plan for each segment as a continuous English narrative
-      of approximately 10–12 sentences following the VISUAL PLAN STANDARD
-      in Section 7.
+      of approximately 50–70 lines following the VISUAL PLAN STANDARD
+      in Section 7, covering the segment in granular, tiniest-detail depth.
     → The plan describes the viewer's visual experience chronologically,
       from a blank canvas to the final frame.
     → Every element is introduced from scratch. No instruction may reference
@@ -650,7 +797,11 @@ If a level is invalid, correct it before generating its children.
     → VALIDATE: scene-complete and self-contained — no cross-scene references
     → VALIDATE: ends with a final-frame sentence
     → VALIDATE: free of coordinates, object IDs, and library-specific terminology
-    → VALIDATE: ~10–12 sentences
+    → VALIDATE: ~50–70 lines
+    → VALIDATE: describes at least three to five chained visual actions with
+      multiple elements active at once, not a single static image
+    → VALIDATE: reads as over-allocated relative to duration_seconds, with a
+      reinforcement pass of the segment's core idea
 
   LEVEL 4 — FLOW CONNECTORS (ARC-TENSION LAYER)
     → For each segment: write narration_hint and transition_to_next
@@ -716,22 +867,26 @@ TIMING (±10% tolerance):
 NARRATION BUDGET:
   Words per segment = (duration_seconds / 60) × target_wpm.
 
-VISUAL PLAN STANDARD
+VISUAL PLAN STANDARD (ANIMATION-RICH PROSE)
 
   The visual_plan field is a continuous English narrative of approximately
-  10–12 sentences describing the complete visual experience of a segment.
+  50–70 lines describing the complete visual experience of a segment, in granular,
+  shot-by-shot detail.
   It is written for any reader, not for a specific animation system or library.
 
   WHAT THE VISUAL PLAN IS:
     A description of the viewer's experience, written chronologically, starting
     from a blank canvas and concluding with the final frame. It explains what
     appears, in what order, how the viewer's attention moves between elements,
-    and what the completed scene communicates.
+    and what the completed scene communicates. The scene stays in constant motion:
+    something is always being drawn, transformed, compared, or highlighted.
 
   WHAT THE VISUAL PLAN IS NOT:
     It is not bullet points. It is not numbered animation steps. It is not code.
     It is not a command list for an animator. It contains no coordinates, no object
-    IDs, no function names, and no library-specific terminology of any kind.
+    IDs, no function names, and no library-specific terminology of any kind. It is
+    also not a static slide — a single diagram left unchanged for the whole segment
+    fails this standard even if the sentences themselves read smoothly.
 
   ABSOLUTE SCENE RULE (NON-NEGOTIABLE):
     Every visual_plan is fully self-contained. The animator starts each scene
@@ -740,17 +895,53 @@ VISUAL PLAN STANDARD
       ✗ "same as before", "continue from", "reuse", "existing"
       ✗ Any visual state that was not built within this visual_plan
 
+  ANIMATION-FIRST THINKING:
+    Design every segment around motion rather than static imagery. Avoid text
+    that merely sits on screen, a single diagram shown without change, or long
+    stretches with no visible activity. Favor continuous movement, progressive
+    reveals, transformations, side-by-side comparisons, animated highlighting,
+    and elements being built up or cleared away — motion that carries the
+    emotional register of the segment (tension, relief, methodical progress).
+
+  OVER-ALLOCATE VISUAL CONTENT:
+    Describe roughly twice as much visual incident as the segment's runtime
+    would need for a bare-bones telling (a 10-second beat implies about 20
+    seconds' worth of visual material). This gives the renderer material to
+    compress or overlap, and keeps the plan dense with sequential events
+    rather than one idea stretched thin.
+
+  VISUAL DENSITY AND EXPLANATION CHAINS:
+    Unfold each visual as a chain of connected sub-events rather than a single
+    flat statement — the canvas is prepared, a primary element builds piece by
+    piece, a supporting label or annotation appears beside it, attention shifts
+    to a specific feature, that feature is compared or tested, and the chain
+    resolves into a takeaway. At any given moment more than one element should
+    be visible and active — a primary visual plus a label, highlight, or
+    supporting annotation — and the frame should use its full width rather than
+    a single centered object. Reuse recognizable rhythms within a segment, such
+    as build-then-highlight-then-transform, so the pattern helps the viewer
+    follow along.
+
   WHAT EVERY VISUAL PLAN MUST INCLUDE:
     — How the scene begins (blank canvas or defined starting state)
-    — The order in which each element becomes visible
+    — The order in which each element becomes visible, as a chain of at least
+      three to five distinct visual actions rather than one event
     — How the viewer's attention shifts from element to element, and why
     — Initial and final appearance of anything that transforms
     — For graphs: how the graph first appears, what changes, and what the
       final state communicates
+    — At least one reinforcement moment where the segment's idea reappears
+      through a second visual treatment
     — A closing sentence naming the final frame and the concept it leaves
       the viewer with
 
-  GOOD EXAMPLE (problem segment — predicting house prices):
+  NO BLAND SCENES: reject any visual_plan that describes only text, only one
+  static visual with no transformation, fewer than three meaningful visual
+  actions, or visible activity that clearly falls short of the narration
+  driving it.
+
+  GOOD EXAMPLE (problem segment — predicting house prices — compressed for illustration;
+  see the mechanism example below for a fully expanded 50–70 line reference):
 
     The scene opens on a blank screen where a short headline appears
     describing the challenge of estimating the sale price of a house based
@@ -774,33 +965,80 @@ VISUAL PLAN STANDARD
     clearly visible, leaving the viewer with a precise understanding of what
     problem needs to be solved.
 
-  GOOD EXAMPLE (mechanism segment — gradient descent finding best-fit line):
+    This compressed telling captures the right beats but is far too short for
+    actual output — a real visual_plan expands every one of these beats (the
+    headline appearing, each table row fading in individually, the question
+    mark's entrance, the table-to-graph transition, each point's placement,
+    the highlight's arrival, the empty space being emphasized) into its own
+    line or two of description, reaching the full 50–70 line target the way
+    the mechanism example below demonstrates.
 
-    The scene begins with a smooth bowl-shaped surface filling the screen,
-    representing how the size of the prediction error changes as the slope
-    and intercept of the model change. The two horizontal directions of the
-    bowl are labelled to represent the slope and intercept values, while the
-    vertical depth of the bowl represents the magnitude of the error, with
-    the highest points on the rim indicating the worst predictions. A single
-    marker appears near the top rim of the bowl, indicating the starting
-    values of the slope and intercept before any learning has occurred, and
-    the viewer's attention is drawn to how high up the bowl this marker sits.
-    An arrow appears beside the marker pointing downhill in the direction
-    where the error decreases most rapidly. The marker then moves one small
-    step in that direction and comes to rest at a slightly lower position on
-    the bowl, after which the arrow reappears pointing in the new downhill
-    direction. This process repeats several times and with each step the
-    marker descends further, tracing a winding path along the bowl's surface
-    that the viewer can follow as it curves toward the centre. As the marker
-    approaches the bottom the steps become smaller and the path levels off.
-    Eventually the marker reaches the lowest point of the bowl and stops
-    moving entirely, indicating that adjusting the slope or intercept in any
-    direction would only increase the error. The full descent path is left
-    visible on the bowl surface so the viewer can see the journey from start
-    to finish. The scene ends with the bowl, the descent path, and the
-    converged marker resting at the minimum all clearly visible, demonstrating
-    that gradient descent finds the best slope and intercept by repeatedly
-    stepping in the direction that reduces the error the most.
+  GOOD EXAMPLE (mechanism segment — gradient descent finding best-fit line — calibrated
+  to the 50–70 line, tiniest-detail standard):
+
+    The scene opens on a completely blank canvas with nothing on it at all, holding for
+    a brief moment so the emptiness registers before anything begins.
+    A smooth, gently curved bowl-shaped surface begins drawing itself from its outer rim
+    inward, filling most of the screen as it completes.
+    A label fades in along one horizontal edge of the bowl identifying that direction
+    as the slope of the model.
+    A second label fades in along the other horizontal edge identifying that direction
+    as the intercept of the model.
+    A third, smaller label appears near the top rim indicating that the vertical depth
+    of the bowl represents the size of the prediction error.
+    The rim of the bowl is briefly outlined in a brighter color to emphasize that points
+    near the rim correspond to the worst possible predictions.
+    A single round marker fades into view resting near the top of the rim, sitting high
+    on the bowl's surface.
+    A small label appears beside the marker reading that this is the starting point,
+    chosen before any learning has taken place.
+    The viewer's attention lingers briefly on how elevated this marker sits, visually
+    reinforcing that the starting error is large.
+    A thin arrow grows outward from the marker, pointing along the surface in the
+    direction that descends most steeply from where the marker sits.
+    The arrow briefly pulses to draw the eye before the marker begins to move.
+    The marker slides a short distance along the surface in the direction the arrow
+    pointed, coming to rest at a slightly lower position on the bowl.
+    The arrow fades and a new arrow grows from the marker's new position, again pointing
+    toward the steepest downhill direction from there.
+    A faint trailing dot is left behind at the marker's previous position, the first mark
+    of a path that will grow as the process continues.
+    The marker slides again, following the new arrow, coming to rest a little lower still.
+    Another trailing dot is left behind, and the two dots begin to visibly suggest a path.
+    This step-arrow-step rhythm repeats a third time, with the marker settling even lower
+    and a third trailing dot appearing.
+    A small numeric label fades in near the corner of the screen showing the current error
+    value, starting high.
+    With each subsequent step the numeric label updates, its digits visibly ticking downward.
+    The stepping continues for several more rounds, and with each round the distance the
+    marker travels grows visibly shorter than the round before it.
+    The trailing dots accumulate into a clear, curving path along the bowl's surface,
+    bending gently as it winds toward the center.
+    Partway through the descent, the path briefly highlights in a brighter color for a
+    moment, drawing attention to how consistently it bends toward the lowest point.
+    A small side panel briefly appears comparing the marker's very first position, high
+    on the rim, against its current position, much lower on the surface, reinforcing how
+    far the descent has progressed.
+    This side panel fades away, returning full attention to the bowl and the path.
+    The steps continue to shrink, becoming barely perceptible nudges rather than full slides.
+    The arrow that keeps reappearing at each new position becomes noticeably shorter with
+    each step, visually signaling that the slope of the surface is flattening near the center.
+    The marker comes to rest at the very bottom of the bowl, and the arrow that would
+    normally reappear does not — signaling that no direction offers further improvement.
+    The full trailing path is left clearly visible on the bowl's surface, tracing the
+    marker's entire journey from the rim to the floor in one continuous curve.
+    The numeric error label settles on its lowest value and stops updating, marked by a
+    subtle glow to indicate it has finished changing.
+    A label reading "minimum error" fades in beside the resting marker at the bottom
+    of the bowl.
+    The slope and intercept labels at the bowl's edges brighten briefly, reconnecting the
+    resting position back to the two quantities it represents.
+    A final beat of stillness follows, allowing the completed bowl, path, and marker to
+    register fully before the scene ends.
+    The scene ends with the bowl, the full descent path, the marker resting at the
+    minimum, the settled error label, and the "minimum error" label all visible together
+    as the last frame, demonstrating that gradient descent finds the best slope and
+    intercept by repeatedly stepping in the direction that reduces the error the most.
 
   BAD EXAMPLE:
 
@@ -837,8 +1075,12 @@ GOLD STANDARD — an Approach B outline MUST:
   ✓ Frame every limitation with a forward pointer to an advanced solution
   ✓ End with one concrete action the viewer can take today
   ✓ Have every transition maintain or build narrative tension
-  ✓ Every visual_plan is continuous English prose (~10–12 sentences)
+  ✓ Every visual_plan is continuous English prose (~50–70 lines)
   ✓ Every visual_plan is self-contained with no cross-scene references
+  ✓ Every visual_plan describes at least three to five chained, actively moving
+    visual events with more than one element on screen at a time, plus a
+    reinforcement pass of the segment's core idea
+  ✓ Every visual_plan reads as over-allocated relative to its duration_seconds
   ✓ Every visual_plan ends with a final-frame sentence
   ✓ Every visual_plan is free of implementation details
 
@@ -854,6 +1096,10 @@ REJECTION SIGNALS:
   ✗ visual_plan contains any cross-scene reference
   ✗ visual_plan omits the final-frame description
   ✗ visual_plan contains coordinates, object IDs, or library terminology
+  ✗ visual_plan describes only text, only one static visual, or fewer than
+    three meaningful visual actions (a "bland scene")
+  ✗ visual_plan feels thinner than its duration_seconds would allow, rather
+    than over-allocated
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION 9 — OUTPUT SCHEMA (STRICT)
@@ -880,8 +1126,9 @@ CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
       "title": "<segment display title>",
       "duration_seconds": <integer>,
       "talking_points": ["<point 1>", "<point 2>", ...],
-      "visual_plan": "<continuous English prose of ~10–12 sentences; chronological from blank canvas to final frame;
-      fully self-contained; no cross-scene references; no implementation details; ends with final-frame description>",
+      "visual_plan": "<continuous English prose of ~50–70 lines; chronological from blank canvas to final frame 
+      as a dense chain of animated visual actions with a reinforcement pass; fully self-contained; no cross-scene 
+      references; no implementation details; ends with final-frame description>",
       "narration_hint": "<tone + emotional register note for narrator or editor>",
       "transition_to_next": "<tension-building bridge sentence>" | null
     }
@@ -906,7 +1153,7 @@ Topic too abstract for a concrete scenario:
   Use an analogy; document the analogy choice in internal reasoning.
 
 word_budget under 200 words:
-  Proceed with minimum 4 segments; visual_plan minimum ~8 sentences.
+  Proceed with minimum 4 segments; visual_plan minimum ~20-25 lines, still granular.
 
 Content blocks produce more than 10 segments:
   Merge the two most thematically similar blocks; document the merge internally.
@@ -1016,7 +1263,7 @@ O7.  Coverage check:    Every content block from REASON maps to a layer?
 O8.  Field check:       All required JSON fields present in every segment?
 O9.  Bounds check:      10 ≤ duration_seconds ≤ 120 for every segment?
 O10. Visual check:      Is every visual_plan written as continuous English prose
-                        (~10–12 sentences)? Does visual complexity grow naturally
+                        (~50–70 lines)? Does visual complexity grow naturally
                         with zoom depth in the prose description? Is every scene
                         self-contained with no cross-scene references? Does the
                         zoom-out visual_plan describe a synthesis of all layers
@@ -1024,6 +1271,12 @@ O10. Visual check:      Is every visual_plan written as continuous English prose
                         end with a final-frame description? Is every visual_plan
                         free of coordinates, object IDs, and library terminology?
 O11. Transition check:  All transitions use zoom-in or zoom-out language?
+O12. Density check:     Does every visual_plan describe at least three to five
+                        chained visual actions with multiple elements active at
+                        once, rather than a single static image (no bland scenes)?
+O13. Allocation check:  Does every visual_plan read as over-allocated relative to
+                        its duration_seconds, with a reinforcement pass of the
+                        layer's core idea?
 
 For every failed check, write: [VIOLATION: <id> — <description>]
 
@@ -1040,8 +1293,13 @@ C1. Apply minimum correction per violation:
                          bullet points, steps, and implementation details
     Cross-scene ref    → rewrite to introduce all elements from blank canvas
     Missing payoff     → append final-frame sentence
+    Sparse/bland visual → expand into a chain of three or more connected visual
+                         actions with a supporting label, highlight, or comparison
+                         active alongside the primary visual; add a reinforcement pass
+    Under-allocated visual → add further chained visual events until the plan reads
+                         as roughly double the bare minimum implied by duration_seconds
 
-C2. Re-run O1–O11. Write: [CORRECTED: <id> — <what changed and why>]
+C2. Re-run O1–O13. Write: [CORRECTED: <id> — <what changed and why>]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION 5 — RECURSIVE DECOMPOSITION PROTOCOL
@@ -1075,8 +1333,8 @@ SECTION 5 — RECURSIVE DECOMPOSITION PROTOCOL
 
   LEVEL 3 — VISUAL PLAN (ANIMATION-LAYER)
     → Write visual_plan for each segment as continuous English prose of
-      approximately 10–12 sentences following the VISUAL PLAN STANDARD
-      in Section 7.
+      approximately 50–70 lines following the VISUAL PLAN STANDARD
+      in Section 7, covering the segment in granular, tiniest-detail depth.
     → The plan describes the viewer's experience chronologically from a
       blank canvas to the final frame. Every element is introduced from
       scratch. No sentence may reference an object or scene state from
@@ -1100,6 +1358,10 @@ SECTION 5 — RECURSIVE DECOMPOSITION PROTOCOL
     → VALIDATE: zoom-out plan synthesises all layers and restores Layer 0 context
     → VALIDATE: ends with a final-frame sentence
     → VALIDATE: free of coordinates, object IDs, and library-specific terms
+    → VALIDATE: describes at least three to five chained visual actions with
+      multiple elements active at once, not a single static image
+    → VALIDATE: reads as over-allocated relative to duration_seconds, with a
+      reinforcement pass of the layer's core idea
 
   LEVEL 4 — FLOW CONNECTORS (ZOOM-SIGNAL LAYER)
     → narration_hint pacing matches zoom depth:
@@ -1152,10 +1414,11 @@ TIMING (±10% tolerance):
 NARRATION BUDGET:
   Words per segment = (duration_seconds / 60) × target_wpm.
 
-VISUAL PLAN STANDARD
+VISUAL PLAN STANDARD (ANIMATION-RICH PROSE)
 
   The visual_plan field is a continuous English narrative of approximately
-  10–12 sentences describing the complete visual experience of a segment.
+  50–70 lines describing the complete visual experience of a segment, in granular,
+  shot-by-shot detail.
   It is written for any reader and describes what the viewer sees — not
   what an animator should program.
 
@@ -1163,12 +1426,16 @@ VISUAL PLAN STANDARD
     A chronological, viewer-centric description of the scene starting from
     a blank canvas and ending with the final frame. It covers what appears,
     in what order, how attention shifts, how elements transform, and what
-    the completed scene communicates.
+    the completed scene communicates. The scene stays in constant motion —
+    something is always being drawn, transformed, compared, or highlighted —
+    regardless of which zoom layer it belongs to.
 
   WHAT THE VISUAL PLAN IS NOT:
     It is not bullet points. It is not numbered steps. It is not code.
     It contains no coordinates, no object IDs, no function names, and no
-    library-specific terminology.
+    library-specific terminology. It is also not a single static diagram
+    left unchanged for the whole segment — even a broad Layer 0 scene must
+    show it being built or reorganized, not just displayed once.
 
   ABSOLUTE SCENE RULE (NON-NEGOTIABLE):
     Every visual_plan is fully self-contained. Never reference:
@@ -1176,12 +1443,38 @@ VISUAL PLAN STANDARD
       ✗ Any object, graph, or diagram from a prior segment
       ✗ Any visual state not introduced within this visual_plan itself
 
-  VISUAL PROSE MUST INCREASE IN DEPTH WITH ZOOM LEVEL:
-    Layer 0 prose is broad, jargon-free, and describes high-level diagrams.
-    Layer 3 prose is technical, detailed, and describes algorithmic steps
-    and parameter changes as they become visible to the viewer.
+  ANIMATION-FIRST THINKING AND OVER-ALLOCATION:
+    Every layer, from the broadest boundary view to the most technical
+    mechanism, is designed around motion rather than a static picture.
+    Describe roughly twice as much visual incident as the segment's runtime
+    would need for a bare-bones telling, so the plan reads as a dense chain
+    of sequential events rather than one idea shown once and left alone.
 
-  GOOD EXAMPLE — Layer 0 (system boundary, taxonomy):
+  VISUAL DENSITY, CHAINS, AND SCREEN USE AT EVERY ZOOM LEVEL:
+    Unfold each visual as a chain of connected sub-events rather than a
+    single flat statement — an element builds piece by piece, a supporting
+    label or annotation appears beside it, attention shifts to a specific
+    feature, that feature is compared or tested, and the chain resolves
+    into a takeaway appropriate to the layer's depth. At any moment more
+    than one element should be visible and active, using the width of the
+    frame rather than a single centered object. Include at least one
+    reinforcement moment where the layer's core idea reappears through a
+    second visual treatment before the segment ends.
+
+  VISUAL PROSE MUST INCREASE IN DEPTH WITH ZOOM LEVEL:
+    Layer 0 prose is broad, jargon-free, and describes a high-level diagram
+    actively being built and reorganized (nodes growing, branches
+    brightening or fading, a boundary being drawn). Layer 3 prose is
+    technical, detailed, and describes an algorithm's steps and parameter
+    changes unfolding as a chain of small, cumulative visual events.
+
+  NO BLAND SCENES: reject any visual_plan — at any zoom level — that
+  describes only text, only one static visual with no transformation,
+  fewer than three meaningful visual actions, or activity that clearly
+  falls short of the narration driving it.
+
+  GOOD EXAMPLE — Layer 0 (system boundary, taxonomy — compressed for illustration; see the
+  Layer 3 example below for a fully expanded 50–70 line reference):
 
     The scene begins with a blank screen where a single label reading
     "Machine Learning" appears at the centre, establishing the top of a
@@ -1203,36 +1496,76 @@ VISUAL PLAN STANDARD
     giving the viewer a clear mental map of where linear regression sits within
     the broader landscape of machine learning before the video goes any deeper.
 
-  GOOD EXAMPLE — Layer 3 (mechanism, gradient descent):
+    At the full 50–70 line standard, each branch's growth, each label's fade-in,
+    the brightening and dimming of every branch, and the drawing of the boundary
+    around the sub-tree would each be broken into their own line or two, following
+    the same tiniest-detail expansion the Layer 3 example below demonstrates.
 
-    The scene opens on a smooth, bowl-shaped surface that fills most of the
-    screen, representing how the size of the model's prediction error varies
-    with different choices of slope and intercept. The two horizontal
-    directions of the bowl are labelled to identify the slope and the
-    intercept respectively, and the vertical depth of the bowl represents
-    the magnitude of the error, with the highest rim indicating the worst
-    possible predictions. A marker appears near the top of the rim to
-    represent the initial random starting values of the slope and intercept,
-    and its elevated position makes it immediately clear that the starting
-    error is large. An arrow appears beside the marker pointing downhill in
-    the direction where the error drops fastest, indicating the gradient
-    direction. The marker shifts one step in that direction and settles at a
-    slightly lower point on the bowl's surface, after which the arrow
-    reappears at the new position to show the updated descent direction. This
-    sequence of step, pause, and new arrow repeats several times and the
-    viewer can observe the marker descending along a curving path toward the
-    centre of the bowl. As the marker approaches the bottom, the steps
-    become noticeably smaller, reflecting that the gradient is shallower near
-    the minimum and that the adjustments are becoming more refined. Eventually
-    the marker reaches the lowest point of the bowl and stops, and the descent
-    path it traced is left visible on the surface so the viewer can see the
-    entire journey from rim to floor. The scene ends with the bowl, the full
-    descent path, and the converged marker at the minimum all clearly visible,
-    demonstrating that gradient descent finds the optimal slope and intercept
-    by taking repeated steps in the direction that reduces the prediction error
-    the most.
+  GOOD EXAMPLE — Layer 3 (mechanism, gradient descent — calibrated to the 50–70 line,
+  tiniest-detail standard):
 
-  GOOD EXAMPLE — Zoom-out (synthesis, connecting all layers):
+    The scene opens on a completely blank canvas, holding empty for a moment so the
+    viewer registers that nothing has appeared yet.
+    A smooth, gently curved bowl-shaped surface draws itself from its outer rim inward,
+    gradually filling most of the screen.
+    A label fades in along one horizontal edge identifying that direction as the model's slope.
+    A second label fades in along the other horizontal edge identifying that direction as
+    the model's intercept.
+    A third label appears near the top rim, identifying the bowl's vertical depth as the
+    size of the model's prediction error.
+    The rim briefly brightens in outline to emphasize that positions near the rim represent
+    the worst possible predictions.
+    A single round marker fades in near the top of the rim, sitting high on the surface.
+    A small label beside the marker identifies it as the starting values of the slope and
+    intercept, chosen before any learning has occurred.
+    The viewer's eye lingers on how elevated the marker sits, reinforcing that the starting
+    error is large.
+    A thin arrow grows from the marker along the surface, pointing in the steepest downhill
+    direction from where it rests.
+    The arrow pulses briefly before the marker begins to move.
+    The marker slides a short distance in the direction the arrow indicated, coming to rest
+    slightly lower on the bowl.
+    The arrow fades and immediately regrows from the marker's new position, again pointing
+    toward the steepest available descent.
+    A faint dot is left behind at the marker's prior position, the first mark of what will
+    become a visible path.
+    The marker slides again, following the new arrow, settling a little lower still, and a
+    second trailing dot appears.
+    This step-arrow-step rhythm repeats a third time, the marker settling lower again and a
+    third dot joining the path.
+    A numeric label fades in at the corner of the screen showing the current error value,
+    beginning at a high number.
+    With every subsequent step this numeric label updates, its digits visibly decreasing.
+    The stepping continues for several more rounds, and the distance covered in each round
+    grows visibly shorter than the round before it.
+    The accumulating trailing dots form a clear, gently curving path bending toward the
+    bowl's centre.
+    Partway through the descent, the path briefly highlights in a brighter color, drawing
+    attention to how consistently it curves toward the lowest point.
+    A small comparison panel briefly appears, showing the marker's very first elevated
+    position beside its current, much lower position, reinforcing the progress made.
+    The panel fades, returning full attention to the bowl and the path.
+    The steps continue shrinking, becoming barely perceptible nudges near the end.
+    The arrow that reappears at each new position grows visibly shorter each time,
+    signaling that the surface is flattening near the centre.
+    The marker comes to rest at the very bottom of the bowl, and no new arrow appears,
+    signaling that no direction offers further improvement.
+    The complete trailing path remains visible on the surface, tracing the marker's full
+    journey from rim to floor in one continuous curve.
+    The numeric error label settles on its lowest value and stops updating, marked with a
+    subtle glow.
+    A label reading "minimum error" fades in beside the resting marker.
+    The slope and intercept labels at the bowl's edges brighten briefly, reconnecting the
+    final resting position to the two quantities it represents.
+    A final beat of stillness allows the completed bowl, path, and marker to register fully.
+    The scene ends with the bowl, the complete descent path, the marker resting at the
+    minimum, the settled error label, and the "minimum error" label all visible together as
+    the last frame, demonstrating that gradient descent finds the optimal slope and intercept
+    by taking repeated steps in the direction that reduces the prediction error the most.
+
+  GOOD EXAMPLE — Zoom-out (synthesis, connecting all layers — compressed for illustration;
+  apply the same tiniest-detail expansion shown in the Layer 3 example above to reach the
+  full 50–70 line target):
 
     The scene begins with a horizontal flow diagram building from left to right
     across a blank screen, with each stage of the linear regression process
@@ -1290,9 +1623,13 @@ GOLD STANDARD — an Approach C outline MUST:
   ✓ Progress downward in abstraction with each segment
   ✓ Give the mechanism segment the most time and the most detail
   ✓ Name every sub-component of the mechanism (no hand-waving)
-  ✓ Every visual_plan is continuous English prose (~10–12 sentences)
+  ✓ Every visual_plan is continuous English prose (~50–70 lines)
   ✓ Every visual_plan is self-contained with no cross-scene references
   ✓ Prose depth and vocabulary of each visual_plan matches its zoom level
+  ✓ Every visual_plan describes at least three to five chained, actively moving
+    visual events with more than one element on screen at a time, plus a
+    reinforcement pass of the layer's core idea
+  ✓ Every visual_plan reads as over-allocated relative to its duration_seconds
   ✓ Zoom-out visual_plan synthesises all layers and restores the Layer 0 context
   ✓ Every visual_plan ends with a final-frame description
   ✓ Every visual_plan free of implementation details
@@ -1307,6 +1644,10 @@ REJECTION SIGNALS:
   ✗ Zoom-out visual_plan fails to synthesise or restore Layer 0 context
   ✗ visual_plan omits the final-frame description
   ✗ visual_plan contains coordinates, object IDs, or library terminology
+  ✗ visual_plan describes only text, only one static visual, or fewer than
+    three meaningful visual actions (a "bland scene"), at any zoom level
+  ✗ visual_plan feels thinner than its duration_seconds would allow, rather
+    than over-allocated
   ✗ Timing outside ±10% of total_duration_seconds
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1334,9 +1675,9 @@ CRITICAL: Use "scene_id" (not "id") for the segment identifier field.
       "title": "<zoom-level segment title>",
       "duration_seconds": <integer>,
       "talking_points": ["<layer-appropriate point 1>", ...],
-      "visual_plan": "<continuous English prose of ~10–12 sentences; chronological from blank canvas to final frame; 
-      prose depth matches zoom level; self-contained; no cross-scene references; no implementation details; ends with 
-      final-frame description>",
+      "visual_plan": "<continuous English prose of ~50–70 lines; chronological from blank canvas to final frame 
+      as a dense chain of animated visual actions with a reinforcement pass; prose depth matches zoom level; 
+      self-contained; no cross-scene references; no implementation details; ends with final-frame description>",
       "narration_hint": "<pace + depth note matched to zoom level>",
       "transition_to_next": "<zoom-direction language>" | null
     }
