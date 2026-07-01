@@ -1,10 +1,35 @@
 # =============================================================================
-#  MANIM VISUAL DIRECTOR — PROMPT SYSTEM v4
+#  MANIM VISUAL DIRECTOR — PROMPT SYSTEM v5
 #  Layout-agnostic · English-first · Timed to the second · Clip-based
-#  Frame-level detail enforced · Vocabulary aligned to Manim CE v0.20.x
+#  Frame-level detail enforced · Vocabulary + Construction Patterns +
+#  Common Mistakes aligned to Manim CE v0.20.x
 # =============================================================================
 #
-# CHANGELOG vs v3
+# CHANGELOG vs v4
+# ----------------
+# 1. PLUGGED IN two additional prompt sub-components that previously existed
+#    only as standalone files and were never actually concatenated into the
+#    system prompt: MANIM_CONSTRUCTION_PATTERNS (positioning/mutation/color/
+#    MathTex-indexing/scene-boilerplate API) and MANIM_COMMON_MISTAKES
+#    (execution-order and state-management bugs — renamed methods, .animate
+#    misuse, VGroup/Group mixing, TransformMatchingTex fade-vs-morph, etc.).
+#    _build_system_prompt() now assembles all three catalogs in sequence:
+#    SYSTEM_ROLE -> VOCABULARY -> CONSTRUCTION_PATTERNS -> COMMON_MISTAKES.
+#    This was the actual bug being fixed in v4: the director prompt declared
+#    RULE 2 ("never invent methods") and RULE 9/10/11 (frame-level detail)
+#    but only ever gave the model the vocabulary catalog to check itself
+#    against — the two catalogs that catch the most common failure modes
+#    (wrong construction call, wrong/renamed method) were sitting unused in
+#    their own files.
+# 2. RULE 2 and IMPLEMENTATION_NOTES now explicitly reference the
+#    construction-patterns and common-mistakes catalogs by name, so the
+#    model knows all three blocks below the system role are one contiguous
+#    reference it must check itself against, not just the vocabulary list.
+# 3. Both plugged-in modules are imported the same way MANIM_VOCABULARY
+#    already was — via a public module-level constant — so this file's
+#    only responsibility is assembly and ordering, not content.
+#
+# CHANGELOG vs v3 (carried forward from the prior revision)
 # ----------------
 # 1. Merged the standalone "ULTRA-DETAIL ENFORCEMENT INSTRUCTIONS" doc directly
 #    into the DSL: it is no longer a bolt-on file the caller has to remember to
@@ -43,6 +68,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.graph.prompts.manim_reference import MANIM_COMMON_MISTAKES, MANIM_CONSTRUCTION_PATTERNS, MANIM_VOCABULARY
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  STATIC BLOCKS — unchanged across every call
@@ -68,6 +95,15 @@ non-community fork) — the two have diverged and share only partial API
 compatibility. Every class and method you cite must exist in ManimCE's
 current public API as documented at docs.manim.community.
 
+Below the rules in this system role you are given THREE reference catalogs,
+in this order: a VOCABULARY catalog (which classes/methods exist and what
+they're for), a CONSTRUCTION PATTERNS catalog (how positioning, mutation,
+color, and MathTex indexing actually work), and a COMMON MISTAKES catalog
+(the specific renamed/removed APIs and execution-order bugs that most often
+appear in generated Manim code). Treat all three as one contiguous reference
+you must check every claim against before writing it down — not just the
+vocabulary list.
+
 ═══════════════════════════════════════════════════════
 ABSOLUTE RULES — violations break the downstream pipeline
 ═══════════════════════════════════════════════════════
@@ -92,7 +128,12 @@ RULE 2 · NAMED MANIM METHODS ONLY
   Never write "it appears" or "fades in smoothly" without naming the method.
   Never invent methods. Every method named must exist in the documented
   ManimCE API. Never cite a class or method listed under
-  "DEPRECATED / REMOVED — NEVER USE" in the vocabulary catalog below.
+  "DEPRECATED / REMOVED — NEVER USE" in the vocabulary catalog below, and
+  never cite a renamed/removed API flagged in the COMMON MISTAKES catalog
+  (e.g. get_graph, get_implicit_curve, get_parametric_curve, GraphScene,
+  ManimColor.from_hex(hex=...), Code.styles_list, Sector(inner_radius=...)).
+  When unsure of a construction call's exact signature, verify it against
+  the CONSTRUCTION PATTERNS catalog before writing it down.
 
 RULE 3 · EXPLICIT TIMING ON EVERY STEP
   Every step declares t_start, t_end, and duration.
@@ -175,438 +216,6 @@ RULE 11 · MULTI-INSTANCE OBJECTS ARE INDIVIDUALLY DIRECTED ACTORS
   building toward.
 """.strip()
 
-_MANIM_VOCABULARY = """
-════════════════════════════════════════════════════════════════
-MANIM PRIMITIVE VOCABULARY — REFERENCE CATALOG
-Target: Manim Community Edition v0.20.x (docs.manim.community)
-════════════════════════════════════════════════════════════════
-
-Every primitive below can be cited in <MANIM_PRIMITIVE_SELECTION>.
-For each entry: what it is and the visual use case it best serves.
-
-════════════════════════════════════════════════════════════════
-DEPRECATED / REMOVED — NEVER USE
-These classes do not exist in current ManimCE. Some appear plausible because
-they existed in very old Manim versions or in 3b1b/manim; citing any of them
-is a pipeline-breaking error. Use the listed replacement instead.
-════════════════════════════════════════════════════════════════
-  FadeInFrom, FadeInFromPoint, FadeInFromLarge   → use FadeIn(mobject, shift=...)
-  FadeOutAndShift, FadeOutToPoint                → use FadeOut(mobject, shift=...)
-  VFadeIn, VFadeOut, VFadeInThenOut              → use FadeIn / FadeOut
-  CircleIndicate                                  → use Indicate or Circumscribe
-  ShowCreationThenDestruction                     → use Succession(
-                                                       Create(obj, run_time=...),
-                                                       Wait(...),
-                                                       Uncreate(obj, run_time=...))
-  ShowCreationThenDestructionAround               → use Circumscribe(obj)
-  ShowCreationThenFadeAround                      → use Circumscribe(obj) or
-                                                       ShowPassingFlash(SurroundingRectangle(obj))
-  ShowPassingFlashAround                          → use ShowPassingFlash(SurroundingRectangle(obj))
-  AnimationOnSurroundingRectangle                 → use SurroundingRectangle(obj) directly
-                                                       with Create / FadeIn / ShowPassingFlash
-  WiggleOutThenIn                                 → use Wiggle(obj)
-  TurnInsideOut                                   → no direct replacement; use Transform
-  OpenGLTexMobject, OpenGLTextMobject             → use MathTex / Tex (renderer-agnostic)
-  VMobjectFromSVGPathstring                       → use SVGPathMobject
-  ShowPassingFlashWithThinningStroke               → misnamed; correct class is
-                                                       ShowPassingFlashWithThinningStrokeWidth
-  Mobject.rotate_in_place / .scale_in_place /
-  .scale_about_point                              → deprecated; use .rotate(), .scale(),
-                                                       or .move_to()/.shift() directly
-  ShowCreation                                    → renamed long ago; use Create
-
-──────────────────────────────────────────
-SCENE CONTAINERS
-──────────────────────────────────────────
-Scene               → base scene; fixed camera; use for most educational scenes
-MovingCameraScene   → use whenever the camera pans, zooms, or tracks an object
-ZoomedScene         → built-in zoom window + inset; for focusing on a sub-region
-                      while keeping the full scene visible
-ThreeDScene         → 3D-capable scene with depth; supports set_camera_orientation,
-                      move_camera, begin_ambient_camera_rotation
-InteractiveScene    → interactive/browser-rendered elements; live demos
-
-──────────────────────────────────────────
-GEOMETRY — shapes that form the visual substrate
-──────────────────────────────────────────
-Dot                 → single data point, graph node, position marker, scatter element
-Point               → invisible zero-radius anchor; reference position only
-Line                → connect two concepts, axis segment, regression line, connector
-DashedLine          → error bar, uncertainty range, guide line, projection, boundary hint
-Arrow               → direction of causality, annotation pointer, gradient direction
-DoubleArrow         → two-way relationship, bijection, bidirectional mapping
-Vector              → physics force arrow, eigenvector, vector field element
-Circle              → set boundary, focus ring, probability node, cycle marker
-Ellipse             → stretched set boundary, orbital path, covariance region
-Arc                 → curved path between two points, partial circle, angle sweep
-Sector              → pie chart slice, angular probability region, wedge highlight
-Annulus             → ring shape; concentric layers, donut chart, focus zone
-Square              → bounding box, FSM state node, matrix cell highlight, grid element
-Rectangle           → panel background, table cell, bar in a bar chart, code block frame
-RoundedRectangle    → soft panel, card UI, callout box, tooltip
-Polygon             → arbitrary convex shape, crystal cell, custom territory
-Triangle            → delta symbol, derivative indicator, 3-way relationship, direction arrow
-RegularPolygon      → symmetric n-sided shape (hexagon for honeycomb, octagon for stop, etc.)
-Star                → emphasis decoration, rating icon, landmark marker
-Cross               → error symbol, deletion mark, XOR gate, cancellation
-Angle               → angle marker between two lines; proof geometry, rotation amount
-
-──────────────────────────────────────────
-CURVES — mathematical and freeform paths
-──────────────────────────────────────────
-Bezier              → smooth freeform curve between control points; custom connectors
-CubicBezier         → smooth S-curve; elegant connector between non-adjacent elements
-ParametricFunction  → any curve defined by x(t), y(t); Lissajous, spirals, cycloids
-FunctionGraph       → plot a single-variable function y=f(x) on an Axes object
-ImplicitFunction    → curve defined by F(x,y)=0; level sets, contours, conics
-                      (current ManimCE name is ImplicitFunction, not ImplicitCurve)
-
-──────────────────────────────────────────
-COORDINATE SYSTEMS — reference frames for data and math
-──────────────────────────────────────────
-NumberLine          → single-axis number line; distributions, ranges, 1D comparisons
-Axes                → 2D Cartesian frame; function plots, data visualizations
-ThreeDAxes          → 3D x-y-z frame; 3D surfaces, vector fields, transformations
-NumberPlane         → full 2D grid with tick labels; linear algebra, complex number plane
-PolarPlane          → r-θ frame; polar functions, circular/angular data
-ComplexPlane        → Argand diagram; complex arithmetic, Fourier analysis
-
-──────────────────────────────────────────
-TEXT AND FORMULAS — all on-screen language
-──────────────────────────────────────────
-Text                → plain English labels, annotations, captions, titles
-MarkupText          → styled text with inline bold/italic/color spans (HTML-like)
-Paragraph           → multi-line body text block; longer explanations
-BulletedList        → step list that can reveal one line at a time
-Title               → large heading; scene title or major section header
-Tex                 → LaTeX with prose and inline math; mixed text+formula
-MathTex             → pure LaTeX math; ALWAYS split into tokens for submobject animation
-                      e.g., MathTex("y","=","m","x","+","c") — NOT MathTex("y=mx+c")
-DecimalNumber       → live decimal value that updates in sync with a ValueTracker
-Integer             → live integer value that updates in sync with a ValueTracker
-Variable            → named value pair "x = 3.5" that updates live; slider labels
-
-──────────────────────────────────────────
-DATA DISPLAY — structured information
-──────────────────────────────────────────
-Table               → grid of text cells; comparison tables, data grids, lookup tables
-MathTable           → grid of LaTeX math cells; truth tables, operation tables
-Matrix              → mathematical matrix with brackets; linear algebra operations
-DecimalMatrix       → matrix with live decimal values that update
-IntegerMatrix       → matrix with live integer values
-MobjectMatrix       → matrix whose cells are arbitrary Manim objects
-BarChart            → vertical or horizontal bar chart; categorical comparisons
-LineGraph           → connected line plot; trend over time or ordered sequence
-
-──────────────────────────────────────────
-MEDIA — imported external assets
-──────────────────────────────────────────
-ImageMobject        → raster image (PNG, JPG) overlaid on scene; photos, diagrams
-SVGMobject          → vector graphic; complex logos, icons, imported diagrams
-Code                → syntax-highlighted code block; algorithm + code side-by-side
-
-──────────────────────────────────────────
-GRAPH STRUCTURES — network topology
-──────────────────────────────────────────
-Graph               → undirected network (nodes + edges); social graphs, trees, BFS/DFS
-DiGraph             → directed network (nodes + arrows); DAGs, state machines, pipelines
-
-──────────────────────────────────────────
-3D OBJECTS — require ThreeDScene
-──────────────────────────────────────────
-Cube                → 3D box; convolution filter, tensor block, voxel
-Sphere              → 3D ball; data point in 3D space, neuron body, globe
-Cylinder            → 3D tube; column chart bar, pipe, rotation axis
-Cone                → 3D cone; gradient descent funnel, focus beam
-Prism               → 3D generalized prism; crystal structures, extruded shapes
-Surface             → parametric 3D surface; loss landscape, probability surface
-Torus               → donut shape; topology examples, loop structures
-
-──────────────────────────────────────────
-GROUPS — collection wrappers
-──────────────────────────────────────────
-VGroup              → ordered group of VMobjects; style, animate, or remove as a unit
-Group               → general group for mixed Mobject types
-
-──────────────────────────────────────────
-UTILITY AND DECORATORS — annotation helpers
-──────────────────────────────────────────
-Brace               → curly brace spanning an object or range; label a measurement
-BraceLabel          → brace with inline text label; annotate a span or group
-SurroundingRectangle → highlight box around any object; draw attention to a region
-BackgroundRectangle → opaque fill behind text; ensure legibility over complex visuals
-Underline           → line beneath text; stress a term or definition
-
-──────────────────────────────────────────
-BOOLEAN OPS — shape algebra
-──────────────────────────────────────────
-Union               → merge two shapes into one; Venn diagram union, merged region
-Intersection        → keep only the overlapping part; Venn intersection, common area
-Difference          → cut one shape out of another; cutaway diagram, excluded zone
-Exclusion           → symmetric difference (XOR); non-overlapping combined region
-
-════════════════════════════════════════════════════════════════
-ANIMATION METHODS
-════════════════════════════════════════════════════════════════
-
-──────────────────────────────────────────
-CREATION — how objects first appear on screen
-──────────────────────────────────────────
-Create              → draws the border/path of any VMobject; best for axes, arrows,
-                      geometric shapes — the path itself is the visual reveal
-Uncreate            → reverse-draws a geometric path (mirror of Create); "undo" a
-                      shape drawn with Create()
-DrawBorderThenFill  → draws outline first, then floods fill inside; filled shapes
-                      where the boundary reveal is meaningful
-ShowPartial         → base class for revealing a fractional portion of a path;
-                      use its subclasses (Create/Uncreate) directly in most cases
-ShowIncreasingSubsets → reveals a VGroup's submobjects one at a time, additively,
-                      with no easing between them; discrete step-by-step reveal
-                      for lists, sequences, or table rows
-ShowSubmobjectsOneByOne → shows exactly one submobject at a time, replacing the
-                      previous one; use for cycling through alternatives at a
-                      fixed screen position
-Write               → stroke-by-stroke text rendering; matches the cadence of spoken
-                      narration; use for ALL Text, Tex, and MathTex objects
-AddTextLetterByLetter → types text in one character at a time with a fixed
-                      per-character interval; terminal/typewriter reveal
-AddTextWordByWord   → reveals text one whole word at a time; slower narrative pacing
-                      than AddTextLetterByLetter
-TypeWithCursor      → AddTextLetterByLetter with a visible blinking cursor glyph
-                      trailing the reveal; code-typing or terminal simulation
-RemoveTextLetterByLetter → mirror of AddTextLetterByLetter; deletes text one
-                      character at a time from the end
-UntypeWithCursor    → mirror of TypeWithCursor; deletes with a trailing cursor
-GrowFromCenter      → scales object up from its center; "pop in" for new key concepts
-GrowArrow           → arrow extends from tail tip to arrowhead; directional reveal,
-                      shows directionality as it builds
-GrowFromPoint       → scales up from a specified anchor point; origin-relative growth
-GrowFromEdge        → grows from one specified edge; directional panel reveal
-SpinInFromNothing   → object spins and scales up simultaneously from zero size;
-                      energetic, attention-grabbing entrance
-SpiralIn            → sub-Mobjects fly inward on spiral trajectories with a
-                      fade-in during the initial fraction of the motion (default
-                      fade_in_fraction=0.3); playful, orbital, multi-object entry —
-                      use for a VGroup of several small shapes, not a single object
-
-──────────────────────────────────────────
-FADE — opacity-based appear/disappear
-──────────────────────────────────────────
-FadeIn              → object materializes from transparent; supports a `shift=`
-                      kwarg for a directional fade-in (replaces the old
-                      FadeInFrom family); use when there is no natural path or
-                      stroke to animate (images, groups, panels)
-FadeOut             → object dematerializes to transparent; supports `shift=` for
-                      directional fade-out (replaces FadeOutAndShift); the
-                      universal removal method; use for cleanup and transitions
-FadeTransform       → cross-fade morph from one object to another; soft conceptual swap
-FadeTransformPieces → cross-fade morph piece by piece; segmented or complex objects
-FadeToColor         → shift the fill color through a fade; state or status transition
-
-──────────────────────────────────────────
-TRANSFORMS — shape morphing between states
-──────────────────────────────────────────
-Transform                 → morph one object into another; general-purpose shape change
-ReplacementTransform      → morph and replace (source disappears); clean swap of objects
-TransformFromCopy         → morph a copy while original stays; show a derived form
-ClockwiseTransform         → morph with a clockwise rotational path
-CounterclockwiseTransform  → morph with a counter-clockwise rotational path
-TransformMatchingShapes    → auto-matches similar sub-parts between two objects;
-                            complex shape morphs with natural piece-to-piece motion
-TransformMatchingTex       → auto-matches LaTeX tokens between two equations;
-                            equation rearrangement, algebraic manipulation
-CyclicReplace              → cyclically swaps the positions of a list of mobjects;
-                            round-robin reassignment, rotating a set of labels
-ApplyMethod                → call any Manim method on an object as an animation step
-ApplyFunction               → apply an arbitrary Python function to transform all points
-ApplyPointwiseFunction       → apply a function to every point of the mobject
-                            independently; localized, non-uniform warping
-ApplyPointwiseFunctionToCenter → apply a function to the mobject's center point only,
-                            then move the whole mobject there; simpler repositioning
-                            via a function rather than a fixed target
-ApplyMatrix                → apply a 2D or 3D matrix transformation to object's points;
-                            linear algebra demos (shear, rotation, scaling matrices)
-ApplyComplexFunction        → warp the entire plane by a complex function; complex analysis
-
-──────────────────────────────────────────
-MOTION — path and function-based movement
-──────────────────────────────────────────
-MoveAlongPath       → object travels along any VMobject path; trace a curve,
-                      orbit an object, follow a data trajectory
-Homotopy            → continuously deform a shape via a point-mapping function;
-                      abstract topological transformations
-ComplexHomotopy     → homotopy applied in the complex plane
-SmoothedVectorizedHomotopy → homotopy variant with smoothed intermediate curvature;
-                      gentler deformation than raw Homotopy for VMobjects
-PhaseFlow           → simulate a vector field flow over time;
-                      differential equations, particle systems
-
-──────────────────────────────────────────
-ROTATION
-──────────────────────────────────────────
-Rotate              → one-shot rotation by a fixed angle; gear turn, dial, compass
-                      Use for: a single deliberate rotation event
-Rotating            → continuous rotation animation played over a fixed run_time
-                      (NOT an updater — it is a standard Animation subclass);
-                      use for a spinning object whose spin is itself the timed event
-
-──────────────────────────────────────────
-INDICATION — attention and emphasis
-──────────────────────────────────────────
-Indicate                                → subtle pulse-scale + color flash on an
-                                          object; gentle "look here" without
-                                          disrupting the scene's flow
-Circumscribe                            → draws a temporary circle or rectangle
-                                          around a concept then removes it; use
-                                          when defining or bounding a named element
-                                          (replaces the removed ShowCreationThenFadeAround)
-Flash                                   → radiating burst of lines from a point or
-                                          object; use for "aha" moments, confirmed
-                                          answers, revelations
-FocusOn                                 → camera-style spotlight ring contracting
-                                          onto a point; pinpoint viewer attention on
-                                          a specific coordinate or small object
-Wiggle                                  → lateral wobble animation; "watch out,"
-                                          error flag, uncertainty, or playful callback
-ApplyWave                               → ripple wave along an object's path;
-                                          signal propagation, sequence flow, data streams
-Blink                                   → rapid opacity toggle on/off a fixed number
-                                          of times; alert, cursor blink, warning light
-ShowPassingFlash                        → glowing highlight sweeps along a path;
-                                          trace a route, highlight a data flow or pipeline
-ShowPassingFlashWithThinningStrokeWidth → sweep along a path whose stroke width
-                                          thins progressively across n_segments
-                                          copies; elegant trace, signal that visibly
-                                          dissipates as it travels (this is the
-                                          correct current class name)
-
-──────────────────────────────────────────
-SPECIALIZED
-──────────────────────────────────────────
-Broadcast           → concentric shapes (default: circles) expand outward from a
-                      point and fade, like a radar ping or sonar pulse;
-                      signal broadcast, notification, ripple-outward emphasis
-ChangeSpeed         → wraps an already-defined animation and speeds it up or
-                      slows it down over its own duration (a "speed ramp");
-                      use for time-lapse or slow-motion emphasis mid-clip
-
-──────────────────────────────────────────
-VISIBILITY — remove objects from the scene
-──────────────────────────────────────────
-Uncreate            → reverse-draws a geometric path (mirror of Create);
-                      use to "undo" a shape that was drawn with Create()
-Unwrite             → reverse-strokes text off screen (mirror of Write);
-                      use to remove text that was written with Write()
-FadeOut             → universal removal via opacity; works on any object type
-
-════════════════════════════════════════════════════════════════
-COMPOSITION AND TIMING
-════════════════════════════════════════════════════════════════
-
-AnimationGroup      → run multiple animations simultaneously (true parallel playback)
-Succession          → run animations strictly one after another (zero overlap)
-LaggedStart         → staggered start: each animation begins lag_ratio × run_time
-                      after the previous one started; creates cascade / wave effects
-LaggedStartMap      → apply one animation type to a list of objects with stagger;
-                      shorthand for LaggedStart over a collection
-
-run_time            → total duration of a self.play() call in seconds
-lag_ratio           → stagger fraction (0.0 = fully parallel, 1.0 = fully sequential)
-rate_func           → easing curve controlling acceleration over the animation
-Wait(n)             → pause execution for n seconds; mandatory for breath and sync;
-                      every Wait must be justified per RULE 9 (state what the
-                      viewer is meant to process during it, not just its length)
-
-──────────────────────────────────────────
-RATE FUNCTIONS — easing and motion feel
-──────────────────────────────────────────
-linear          → constant speed; mechanical, robotic, clock-like feel
-smooth          → ease in + ease out; default for most animations; feels natural
-rush_into       → starts fast, slows at end; object "arrives" and settles
-rush_from       → starts slow, speeds up; object "launches" and accelerates away
-ease_in         → gradually accelerates from rest
-ease_out        → gradually decelerates to rest
-ease_in_out     → same shape as smooth but more pronounced S-curve
-there_and_back  → goes to a state and returns to start; ping-pong, hover, preview
-wiggle          → oscillates around the target before settling; nervousness, uncertainty
-double_smooth   → two smooth eases in sequence at half duration each; two-stage settle
-lingering       → holds near the end value longer than smooth before finishing;
-                  emphasizes a final resting state
-exponential_decay → rapid initial change that decays quickly to near-zero; snap-settle
-
-────────────────────────────────────────────────────────────────
-NOTE ON "bounce" / "overshoot" easing
-────────────────────────────────────────────────────────────────
-ManimCE's built-in rate_functions module does not ship a named "bounce" curve.
-For an overshoot-then-settle feel, either:
-  (a) chain two animations — a rush_from move past the target followed by a
-      short there_and_back-style correction back to the true target, or
-  (b) note in ANIMATION STYLE that the code agent should compose a custom
-      rate_func (e.g. via manim.utils.rate_functions helpers) rather than
-      citing a bare "bounce" token, since no such built-in exists.
-
-════════════════════════════════════════════════════════════════
-CAMERA
-════════════════════════════════════════════════════════════════
-Pan (MovingCameraScene)   → self.camera.frame.animate.move_to(...); translate
-                            camera frame horizontally or vertically; follow
-                            action across the scene
-Zoom (MovingCameraScene)  → self.camera.frame.animate.scale(...); scale camera
-                            frame in (magnify) or out (reveal context)
-move_camera (ThreeDScene) → move camera to a new 3D position / orientation
-begin_ambient_camera_rotation (ThreeDScene) → continuous slow orbit around a
-                            3D object; gives a sense of 3D depth passively
-stop_ambient_camera_rotation (ThreeDScene) → halts an active ambient rotation
-set_camera_orientation (ThreeDScene) → jump camera to a specific phi/theta/
-                            gamma/zoom; setup shot or dramatic perspective shift
-activate_zooming (ZoomedScene) → activates the picture-in-picture zoom inset
-                            defined by self.zoomed_camera
-
-════════════════════════════════════════════════════════════════
-REACTIVE ELEMENTS — live-updating objects
-════════════════════════════════════════════════════════════════
-ValueTracker            → holds a scalar that can be animated; use to drive
-                          DecimalNumber, live positions, or graph parameters
-ComplexValueTracker     → holds a complex number; drives complex plane animations
-ChangingDecimal          → animation that continuously updates a DecimalNumber
-                          mobject via a number-generating function over the
-                          animation's run_time
-ChangeDecimalToValue     → animation that interpolates a DecimalNumber's
-                          displayed value from its current value to a target
-                          value over run_time
-add_updater              → attach a function that re-evaluates every rendered frame;
-                          use for objects that must track another object's state
-remove_updater            → detach a previously added updater function
-always_redraw            → shorthand updater that reconstructs the object every frame;
-                          use for labels or lines that must follow a moving object
-
-════════════════════════════════════════════════════════════════
-LAYERS AND DEPTH
-════════════════════════════════════════════════════════════════
-z_index         → integer stacking order; higher value renders in front
-set_z_index()   → explicit call to assign the stacking order on a mobject
-
-════════════════════════════════════════════════════════════════
-HIGH-LEVEL VISUAL PATTERNS
-(Conceptual templates — not Manim classes. Cite in MANIM_PRIMITIVE_SELECTION
-to declare the structural intent of the scene.)
-════════════════════════════════════════════════════════════════
-Flowchart                   → boxes + arrows showing a process or decision flow
-Timeline                    → horizontal or vertical sequence of dated/ordered events
-NeuralNetwork                → layered nodes + weighted edges; forward pass, backprop
-DecisionTree                 → branching tree of conditions and outcomes
-FiniteStateMachine            → states + transition arrows; use DiGraph + labeled Arrows
-SortingVisualization          → array bar elements moving into sorted order; comparisons
-GraphTraversal                 → BFS/DFS animation with node coloring + edge highlighting
-AlgorithmVisualization         → step-by-step code panel + evolving visual state panel
-PhysicsSimulation               → particles, forces, trajectories, energy diagrams
-MathematicalProof                → equation chain with step justification labels
-CalculusVisualization             → integrals as shaded regions, derivatives as tangent lines
-DataStructureVisualization        → linked list, stack, queue, heap, tree as visual objects
-CircuitDiagram                     → logic gates, wires, voltage/current labels
-Infographic                         → mixed text + icons + mini-charts in one composition
-""".strip()
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  OUTPUT SPEC — clip-based Scene Execution Plan, frame-level detail enforced
 # ─────────────────────────────────────────────────────────────────────────────
@@ -667,7 +276,8 @@ Declare every Manim primitive and pattern used in this scene, organized by categ
 For each item, state the specific use case in THIS scene — not a general definition.
 This section drives all import statements and signals which tools the code agent needs.
 Never cite anything from the "DEPRECATED / REMOVED — NEVER USE" block of the
-vocabulary catalog.
+vocabulary catalog, and never cite a renamed/removed API flagged in the
+COMMON MISTAKES catalog.
 
 Only include categories that this scene actually uses.
 
@@ -1000,6 +610,9 @@ Format:
 <IMPLEMENTATION_NOTES>
 Implementation notes, gotchas, and constraints for the code agent.
 These take priority over any general Manim documentation assumptions.
+Every note below is drawn from the CONSTRUCTION PATTERNS and COMMON
+MISTAKES catalogs appended after this system role — consult those catalogs
+directly for the full reasoning behind each note.
 
 Format:
   [CRITICAL]  →  must not be ignored; scene will fail or render incorrectly if missed
@@ -1015,6 +628,11 @@ Universal notes (always include):
               draw-then-erase, it must say so via
               Succession(Create(obj, run_time=...), Wait(...), Uncreate(obj, run_time=...));
               if it needs draw-attention-then-fade, it must say Circumscribe(obj).
+  [CRITICAL]  Never cite axes.get_graph, axes.get_implicit_curve,
+              axes.get_parametric_curve, or GraphScene — all renamed/removed.
+              Use axes.plot(...), axes.plot_implicit_curve(...),
+              axes.plot_parametric_curve(...), and a plain Scene with an
+              explicit Axes() instance, respectively.
   [WARNING]   Never FadeIn(dot_group) to stagger entry — that animates all objects together.
               Use LaggedStart(*[FadeIn(d, shift=UP*0.15) for d in dot_group], lag_ratio=0.15)
   [WARNING]   Rotating() plays a continuous rotation as a timed Animation (it is
@@ -1028,6 +646,9 @@ Universal notes (always include):
   [WARNING]   There is no built-in "bounce" rate_func in ManimCE. Do not cite it;
               compose an overshoot via two chained animations instead (see
               vocabulary catalog note under RATE FUNCTIONS).
+  [WARNING]   VGroup only accepts VMobjects — a VGroup mixing in ImageMobject,
+              Surface, or other non-VMobject types raises TypeError. Use Group
+              for mixed-type collections.
   [TIP]       Collect all objects of the same type into a VGroup for single-call FadeOut
               at the end of a clip or at scene transition.
   [TIP]       ValueTracker + always_redraw enables live-updating labels and reactive lines
@@ -1059,7 +680,9 @@ The code agent validates all of the following before writing any Python:
                            EMPHASIS BEATS · HOLD & WAIT BEATS · TRANSITION OUT
 5.  METHOD VALIDITY      — no invented Manim methods; every named method exists
                            in the documented ManimCE API; nothing from the
-                           DEPRECATED / REMOVED block is cited anywhere
+                           DEPRECATED / REMOVED block of the vocabulary catalog
+                           or the renamed/removed APIs in the COMMON MISTAKES
+                           catalog is cited anywhere
 6.  LAYOUT AGNOSTICISM   — no raw coordinate values anywhere in the spec;
                            all positions use zone names or object-relative language
 7.  SEMANTIC TOKENS ONLY — font: TITLE|BODY|CAPTION|FORMULA
@@ -1099,7 +722,8 @@ def generate_visual_plan_prompt(inp: SceneDirectorInput) -> dict[str, str]:
     Returns
     -------
     dict with two keys:
-        "system"  → static system role + Manim vocabulary catalog
+        "system"  → static system role + Manim vocabulary, construction
+                     patterns, and common mistakes catalogs
         "user"    → assembled inputs block + output-spec task for the LLM
     """
     inputs_block = _build_inputs_block(inp)
@@ -1116,7 +740,23 @@ def generate_visual_plan_prompt(inp: SceneDirectorInput) -> dict[str, str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_system_prompt() -> str:
-    return f"{_SYSTEM_ROLE}\n\n{'═' * 64}\n\n{_MANIM_VOCABULARY}"
+    """
+    Assembles the system prompt as one contiguous reference:
+    role + rules, then the three pluggable catalogs in a fixed order —
+    VOCABULARY (what exists) -> CONSTRUCTION PATTERNS (how to use it) ->
+    COMMON MISTAKES (what goes wrong and why). Each catalog is a standalone,
+    independently maintained module; this function only owns ordering and
+    the separators between them.
+    """
+    separator = f"\n\n{'═' * 64}\n\n"
+    return separator.join(
+        [
+            _SYSTEM_ROLE,
+            MANIM_VOCABULARY,
+            MANIM_CONSTRUCTION_PATTERNS,
+            MANIM_COMMON_MISTAKES,
+            ],
+        )
 
 
 def _build_inputs_block(inp: SceneDirectorInput) -> str:
