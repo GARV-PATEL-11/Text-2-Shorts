@@ -1,7 +1,8 @@
-"""Text-2-Shorts — AI Workflow Dashboard v2.0"""
+"""Text-2-Shorts — AI Workflow Dashboard v3.0"""
 from __future__ import annotations
 
 import datetime as _dt
+import html as _html_mod
 import json
 import time
 from typing import Any
@@ -15,14 +16,15 @@ import streamlit as st
 
 API_BASE = "http://localhost:8000"
 POLL_INTERVAL_S = 3.0
-VERSION = "2.0"
+VERSION = "3.0"
 
 PIPELINE_STAGES: list[tuple[str, str]] = [
-    ("validate_input", "Validate Input"),
-    ("generate_outline", "Gen Outline"),
-    ("map_outline", "Map Scenes"),
-    ("visual_planning", "Visual Plans"),
-    ("manim_code_generation", "Gen Code"),
+    ("validate_input", "Validate"),
+    ("generate_outline", "Outline"),
+    ("outline_critique", "Critique"),
+    ("visual_planning", "Visual Plan"),
+    ("visual_plan_critique", "Plan Review"),
+    ("manim_code_generation", "Code Gen"),
     ("scene_rendering", "Render"),
     ("video_assembly", "Assemble"),
     ]
@@ -33,25 +35,23 @@ APPROACHES = [
     "Problem-Solution Arc",
     ]
 
-NAV_PAGES = [
-    ("Generate", "🎬"),
-    ("Sessions", "📋"),
-    ("Pipeline", "⚡"),
-    ("Artifacts", "📦"),
-    ("Logs", "📜"),
-    ("Analytics", "📊"),
-    ("Downloads", "⬇"),
-    ]
+NAV_PAGES = ["Generate", "Sessions", "Pipeline", "Logs"]
 
-STATUS_ICONS = {
-    "completed": "✓", "running": "↺", "failed": "✕",
-    "pending": "○", "queued": "○", "skipped": "–",
+STATUS_DOT_CLS = {
+    "completed": "success", "running": "running", "failed": "failed",
+    "pending": "pending", "queued": "queued", "skipped": "skipped",
+    "idle": "pending",
+    }
+STATUS_LABEL = {
+    "completed": "SUCCESS", "running": "RUNNING", "failed": "FAILED",
+    "pending": "PENDING", "queued": "QUEUED", "skipped": "SKIPPED",
+    "idle": "IDLE",
     }
 
 # ── Page Config ───────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Text-2-Shorts | AI Workflow Dashboard",
+    page_title="Text-2-Shorts",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -61,289 +61,393 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600
+;700&display=swap');
+
 /* ── Reset ── */
 #MainMenu, footer { visibility: hidden; }
 .stApp > header { display: none !important; }
-.stApp { background: #F8FAFC !important; }
-.main .block-container {
-    padding: 0 0 2rem 0 !important;
-    max-width: 100% !important;
-}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important; }
+.stApp { background: #F5F9FF !important; font-family: 'Inter', sans-serif !important; }
+.main .block-container { padding: 0 0 2rem 0 !important; max-width: 100% !important; }
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #0F172A !important;
-    border-right: 1px solid #1E293B !important;
+    background: #06162B !important;
+    border-right: 1px solid #0F2745 !important;
 }
-[data-testid="stSidebar"] * { color: #CBD5E1 !important; }
+[data-testid="stSidebar"] * { color: #94A3B8 !important; font-family: 'Inter', sans-serif !important; }
 [data-testid="stSidebarContent"] { padding: 0 !important; }
 [data-testid="stSidebar"] button {
     background: transparent !important;
     border: none !important;
     color: #94A3B8 !important;
     text-align: left !important;
-    padding: 8px 12px !important;
-    font-size: 0.85rem !important;
+    padding: 9px 14px !important;
+    font-size: 0.84rem !important;
+    font-family: 'Inter', sans-serif !important;
     border-radius: 6px !important;
-    margin: 1px 6px !important;
+    margin: 1px 8px !important;
     justify-content: flex-start !important;
     font-weight: 500 !important;
+    width: calc(100% - 16px) !important;
 }
 [data-testid="stSidebar"] button:hover {
-    background: rgba(255,255,255,0.08) !important;
+    background: rgba(255,255,255,0.06) !important;
     color: #E2E8F0 !important;
 }
 [data-testid="stSidebar"] button[kind="primary"] {
-    background: rgba(37,99,235,0.25) !important;
+    background: rgba(45,109,178,0.18) !important;
     color: #FFFFFF !important;
-    border-left: 3px solid #2563EB !important;
+    border-left: 3px solid #2D6DB2 !important;
     border-radius: 0 6px 6px 0 !important;
+    padding-left: 11px !important;
 }
 
-/* ── App header bar ── */
+/* ── App header ── */
 .app-header {
     background: #FFFFFF;
-    border-bottom: 1px solid #E2E8F0;
-    padding: 0 28px;
-    height: 62px;
+    border-bottom: 1px solid #EAF3FF;
+    padding: 0 32px;
+    height: 58px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 6px rgba(6,22,43,0.05);
 }
 .app-logo {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #0F172A !important;
-    letter-spacing: -0.5px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #06162B !important;
+    letter-spacing: -0.3px;
 }
-.app-version {
-    font-size: 0.7rem;
-    color: #94A3B8 !important;
-    background: #F1F5F9;
-    border: 1px solid #E2E8F0;
+.app-badge {
+    font-size: 0.65rem;
+    color: #64748B !important;
+    background: #F5F9FF;
+    border: 1px solid #C9E0FF;
     padding: 2px 8px;
     border-radius: 4px;
     margin-left: 10px;
+    font-family: 'Inter', sans-serif;
 }
 .session-chip {
     font-family: 'Courier New', monospace;
-    font-size: 0.78rem;
-    color: #2563EB !important;
-    background: #EFF6FF;
-    border: 1px solid #BFDBFE;
+    font-size: 0.76rem;
+    color: #1E4F85 !important;
+    background: #EAF3FF;
+    border: 1px solid #C9E0FF;
     padding: 4px 12px;
     border-radius: 6px;
 }
-.pulse { animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
+
+/* ── Status dots ── */
+.dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+.dot.success   { background: #22C55E; }
+.dot.running   { background: #3B82F6; }
+.dot.failed    { background: #EF4444; }
+.dot.pending   { background: #9CA3AF; }
+.dot.queued    { background: #F59E0B; }
+.dot.skipped   { background: #D1D5DB; }
+.dot.critic    { background: #F97316; }
+.dot.refactor  { background: #A855F7; }
+.dot.bugfix    { background: #EAB308; }
+.dot.validated { background: #10B981; }
+.dot.retry     { background: #06B6D4; }
+.dot.action    { background: #EC4899; }
+.dot.warning   { background: #F59E0B; }
+
+
+/* ── Status indicator (dot + label inline) ── */
+.status-ind {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.71rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-family: 'Inter', sans-serif;
+}
+.status-ind.success  { color: #16A34A !important; }
+.status-ind.running  { color: #2563EB !important; }
+.status-ind.failed   { color: #DC2626 !important; }
+.status-ind.pending  { color: #6B7280 !important; }
+.status-ind.queued   { color: #D97706 !important; }
+.status-ind.skipped  { color: #9CA3AF !important; }
+.status-ind.critic   { color: #EA580C !important; }
+.status-ind.refactor { color: #9333EA !important; }
 
 /* ── Cards ── */
 .card {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 12px;
-    padding: 20px 24px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid #EAF3FF;
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(6,22,43,0.04);
 }
-.card-hover:hover {
-    border-color: #BFDBFE;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.07);
-    transition: all 0.15s;
-}
-.section-title {
-    font-size: 1rem;
+.card-hover:hover { box-shadow: 0 4px 16px rgba(6,22,43,0.08); }
+
+/* ── Section heading ── */
+.section-hd {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
     font-weight: 700;
-    color: #0F172A !important;
-    margin: 20px 0 10px 0;
+    color: #06162B !important;
+    margin: 20px 0 10px;
     padding-bottom: 8px;
-    border-bottom: 1px solid #E2E8F0;
+    border-bottom: 2px solid #EAF3FF;
 }
 
-/* ── Status badges ── */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
+/* ── Counter cards (status dashboard) ── */
+.counter-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
 }
-.badge-green  { background: #F0FDF4; color: #16A34A !important; border: 1px solid #BBF7D0; }
-.badge-blue   { background: #EFF6FF; color: #1D4ED8 !important; border: 1px solid #BFDBFE; }
-.badge-red    { background: #FEF2F2; color: #DC2626 !important; border: 1px solid #FECACA; }
-.badge-amber  { background: #FFFBEB; color: #D97706 !important; border: 1px solid #FDE68A; }
-.badge-gray   { background: #F8FAFC; color: #64748B !important; border: 1px solid #E2E8F0; }
-
-/* ── Metric tiles ── */
-.metric-tile {
+.counter-card {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAF3FF;
     border-radius: 10px;
-    padding: 16px 18px;
+    padding: 12px 14px;
+    min-width: 85px;
     text-align: center;
+    border-top: 3px solid #E2E8F0;
+    flex: 1;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
 }
-.metric-val {
-    font-size: 1.65rem;
+.counter-card .c-val {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.55rem;
     font-weight: 800;
-    color: #0F172A !important;
-    line-height: 1;
-    margin-bottom: 5px;
+    color: #06162B !important;
+    line-height: 1.1;
 }
-.metric-lbl {
-    font-size: 0.7rem;
+.counter-card .c-lbl {
+    font-size: 0.64rem;
     color: #64748B !important;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
+    margin-top: 3px;
 }
-.metric-tile.blue  { border-top: 3px solid #2563EB; }
-.metric-tile.green { border-top: 3px solid #22C55E; }
-.metric-tile.red   { border-top: 3px solid #EF4444; }
-.metric-tile.amber { border-top: 3px solid #F59E0B; }
+.counter-card.success  { border-top-color: #22C55E; }
+.counter-card.failed   { border-top-color: #EF4444; }
+.counter-card.running  { border-top-color: #3B82F6; }
+.counter-card.pending  { border-top-color: #9CA3AF; }
+.counter-card.critic   { border-top-color: #F97316; }
+.counter-card.refactor { border-top-color: #A855F7; }
+.counter-card.skipped  { border-top-color: #D1D5DB; }
 
-/* ── Pipeline stages ── */
-.pipe-row {
+/* ── Pipeline visualization ── */
+.pipe-wrap {
     display: flex;
     align-items: flex-start;
-    padding: 14px 0 6px;
     overflow-x: auto;
+    padding: 14px 0 8px;
     gap: 0;
 }
 .pipe-stage {
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 100px;
+    min-width: 88px;
     flex: 0 0 auto;
 }
-.pipe-icon {
-    width: 38px;
-    height: 38px;
+.pipe-circle {
+    width: 38px; height: 38px;
     border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    font-weight: 700;
     border: 2px solid;
-}
-.pipe-icon.completed { background:#F0FDF4; border-color:#22C55E; color:#16A34A !important; }
-.pipe-icon.running   { background:#EFF6FF; border-color:#2563EB; color:#2563EB !important; }
-.pipe-icon.failed    { background:#FEF2F2; border-color:#EF4444; color:#DC2626 !important; }
-.pipe-icon.pending   { background:#F8FAFC; border-color:#CBD5E1; color:#94A3B8 !important; }
-.pipe-icon.skipped   { background:#F8FAFC; border-color:#CBD5E1; color:#94A3B8 !important; }
-.pipe-icon.running .icon-char { animation: spin 1.2s linear infinite; display:inline-block; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.pipe-lbl {
-    font-size: 0.68rem;
-    font-weight: 600;
-    text-align: center;
-    margin-top: 5px;
-    line-height: 1.3;
-    max-width: 90px;
-}
-.pipe-lbl.completed { color: #16A34A !important; }
-.pipe-lbl.running   { color: #1D4ED8 !important; }
-.pipe-lbl.failed    { color: #DC2626 !important; }
-.pipe-lbl.pending,
-.pipe-lbl.skipped   { color: #94A3B8 !important; }
-.pipe-dur {
-    font-size: 0.6rem;
-    color: #94A3B8 !important;
-    margin-top: 3px;
-}
-.pipe-conn {
-    flex: 1;
-    height: 2px;
-    margin-top: 18px;
-    min-width: 16px;
-}
-.pipe-conn.done     { background: #22C55E; }
-.pipe-conn.active   { background: linear-gradient(90deg,#22C55E 0%,#2563EB 100%); }
-.pipe-conn.inactive { background: #E2E8F0; }
-
-/* ── Scene grid ── */
-.scene-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    padding: 8px 0;
-}
-.scene-cell {
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.68rem;
+    font-size: 0.82rem;
     font-weight: 700;
-    border: 1px solid;
-    cursor: default;
-    transition: transform 0.1s;
 }
-.scene-cell:hover { transform: scale(1.15); }
-.scene-cell.completed  { background:#F0FDF4; border-color:#BBF7D0; color:#16A34A !important; }
-.scene-cell.running    { background:#EFF6FF; border-color:#BFDBFE; color:#2563EB !important; }
-.scene-cell.failed     { background:#FEF2F2; border-color:#FECACA; color:#DC2626 !important; }
-.scene-cell.pending    { background:#F8FAFC; border-color:#E2E8F0; color:#94A3B8 !important; }
-.scene-cell.ready      { background:#F0FDF4; border-color:#BBF7D0; color:#16A34A !important; }
-.scene-cell.generating { background:#F5F3FF; border-color:#DDD6FE; color:#7C3AED !important; }
-.scene-cell.rendering  { background:#FFF7ED; border-color:#FED7AA; color:#C2410C !important; }
-.scene-cell.debugging  { background:#FFFBEB; border-color:#FDE68A; color:#D97706 !important; }
+.pipe-circle.success { background:#F0FDF4; border-color:#22C55E; color:#16A34A !important; }
+.pipe-circle.running { background:#EFF6FF; border-color:#3B82F6; color:#2563EB !important; }
+.pipe-circle.failed  { background:#FEF2F2; border-color:#EF4444; color:#DC2626 !important; }
+.pipe-circle.pending { background:#F8FAFC; border-color:#C9E0FF; color:#9CA3AF !important; }
+.pipe-circle.skipped { background:#F8FAFC; border-color:#E2E8F0; color:#CBD5E1 !important; }
+.pipe-lbl {
+    font-size: 0.66rem; font-weight: 600; text-align: center;
+    margin-top: 5px; max-width: 80px; line-height: 1.2;
+    font-family: 'Inter', sans-serif;
+}
+.pipe-lbl.success { color: #16A34A !important; }
+.pipe-lbl.running { color: #2563EB !important; }
+.pipe-lbl.failed  { color: #DC2626 !important; }
+.pipe-lbl.pending,
+.pipe-lbl.skipped { color: #9CA3AF !important; }
+.pipe-dur { font-size: 0.59rem; color: #94A3B8 !important; margin-top: 2px; }
+.pipe-conn {
+    flex: 1; height: 2px; margin-top: 18px;
+    min-width: 12px; max-width: 44px;
+}
+.pipe-conn.done   { background: #22C55E; }
+.pipe-conn.active { background: linear-gradient(90deg,#22C55E,#3B82F6); }
+.pipe-conn.none   { background: #E2E8F0; }
 
-/* ── Log table ── */
-.log-container {
+/* ── Scene timeline ── */
+.scene-tl {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 6px 0 10px;
+    flex-wrap: wrap;
+}
+.scene-tl-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    cursor: default;
+}
+.scene-tl-dot:hover { outline: 2px solid #2D6DB2; }
+.scene-tl-dot.completed { background:#F0FDF4; border-color:#22C55E; color:#16A34A !important; }
+.scene-tl-dot.running   { background:#EFF6FF; border-color:#3B82F6; color:#2563EB !important; }
+.scene-tl-dot.failed    { background:#FEF2F2; border-color:#EF4444; color:#DC2626 !important; }
+.scene-tl-dot.pending   { background:#F8FAFC; border-color:#E2E8F0; color:#9CA3AF !important; }
+.scene-tl-dot.ready     { background:#F0FDF4; border-color:#22C55E; color:#16A34A !important; }
+.scene-tl-dot.generating{ background:#F5F3FF; border-color:#DDD6FE; color:#7C3AED !important; }
+.scene-tl-dot.rendering { background:#FFF7ED; border-color:#FED7AA; color:#C2410C !important; }
+
+/* ── Metric tile ── */
+.metric-tile {
     background: #FFFFFF;
+    border: 1px solid #EAF3FF;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+.metric-tile .m-val {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: #06162B !important;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.metric-tile .m-lbl {
+    font-size: 0.68rem;
+    color: #64748B !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.metric-tile.blue  { border-top: 3px solid #2D6DB2; }
+.metric-tile.green { border-top: 3px solid #22C55E; }
+.metric-tile.red   { border-top: 3px solid #EF4444; }
+.metric-tile.amber { border-top: 3px solid #F59E0B; }
+
+/* ── Badge ── */
+.badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 9px; border-radius: 20px;
+    font-size: 0.68rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    font-family: 'Inter', sans-serif;
+}
+.badge.green { background:#F0FDF4; color:#16A34A !important; border:1px solid #BBF7D0; }
+.badge.blue  { background:#EAF3FF; color:#1E4F85 !important; border:1px solid #C9E0FF; }
+.badge.red   { background:#FEF2F2; color:#DC2626 !important; border:1px solid #FECACA; }
+.badge.amber { background:#FFFBEB; color:#D97706 !important; border:1px solid #FDE68A; }
+.badge.gray  { background:#F8FAFC; color:#6B7280 !important; border:1px solid #E2E8F0; }
+
+/* ── Prose viewer (renders \\n as actual line-breaks) ── */
+.prose-view {
+    font-size: 0.82rem;
+    line-height: 1.65;
+    color: #374151 !important;
+    background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-radius: 8px;
-    max-height: 560px;
+    padding: 12px 16px;
+    max-height: 300px;
     overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Inter', sans-serif;
+}
+
+/* ── Key-value info block ── */
+.kv-block {
+    display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;
+}
+.kv-item {
+    background: #F5F9FF; border: 1px solid #C9E0FF;
+    border-radius: 6px; padding: 6px 12px;
     font-size: 0.78rem;
 }
-.log-head {
+.kv-item .kv-k { color: #64748B !important; font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.4px; }
+.kv-item .kv-v { color: #06162B !important; font-weight: 700; margin-top: 1px; }
+
+/* ── Log table ── */
+.log-wrap {
+    background: #FFFFFF;
+    border: 1px solid #EAF3FF;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+.log-hdr {
     display: grid;
-    grid-template-columns: 90px 70px 120px 120px 1fr 70px;
+    grid-template-columns: 82px 68px 130px 130px 1fr 72px;
     gap: 6px;
-    padding: 8px 12px;
-    background: #F8FAFC;
-    border-bottom: 2px solid #E2E8F0;
-    font-size: 0.68rem;
+    padding: 9px 14px;
+    background: #06162B;
+    color: #94A3B8 !important;
+    font-size: 0.64rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #64748B !important;
     position: sticky;
     top: 0;
+    z-index: 2;
+    font-family: 'Inter', sans-serif;
 }
+.log-body { max-height: 520px; overflow-y: auto; }
 .log-row {
     display: grid;
-    grid-template-columns: 90px 70px 120px 120px 1fr 70px;
+    grid-template-columns: 82px 68px 130px 130px 1fr 72px;
     gap: 6px;
-    padding: 7px 12px;
+    padding: 7px 14px;
     border-bottom: 1px solid #F1F5F9;
     align-items: start;
     border-left: 3px solid transparent;
+    font-size: 0.77rem;
+    font-family: 'Inter', sans-serif;
 }
-.log-row:hover { background: #F8FAFC; }
-.log-row.debug    { border-left-color: #94A3B8; }
+.log-row:hover { background: #F5F9FF; }
+.log-row.debug    { border-left-color: #9CA3AF; }
 .log-row.info     { border-left-color: #22C55E; }
 .log-row.warning  { border-left-color: #F59E0B; }
 .log-row.error    { border-left-color: #EF4444; }
 .log-row.critical { border-left-color: #8B5CF6; }
 .lvl {
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    white-space: nowrap;
+    padding: 1px 5px; border-radius: 4px;
+    font-size: 0.62rem; font-weight: 700;
+    text-transform: uppercase; white-space: nowrap;
+    font-family: 'Inter', sans-serif;
 }
-.lvl.debug    { background:#F1F5F9; color:#64748B !important; }
+.lvl.debug    { background:#F1F5F9; color:#6B7280 !important; }
 .lvl.info     { background:#F0FDF4; color:#16A34A !important; }
 .lvl.warning  { background:#FFFBEB; color:#D97706 !important; }
 .lvl.error    { background:#FEF2F2; color:#DC2626 !important; }
@@ -352,114 +456,84 @@ st.markdown("""
 /* ── Right panel ── */
 .rp {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
+    border: 1px solid #EAF3FF;
     border-radius: 12px;
     padding: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
 }
-.rp-title {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: #64748B !important;
-    margin-bottom: 10px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #E2E8F0;
+.rp-hdr {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.66rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: #06162B !important;
+    margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 2px solid #EAF3FF;
 }
 .rp-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 7px 0;
-    border-bottom: 1px solid #F1F5F9;
-    font-size: 0.8rem;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid #F1F5F9; font-size: 0.78rem;
 }
 .rp-lbl { color: #64748B !important; }
-.rp-val { font-weight: 700; color: #0F172A !important; }
+.rp-val { font-weight: 700; color: #06162B !important; font-family: 'Poppins', sans-serif; }
 
 /* ── Forms ── */
 .stTextArea textarea {
-    border: 1px solid #E2E8F0 !important;
-    border-radius: 8px !important;
+    border: 1px solid #C9E0FF !important;
+    border-radius: 10px !important;
     background: #FFFFFF !important;
-    color: #0F172A !important;
-    min-height: 250px !important;
+    color: #06162B !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.87rem !important;
 }
 .stTextArea textarea:focus {
-    border-color: #2563EB !important;
-    box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important;
+    border-color: #2D6DB2 !important;
+    box-shadow: 0 0 0 3px rgba(45,109,178,0.1) !important;
 }
 .stSelectbox > div > div,
 .stTextInput > div > div > input {
-    border: 1px solid #E2E8F0 !important;
+    border: 1px solid #C9E0FF !important;
     border-radius: 8px !important;
     background: #FFFFFF !important;
+    font-family: 'Inter', sans-serif !important;
 }
 
-/* ── Generate button ── */
+/* ── Primary button ── */
 .stButton > button[kind="primary"]:not([data-testid*="sidebar"]) {
-    background: #1E3A8A !important;
+    background: #06162B !important;
     border: none !important;
     border-radius: 8px !important;
+    font-family: 'Poppins', sans-serif !important;
     font-weight: 700 !important;
-    font-size: 0.95rem !important;
-    height: 48px !important;
-    letter-spacing: 0.2px;
-    transition: all 0.15s !important;
+    font-size: 0.9rem !important;
+    height: 46px !important;
 }
 .stButton > button[kind="primary"]:not([data-testid*="sidebar"]):hover {
-    background: #2563EB !important;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(37,99,235,0.3) !important;
+    background: #143D6B !important;
+    box-shadow: 0 4px 14px rgba(6,22,43,0.28) !important;
 }
 
 /* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] {
-    border-bottom: 1px solid #E2E8F0;
-    gap: 0;
-    background: transparent;
-}
+.stTabs [data-baseweb="tab-list"] { border-bottom: 1px solid #EAF3FF; gap: 0; background: transparent; }
 .stTabs [data-baseweb="tab"] {
-    padding: 9px 16px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: #64748B !important;
-    border-radius: 0;
+    padding: 8px 16px; font-size: 0.8rem; font-weight: 600;
+    color: #64748B !important; font-family: 'Inter', sans-serif !important;
 }
-.stTabs [aria-selected="true"] {
-    color: #1E3A8A !important;
-    border-bottom: 2px solid #2563EB !important;
-    background: transparent;
-}
+.stTabs [aria-selected="true"] { color: #06162B !important; border-bottom: 2px solid #2D6DB2 !important; }
 
 /* ── Typography ── */
-h1,h2,h3,h4 { color: #0F172A !important; }
-p, li        { color: #374151 !important; }
-label        { color: #374151 !important; font-size: 0.85rem !important; }
-.stTextArea label, .stSelectbox label, .stSlider label, .stTextInput label {
-    font-size: 0.82rem !important;
-    font-weight: 600 !important;
-    color: #374151 !important;
-    margin-bottom: 3px !important;
+h1, h2, h3, h4 { color: #06162B !important; font-family: 'Poppins', sans-serif !important; }
+p, li           { color: #374151 !important; }
+label           { color: #374151 !important; font-size: 0.84rem !important; font-family: 'Inter', sans-serif 
+!important; }
+.stTextArea label, .stSelectbox label, .stTextInput label {
+    font-size: 0.81rem !important; font-weight: 600 !important; color: #374151 !important;
 }
-details summary { font-size: 0.88rem !important; font-weight: 600 !important; }
+details summary { font-size: 0.86rem !important; font-weight: 600 !important; }
 
-/* ── Content padding ── */
+/* ── Layout helpers ── */
 .content-pad { padding: 20px 28px 0 28px; }
-
-/* ── Download row ── */
-.dl-row {
-    display: flex;
-    align-items: center;
-    padding: 10px 16px;
-    background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    margin-bottom: 7px;
-    gap: 12px;
-}
-.dl-name { font-weight: 600; font-size: 0.85rem; color: #0F172A !important; flex: 1; }
-.dl-meta { font-size: 0.72rem; color: #94A3B8 !important; min-width: 80px; }
+.spacer-sm { height: 8px; }
+.spacer-md { height: 16px; }
 </style>
 """, unsafe_allow_html=True
     )
@@ -480,8 +554,6 @@ _D: dict[str, Any] = {
     "total_scenes": 0,
     "generate_error": None,
     "auto_poll": False,
-    "dev_mode": False,
-    "analytics": {},
     "log_level": "ALL",
     "log_stage": "",
     "log_search": "",
@@ -557,10 +629,6 @@ def fetch_logs(sid: str, level: str = "", stage: str = "", search: str = "", lim
     return _get(f"/logs/{sid}", params=p)
 
 
-def fetch_analytics(sid: str) -> dict | None:
-    return _get(f"/logs/{sid}/analytics")
-
-
 def refresh_all(sid: str) -> None:
     data = fetch_stages(sid)
     if not data:
@@ -570,7 +638,8 @@ def refresh_all(sid: str) -> None:
     by_name = {s["stage"]: s for s in st.session_state.stages}
 
     vp = by_name.get("visual_planning", {})
-    if vp.get("status") in ("running", "completed"):
+    vpc = by_name.get("visual_plan_critique", {})
+    if vp.get("status") in ("running", "completed") or vpc.get("status") in ("running", "completed"):
         sp = fetch_scene_progress(sid)
         if sp:
             st.session_state.scene_progress = sp
@@ -582,7 +651,7 @@ def refresh_all(sid: str) -> None:
             st.session_state.outline = od["outline"]
             st.session_state.outline_type = od.get("outline_type")
 
-    if vp.get("status") == "completed" and st.session_state.scenes is None:
+    if vpc.get("status") == "completed" and st.session_state.scenes is None:
         sd = fetch_scenes(sid)
         if sd and sd.get("scene_visual_plans"):
             st.session_state.scenes = sd["scene_visual_plans"]
@@ -603,7 +672,7 @@ def refresh_all(sid: str) -> None:
 
 def _reset() -> None:
     for k in ["generate_error", "outline", "outline_type", "scenes", "total_scenes",
-        "stages", "scene_progress", "render_status", "final_video_path", "analytics",
+        "stages", "scene_progress", "render_status", "final_video_path"
         ]:
         st.session_state[k] = _D.get(k)
     st.session_state.pipeline_status = "queued"
@@ -611,14 +680,18 @@ def _reset() -> None:
 
 # ── UI Helpers ────────────────────────────────────────────────────────────────
 
+def status_ind(status: str) -> str:
+    cls = STATUS_DOT_CLS.get(status.lower(), "pending")
+    lbl = STATUS_LABEL.get(status.lower(), status.upper())
+    return f'<span class="status-ind {cls}"><span class="dot {cls}"></span>{lbl}</span>'
+
+
 def badge(status: str) -> str:
     cls = {
-        "completed": "badge-green", "running": "badge-blue", "failed": "badge-red",
-        "queued": "badge-amber", "pending": "badge-gray", "skipped": "badge-gray",
-        "idle": "badge-gray",
-        }.get(status.lower(), "badge-gray")
-    icon = STATUS_ICONS.get(status.lower(), "○")
-    return f'<span class="badge {cls}">{icon} {status.upper()}</span>'
+        "completed": "green", "running": "blue", "failed": "red",
+        "queued": "amber", "pending": "gray", "skipped": "gray", "idle": "gray",
+        }.get(status.lower(), "gray")
+    return f'<span class="badge {cls}">{status.upper()}</span>'
 
 
 def fmt_dur(ms: float | None) -> str:
@@ -639,40 +712,50 @@ def fmt_num(n: int | float) -> str:
 def metric_tile(value: str, label: str, color: str = "") -> str:
     return (
         f'<div class="metric-tile {color}">'
-        f'<div class="metric-val">{value}</div>'
-        f'<div class="metric-lbl">{label}</div>'
+        f'<div class="m-val">{value}</div>'
+        f'<div class="m-lbl">{label}</div>'
         f'</div>'
     )
 
 
-def json_card(data: Any, key_suffix: str = "", max_chars: int = 12000) -> None:
-    raw = json.dumps(data, indent=2) if isinstance(data, (dict, list)) else str(data)
-    trunc = len(raw) > max_chars
-    st.code(raw[:max_chars] if trunc else raw, language="json")
-    if trunc:
-        st.caption(f"Showing {max_chars // 1024} KB of {len(raw) // 1024} KB")
-    c1, c2, _ = st.columns([1, 1, 3])
-    with c1:
-        safe = json.dumps(raw)
-        st.html(
-            f"""<button onclick="navigator.clipboard.writeText({safe}).then(()=>{{
-                this.textContent='✓ Copied';
-                setTimeout(()=>this.textContent='Copy',2000);
-            }})"
-            style="cursor:pointer;padding:5px 14px;border:1px solid #BFDBFE;border-radius:6px;
-                   background:#EFF6FF;color:#1D4ED8;font-size:11px;font-family:system-ui;
-                   font-weight:600;white-space:nowrap;">Copy</button>""",
-            )
-    with c2:
-        st.download_button(
-            "⬇ Save",
-            data=raw,
-            file_name=f"artifact{key_suffix}.json",
-            mime="application/json",
-            key=f"jdl{key_suffix}_{abs(hash(raw[:80]))}",
-            use_container_width=True,
-            )
+def kv_pair(k: str, v: str) -> str:
+    return (
+        f'<div class="kv-item">'
+        f'<div class="kv-k">{_html_mod.escape(k)}</div>'
+        f'<div class="kv-v">{_html_mod.escape(str(v))}</div>'
+        f'</div>'
+    )
 
+
+def prose_viewer(text: str) -> None:
+    if not text:
+        return
+    safe = _html_mod.escape(str(text))
+    st.markdown(f'<div class="prose-view">{safe}</div>', unsafe_allow_html=True)
+
+
+def dl_json(data: Any, filename: str, key: str) -> None:
+    raw = json.dumps(data, indent=2) if isinstance(data, (dict, list)) else str(data)
+    st.download_button(
+        "Download JSON",
+        data=raw,
+        file_name=filename,
+        mime="application/json",
+        key=key,
+        use_container_width=True,
+        )
+
+
+def counter_card(value: int | str, label: str, variant: str = "") -> str:
+    return (
+        f'<div class="counter-card {variant}">'
+        f'<div class="c-val">{value}</div>'
+        f'<div class="c-lbl">{label}</div>'
+        f'</div>'
+    )
+
+
+# ── Pipeline Visualization ─────────────────────────────────────────────────────
 
 def render_pipeline(stages: list[dict]) -> None:
     by = {s["stage"]: s for s in stages}
@@ -680,35 +763,321 @@ def render_pipeline(stages: list[dict]) -> None:
     for i, (key, label) in enumerate(PIPELINE_STAGES):
         info = by.get(key, {})
         status = info.get("status", "pending")
-        dur = fmt_dur(info.get("duration_ms")) if info.get("status") == "completed" else (
-            "running…" if info.get("status") == "running" else ""
+        dur = (
+            fmt_dur(info.get("duration_ms")) if status == "completed" else
+            "running" if status == "running" else ""
         )
-        icon = STATUS_ICONS.get(status, "○")
-        spin = " pulse" if status == "running" else ""
+        icon = {"completed": "✓", "running": "↺", "failed": "✕", "pending": "○", "skipped": "–"}.get(status, "○")
+        cls = STATUS_DOT_CLS.get(status, "pending")
         items.append(
             f'<div class="pipe-stage">'
-            f'<div class="pipe-icon {status}"><span class="{spin}">{icon}</span></div>'
-            f'<div class="pipe-lbl {status}">{label}</div>'
+            f'<div class="pipe-circle {cls}">{icon}</div>'
+            f'<div class="pipe-lbl {cls}">{label}</div>'
             f'<div class="pipe-dur">{dur}</div>'
-            f'</div>',
+            f'</div>'
             )
         if i < len(PIPELINE_STAGES) - 1:
-            cc = "done" if status == "completed" else ("active" if status == "running" else "inactive")
+            cc = "done" if status == "completed" else ("active" if status == "running" else "none")
             items.append(f'<div class="pipe-conn {cc}"></div>')
-    pipe_html = '<div class="pipe-row">' + "".join(items) + "</div>"
-    st.markdown(pipe_html, unsafe_allow_html=True)
+    st.markdown('<div class="pipe-wrap">' + "".join(items) + "</div>", unsafe_allow_html=True)
 
 
-def render_scenes(scenes: list[dict]) -> None:
-    cells = []
+def render_scene_timeline(scenes: list[dict]) -> None:
+    dots = []
     for s in scenes:
         idx = s.get("scene_index", "?")
         status = s.get("status", "pending").lower()
-        title = s.get("title", f"Scene {idx}")
-        cells.append(
-            f'<div class="scene-cell {status}" title="{idx}: {title}">{idx}</div>',
+        title = _html_mod.escape(s.get("title", f"Scene {idx}"))
+        dots.append(
+            f'<div class="scene-tl-dot {status}" title="Scene {idx}: {title}">{idx}</div>',
             )
-    st.markdown('<div class="scene-grid">' + "".join(cells) + "</div>", unsafe_allow_html=True)
+    if dots:
+        st.markdown('<div class="scene-tl">' + "".join(dots) + "</div>", unsafe_allow_html=True)
+
+
+# ── Stage Inline Previews ─────────────────────────────────────────────────────
+
+def _preview_validate_input(sid: str) -> None:
+    data = fetch_artifact(sid, "refined_input")
+    if not data:
+        return
+    approach = data.get("approach", "")
+    refined = data.get("refined_requirement") or data.get("requirement", "")
+    kv_items = []
+    if approach:
+        kv_items.append(kv_pair("Approach", approach))
+    wf = data.get("workflow_id", "")
+    if wf:
+        kv_items.append(kv_pair("Workflow", wf[-14:]))
+    if kv_items:
+        st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+    if refined:
+        st.markdown("**Refined Requirement**")
+        prose_viewer(refined[:600])
+    sp = data.get("system_prompt", "")
+    if sp:
+        with st.expander("System Prompt", expanded=False):
+            st.code(sp[:2000], language="text")
+    c1, _ = st.columns([1, 3])
+    with c1:
+        dl_json(data, "refined_input.json", f"dl_ri_{sid}")
+
+
+def _preview_generate_outline(sid: str) -> None:
+    data = fetch_artifact(sid, "outline")
+    if not data:
+        return
+    outline_type = data.get("outline_type", "")
+    outline_body = data.get("outline", data)
+    if not isinstance(outline_body, dict):
+        return
+    meta = outline_body.get("meta", {})
+    segments = outline_body.get("outline", [])
+    kv_items = []
+    if outline_type:
+        kv_items.append(kv_pair("Approach", outline_type))
+    if meta.get("topic"):
+        kv_items.append(kv_pair("Topic", meta["topic"]))
+    if meta.get("total_duration_seconds"):
+        kv_items.append(kv_pair("Duration", f"{meta['total_duration_seconds']}s"))
+    if meta.get("pace"):
+        kv_items.append(kv_pair("Pace", meta["pace"]))
+    if segments:
+        kv_items.append(kv_pair("Segments", str(len(segments))))
+    if kv_items:
+        st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        scene_id = seg.get("scene_id", "?")
+        title = seg.get("title", f"Scene {scene_id}")
+        seg_type = seg.get("segment_type", "")
+        dur = seg.get("duration_seconds", 0)
+        with st.expander(f"Scene {scene_id}: {title}  [{seg_type} · {dur}s]", expanded=False):
+            talking = seg.get("talking_points", [])
+            if talking:
+                st.markdown("**Talking Points**")
+                for pt in talking:
+                    st.markdown(f"- {pt}")
+            vp = seg.get("visual_plan", "")
+            if vp:
+                st.markdown("**Visual Plan**")
+                prose_viewer(vp)
+            narr = seg.get("narration_hint", "")
+            if narr:
+                st.markdown(f"**Narration Hint:** {narr}")
+            ttn = seg.get("transition_to_next", "")
+            if ttn:
+                st.markdown(f"**Transition:** {ttn}")
+
+    c1, _ = st.columns([1, 3])
+    with c1:
+        dl_json(data, "outline.json", f"dl_ol_{sid}")
+
+
+def _preview_outline_critique(sid: str) -> None:
+    meta = fetch_artifact(sid, "outline_critique")
+    if meta:
+        score = meta.get("score")
+        approved = meta.get("approved")
+        critique = meta.get("critique", "")
+        improvements = meta.get("improvements", [])
+        iters = meta.get("iterations", meta.get("total_iterations"))
+        kv_items = []
+        if score is not None:
+            kv_items.append(kv_pair("Score", f"{score}/10"))
+        if approved is not None:
+            kv_items.append(kv_pair("Approved", "Yes" if approved else "No"))
+        if iters is not None:
+            kv_items.append(kv_pair("Iterations", str(iters)))
+        if kv_items:
+            st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+        if critique:
+            st.markdown("**Critique**")
+            prose_viewer(critique)
+        if improvements:
+            st.markdown("**Improvements Applied**")
+            for imp in improvements:
+                st.markdown(f"- {imp}")
+    c1, _ = st.columns([1, 3])
+    with c1:
+        if meta:
+            dl_json(meta, "outline_critique.json", f"dl_oc_{sid}")
+
+
+def _preview_visual_planning(sid: str) -> None:
+    data = fetch_artifact(sid, "visual_plans")
+    if not data:
+        return
+    plans = data.get("scene_visual_plans", [])
+    total = len(plans)
+    failed = sum(1 for p in plans if p.get("error"))
+    kv_items = [
+        kv_pair("Total Scenes", str(total)),
+        kv_pair("Succeeded", str(total - failed)),
+        ]
+    if failed:
+        kv_items.append(kv_pair("Failed", str(failed)))
+    st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+
+    for p in plans:
+        idx = p.get("scene_index", "?")
+        title = p.get("title", f"Scene {idx}")
+        has_err = bool(p.get("error"))
+        prefix = "Failed" if has_err else "Scene"
+        model = (p.get("model_used") or "")[-25:]
+        attempts = p.get("total_attempts", "?")
+        with st.expander(f"{prefix} {idx}: {title}", expanded=False):
+            if has_err:
+                st.error(p["error"])
+            else:
+                kv2 = [kv_pair("Model", model), kv_pair("Attempts", str(attempts))]
+                st.markdown('<div class="kv-block">' + "".join(kv2) + "</div>", unsafe_allow_html=True)
+            plan = p.get("plan")
+            if plan and isinstance(plan, dict):
+                vp_text = plan.get("visual_plan", "")
+                if vp_text:
+                    st.markdown("**Visual Plan**")
+                    prose_viewer(vp_text)
+                for field in ["scene_type", "color_palette", "key_elements", "technical_notes"]:
+                    val = plan.get(field)
+                    if val:
+                        if isinstance(val, list):
+                            st.markdown(f"**{field.replace('_', ' ').title()}:** {', '.join(str(v) for v in val)}")
+                        else:
+                            st.markdown(f"**{field.replace('_', ' ').title()}:** {val}")
+                with st.expander("Raw JSON", expanded=False):
+                    raw = json.dumps(plan, indent=2)
+                    st.code(raw[:3000] if len(raw) > 3000 else raw, language="json")
+                c1, _ = st.columns([1, 3])
+                with c1:
+                    dl_json(plan, f"scene_{idx:03d}_visual_plan.json", f"dl_vp_{sid}_{idx}")
+            elif plan:
+                prose_viewer(str(plan)[:400])
+
+    c1, _ = st.columns([1, 3])
+    with c1:
+        dl_json(data, "visual_plans.json", f"dl_vpa_{sid}")
+
+
+def _preview_visual_plan_critique(sid: str) -> None:
+    sp = fetch_scene_progress(sid)
+    if not sp:
+        st.caption("Critique data available after visual plan review completes.")
+        return
+    scenes = sp.get("scenes", [])
+    if scenes:
+        render_scene_timeline(scenes)
+        done = sum(1 for s in scenes if s.get("status") == "completed")
+        total = len(scenes)
+        st.caption(f"{done}/{total} scenes reviewed")
+
+
+def _preview_manim_code(sid: str) -> None:
+    data = fetch_artifact(sid, "manim_codes")
+    if not data:
+        return
+    codes = data.get("scene_manim_codes", [])
+    ready = sum(1 for c in codes if c.get("status") == "READY")
+    kv_items = [
+        kv_pair("Total", str(len(codes))),
+        kv_pair("Ready", str(ready)),
+        kv_pair("Failed", str(len(codes) - ready)),
+        ]
+    st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+
+    for c in codes:
+        idx = c.get("scene_index", "?")
+        status = c.get("status", "?")
+        title = c.get("title", f"Scene {idx}")
+        prefix = "Ready" if status == "READY" else "Failed"
+        with st.expander(f"{prefix} — Scene {idx}: {title}", expanded=False):
+            if c.get("error"):
+                st.error(c["error"])
+            py = c.get("python_code", "")
+            if py:
+                st.code(py[:3500], language="python")
+                if len(py) > 3500:
+                    st.caption(f"Showing first 3500 chars of {len(py):,} total chars")
+                c1, _ = st.columns([1, 3])
+                with c1:
+                    st.download_button(
+                        f"scene_{idx:03d}.py",
+                        data=py,
+                        file_name=f"scene_{idx:03d}.py",
+                        mime="text/x-python",
+                        key=f"dl_py_{sid}_{idx}",
+                        use_container_width=True,
+                        )
+
+    c1, _ = st.columns([1, 3])
+    with c1:
+        dl_json(data, "manim_codes.json", f"dl_mc_{sid}")
+
+
+def _preview_scene_rendering(sid: str) -> None:
+    rs = fetch_render_status(sid)
+    if not rs:
+        st.caption("Render status not yet available.")
+        return
+    rr = rs.get("scene_render_results", [])
+    if not rr:
+        return
+    ready = sum(1 for r in rr if r.get("status") == "READY")
+    failed = sum(1 for r in rr if r.get("status") == "FAILED")
+    kv_items = [
+        kv_pair("Total", str(len(rr))),
+        kv_pair("Ready", str(ready)),
+        kv_pair("Failed", str(failed)),
+        ]
+    st.markdown('<div class="kv-block">' + "".join(kv_items) + "</div>", unsafe_allow_html=True)
+    scene_data = [
+        {
+            "scene_index": r.get("scene_index"),
+            "title": r.get("title", ""),
+            "status": r.get("status", "PENDING").lower(),
+            }
+        for r in rr
+        ]
+    render_scene_timeline(scene_data)
+    failed_scenes = [r for r in rr if r.get("status") == "FAILED"]
+    if failed_scenes:
+        st.markdown("**Failed Scenes**")
+        for r in failed_scenes:
+            err = r.get("error", "Unknown error")
+            st.error(f"Scene {r.get('scene_index')}: {err}")
+
+
+def _preview_video_assembly(sid: str) -> None:
+    video_url = f"{API_BASE}/video/{sid}"
+    try:
+        st.video(video_url)
+        video_bytes = requests.get(video_url, timeout=60).content
+        c1, _ = st.columns([1, 3])
+        with c1:
+            st.download_button(
+                "Download MP4",
+                data=video_bytes,
+                file_name=f"{sid}_final.mp4",
+                mime="video/mp4",
+                key=f"dl_vid_{sid}",
+                use_container_width=True,
+                )
+    except Exception:
+        st.caption("Video file not yet available.")
+
+
+_STAGE_PREVIEW = {
+    "validate_input": _preview_validate_input,
+    "generate_outline": _preview_generate_outline,
+    "outline_critique": _preview_outline_critique,
+    "visual_planning": _preview_visual_planning,
+    "visual_plan_critique": _preview_visual_plan_critique,
+    "manim_code_generation": _preview_manim_code,
+    "scene_rendering": _preview_scene_rendering,
+    "video_assembly": _preview_video_assembly,
+    }
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -716,104 +1085,68 @@ def render_scenes(scenes: list[dict]) -> None:
 def _sidebar() -> None:
     with st.sidebar:
         st.markdown("""
-        <div style="padding:18px 14px 14px;">
-            <div style="font-size:1.2rem;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px;">
-                🎬 Text-2-Shorts
+        <div style="padding:20px 16px 12px;">
+            <div style="font-family:'Poppins',sans-serif;font-size:1.15rem;font-weight:800;
+                        color:#FFFFFF;letter-spacing:-0.3px;">Text-2-Shorts</div>
+            <div style="font-size:0.68rem;color:#334155;margin-top:2px;font-family:'Inter',sans-serif;">
+                AI Video Workflow Platform
             </div>
-            <div style="font-size:0.7rem;color:#475569;margin-top:3px;">AI Workflow Dashboard</div>
         </div>
-        <hr style="border:none;border-top:1px solid #1E293B;margin:0 0 6px 0;">
-        """, unsafe_allow_html=True,
+        <hr style="border:none;border-top:1px solid #0F2745;margin:0 0 6px 0;">
+        """, unsafe_allow_html=True
             )
 
         sessions = fetch_sessions()
         total_s = len(sessions)
         done_s = sum(1 for s in sessions if s.get("pipeline_status") == "completed")
         st.markdown(
-            f'<div style="padding:2px 14px 10px;font-size:0.72rem;color:#475569;">'
-            f'<span style="background:#1E293B;color:#94A3B8;padding:2px 8px;border-radius:4px;margin-right:6px;">'
+            f'<div style="padding:0 16px 10px;font-size:0.7rem;font-family:Inter,sans-serif;">'
+            f'<span style="background:#0F2745;color:#94A3B8;padding:2px 8px;border-radius:4px;margin-right:6px;">'
             f'{total_s} sessions</span>'
-            f'<span style="background:#1E293B;color:#22C55E;padding:2px 8px;border-radius:4px;">'
-            f'{done_s} completed</span></div>',
+            f'<span style="background:#0F2745;color:#22C55E;padding:2px 8px;border-radius:4px;">'
+            f'{done_s} done</span></div>',
             unsafe_allow_html=True,
             )
 
-        for label, icon in NAV_PAGES:
+        for label in NAV_PAGES:
             active = st.session_state.page == label
-            if st.button(
-                    f"{icon}  {label}",
-                    key=f"nav_{label}",
-                    use_container_width=True,
+            if st.button(label, key=f"nav_{label}", use_container_width=True,
                     type="primary" if active else "secondary",
                     ):
                 st.session_state.page = label
                 st.rerun()
 
-        st.markdown('<hr style="border:none;border-top:1px solid #1E293B;margin:10px 0 6px 0;">',
-            unsafe_allow_html=True,
-            )
+        st.markdown('<hr style="border:none;border-top:1px solid #0F2745;margin:8px 0;">', unsafe_allow_html=True)
 
-        # Recent sessions
-        recent = [s for s in reversed(sessions[-6:])]
-        if recent:
-            st.markdown(
-                '<div style="padding:4px 14px 6px;font-size:0.66rem;font-weight:700;'
-                'text-transform:uppercase;letter-spacing:0.5px;color:#334155;">RECENT</div>',
-                unsafe_allow_html=True,
-                )
-            for s in recent:
-                sid = s.get("session_id", "")
-                ps = s.get("pipeline_status", "?")
-                dot = "🟢" if ps == "completed" else "🔵" if ps == "running" else "🔴" if ps == "failed" else "⚪"
-                short = sid[-10:] if len(sid) > 10 else sid
-                if st.button(
-                        f"{dot} {short}",
-                        key=f"rec_{sid}",
-                        use_container_width=True,
-                        help=f"{sid} — {ps}",
-                        ):
-                    st.session_state.session_id = sid
-                    st.session_state.pipeline_status = ps
-                    for k in ["stages", "outline", "scenes", "scene_progress", "analytics"]:
-                        st.session_state[k] = _D.get(k)
-                    refresh_all(sid)
-                    st.session_state.page = "Pipeline"
-                    st.rerun()
-
-        st.markdown('<hr style="border:none;border-top:1px solid #1E293B;margin:8px 0 6px 0;">', unsafe_allow_html=True)
-
-        dev = st.toggle("Developer Mode", value=st.session_state.dev_mode, key="dev_toggle")
-        if dev != st.session_state.dev_mode:
-            st.session_state.dev_mode = dev
-
-        if st.session_state.session_id:
+        sid = st.session_state.session_id
+        if sid:
             ps = st.session_state.pipeline_status
             st.markdown(
-                f'<div style="padding:10px 14px 6px;">'
-                f'<div style="font-size:0.62rem;color:#475569;margin-bottom:4px;">ACTIVE SESSION</div>'
-                f'<div style="font-family:monospace;font-size:0.72rem;color:#94A3B8;word-break:break-all;">'
-                f'{st.session_state.session_id}</div>'
+                f'<div style="padding:8px 16px;">'
+                f'<div style="font-size:0.6rem;color:#334155;margin-bottom:4px;text-transform:uppercase;'
+                f'letter-spacing:0.5px;font-family:Inter,sans-serif;">ACTIVE SESSION</div>'
+                f'<div style="font-family:monospace;font-size:0.7rem;color:#64748B;word-break:break-all;">'
+                f'{sid}</div>'
                 f'<div style="margin-top:5px;">{badge(ps)}</div>'
                 f'</div>',
                 unsafe_allow_html=True,
                 )
 
 
-# ── Right Analytics Panel ─────────────────────────────────────────────────────
+# ── Right Panel ───────────────────────────────────────────────────────────────
 
 def _right_panel() -> None:
     sid = st.session_state.session_id
     stages = st.session_state.stages or []
     ps = st.session_state.pipeline_status
     sp = st.session_state.scene_progress
-    ana = st.session_state.analytics
 
     st.markdown('<div class="rp">', unsafe_allow_html=True)
-    st.markdown('<div class="rp-title">Live Metrics</div>', unsafe_allow_html=True)
+    st.markdown('<div class="rp-hdr">Live Status</div>', unsafe_allow_html=True)
 
     if not sid:
         st.markdown(
-            '<div style="font-size:0.78rem;color:#94A3B8;text-align:center;padding:16px 0;">No active session</div>',
+            '<div style="font-size:0.78rem;color:#94A3B8;text-align:center;padding:14px 0;">No active session</div>',
             unsafe_allow_html=True,
         )
         st.markdown('</div>', unsafe_allow_html=True)
@@ -821,8 +1154,8 @@ def _right_panel() -> None:
 
     rows = []
 
-    def _row(label: str, value: str) -> str:
-        return f'<div class="rp-row"><span class="rp-lbl">{label}</span><span class="rp-val">{value}</span></div>'
+    def _row(lbl: str, val: str) -> str:
+        return f'<div class="rp-row"><span class="rp-lbl">{lbl}</span><span class="rp-val">{val}</span></div>'
 
     rows.append(_row("Status", badge(ps)))
 
@@ -843,33 +1176,12 @@ def _right_panel() -> None:
     if sp and sp.get("total", 0) > 0:
         rows.append(_row("Scenes", f'{sp.get("completed", 0)}/{sp["total"]}'))
 
-    if ana:
-        tok = ana.get("total_tokens", 0)
-        if tok:
-            rows.append(_row("Tokens", fmt_num(tok)))
-        calls = ana.get("total_llm_calls", 0)
-        if calls:
-            rows.append(_row("LLM Calls", str(calls)))
-        errs = ana.get("total_errors", 0)
-        if errs:
-            rows.append(_row("Errors", f'<span style="color:#DC2626;">{errs}</span>'))
-
     st.markdown("".join(rows), unsafe_allow_html=True)
+    st.markdown('<div class="spacer-sm"></div>', unsafe_allow_html=True)
 
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
-    if st.button("↻ Refresh", key="rp_refresh", use_container_width=True):
+    if st.button("Refresh", key="rp_refresh", use_container_width=True):
         refresh_all(sid)
-        ad = fetch_analytics(sid)
-        if ad:
-            st.session_state.analytics = ad.get("analytics", {})
         st.rerun()
-
-    if st.session_state.dev_mode:
-        st.markdown(
-            '<div style="margin-top:10px;font-size:0.65rem;color:#475569;border-top:1px solid #E2E8F0;padding-top:8px;">'
-            'DEV MODE ON</div>',
-            unsafe_allow_html=True,
-            )
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -879,7 +1191,7 @@ def _right_panel() -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def page_generate() -> None:
-    st.markdown('<div class="section-title">New Generation</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-hd">New Generation</div>', unsafe_allow_html=True)
 
     form_col, cfg_col = st.columns([7, 3])
 
@@ -887,72 +1199,29 @@ def page_generate() -> None:
         requirement = st.text_area(
             "Video Requirement",
             placeholder=(
-                "Describe the educational topic, target audience, and learning goals.\n\n"
-                "Example: Create a 90-second visual explainer on how gradient descent works, "
+                "Describe the educational topic and learning goals.\n\n"
+                "Example: Create a 90-second visual explainer on how gradient descent works "
                 "for undergraduates who know basic calculus. Show the loss landscape and "
                 "animate parameter updates step-by-step."
             ),
-            height=260,
+            height=240,
             key="req_input",
-            help="Be specific about topic, audience level, depth, and any constraints.",
             )
         chars = len(requirement)
         words = len(requirement.split()) if requirement.strip() else 0
-        est_s = max(30, words // 2)
         st.markdown(
             f'<div style="text-align:right;font-size:0.7rem;color:#94A3B8;margin-top:2px;">'
-            f'{chars} chars · {words} words · ~{est_s}s narration est.</div>',
+            f'{chars} chars · {words} words</div>',
             unsafe_allow_html=True,
             )
 
     with cfg_col:
         st.markdown('<div class="card">', unsafe_allow_html=True)
-
         approach = st.selectbox("Narrative Approach", APPROACHES, key="cfg_approach")
-        audience = st.selectbox(
-            "Target Audience",
-            ["General Public", "Children (8–12)", "High School", "Undergraduate",
-                "Graduate", "Professional", "Expert",
-                ],
-            key="cfg_audience",
-            )
-        complexity = st.selectbox(
-            "Complexity Level",
-            ["Introductory", "Intermediate", "Advanced", "Expert"],
-            key="cfg_complexity",
-            )
-        duration = st.slider(
-            "Target Duration (s)",
-            30, 300, 90, 15,
-            key="cfg_duration",
-            format="%d s",
-            )
-        anim_density = st.selectbox(
-            "Animation Density",
-            ["Minimal", "Moderate", "Dense", "Very Dense"],
-            index=1,
-            key="cfg_anim",
-            )
-        edu_style = st.selectbox(
-            "Educational Style",
-            ["Lecture", "Socratic", "Demonstration", "Narrative", "Problem-Solving"],
-            key="cfg_edu",
-            )
-        aspect = st.selectbox(
-            "Aspect Ratio",
-            ["9:16 (Short)", "16:9 (Widescreen)", "1:1 (Square)"],
-            key="cfg_aspect",
-            )
-        language = st.selectbox(
-            "Language",
-            ["English", "Spanish", "French", "German", "Hindi", "Mandarin"],
-            key="cfg_lang",
-            )
-
         st.markdown('</div>', unsafe_allow_html=True)
 
         gen_btn = st.button(
-            "🎬  Generate Video",
+            "Generate Video",
             type="primary",
             key="btn_gen",
             disabled=not requirement.strip(),
@@ -972,18 +1241,18 @@ def page_generate() -> None:
             st.session_state.generate_error = str(exc)
 
     if st.session_state.generate_error:
-        st.error(f"⚠ {st.session_state.generate_error}")
+        st.error(st.session_state.generate_error)
 
     if st.session_state.session_id:
-        st.markdown("---")
         sid = st.session_state.session_id
         ps = st.session_state.pipeline_status
+        st.markdown('<div class="spacer-md"></div>', unsafe_allow_html=True)
         st.markdown(
-            f'**Active session:** <span class="session-chip">{sid}</span> &nbsp; {badge(ps)}',
+            f'Active session: <span class="session-chip">{sid}</span> &nbsp; {badge(ps)}',
             unsafe_allow_html=True,
             )
         if ps in ("running", "queued"):
-            st.info("⏳ Pipeline running — switch to the **Pipeline** page to monitor progress.")
+            st.info("Pipeline running — switch to Pipeline to monitor progress.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -999,7 +1268,7 @@ def page_sessions() -> None:
 
     c1, c2, c3, c4 = st.columns(4)
     for col, val, lbl, color in [
-        (c1, total, "Total Sessions", "blue"),
+        (c1, total, "Total", "blue"),
         (c2, completed, "Completed", "green"),
         (c3, failed, "Failed", "red"),
         (c4, running, "Running", "amber"),
@@ -1007,10 +1276,10 @@ def page_sessions() -> None:
         with col:
             st.markdown(metric_tile(str(val), lbl, color), unsafe_allow_html=True)
 
-    st.markdown('<div class="section-title">All Sessions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-hd">All Sessions</div>', unsafe_allow_html=True)
 
     if not sessions:
-        st.info("No sessions found. Generate your first video to get started.")
+        st.info("No sessions yet. Generate your first video to get started.")
         return
 
     for s in reversed(sessions):
@@ -1029,31 +1298,22 @@ def page_sessions() -> None:
             except Exception:
                 pass
 
-        status_icon = (
-            "🟢" if status == "completed" else
-            "🔵" if status == "running" else
-            "🔴" if status == "failed" else "⚪"
-        )
-
-        with st.expander(
-                f"{status_icon} {sid[-14:]}  ·  {approach_s}  ·  {ts}",
-                expanded=False,
-                ):
+        with st.expander(f"{sid[-16:]}  ·  {approach_s}  ·  {ts}", expanded=False):
             ci, ca = st.columns([3, 1])
             with ci:
                 st.markdown(
-                    f'<div style="font-family:monospace;font-size:0.78rem;color:#2563EB;margin-bottom:6px;">{sid}</div>'
-                    f'<div style="font-size:0.84rem;color:#374151;margin-bottom:6px;">'
+                    f'<div style="font-family:monospace;font-size:0.77rem;color:#2563EB;margin-bottom:6px;">{sid}</div>'
+                    f'<div style="font-size:0.83rem;color:#374151;margin-bottom:6px;">'
                     f'{req_prev[:180]}{"…" if len(req_prev) > 180 else ""}</div>'
-                    f'<div style="font-size:0.75rem;color:#64748B;">'
-                    f'{badge(status)} &nbsp;·&nbsp; {len(completed_stages)}/7 stages &nbsp;·&nbsp; {total_scn} scenes</div>',
+                    f'<div style="font-size:0.74rem;color:#64748B;">'
+                    f'{status_ind(status)} &nbsp;·&nbsp; {len(completed_stages)}/8 stages &nbsp;·&nbsp; {total_scn} scenes</div>',
                     unsafe_allow_html=True,
                 )
             with ca:
                 if st.button("View", key=f"sv_{sid}", use_container_width=True):
                     st.session_state.session_id = sid
                     st.session_state.pipeline_status = status
-                    for k in ["stages", "outline", "scenes", "scene_progress", "analytics",
+                    for k in ["stages", "outline", "scenes", "scene_progress",
                         "render_status", "final_video_path",
                         ]:
                         st.session_state[k] = _D.get(k)
@@ -1084,42 +1344,33 @@ def page_sessions() -> None:
 def page_pipeline() -> None:
     sid = st.session_state.session_id
     if not sid:
-        st.info("No active session. Generate a video first or select one from Sessions.")
+        st.info("No active session. Generate a video or select one from Sessions.")
         return
 
     ps = st.session_state.pipeline_status
     stages = st.session_state.stages or []
     by_name = {s["stage"]: s for s in stages}
 
-    # Session card + controls
-    cc, ca = st.columns([3, 1])
-    with cc:
+    # ── Session card + controls ───────────────────────────────────────────────
+    sc, ca = st.columns([3, 1])
+    with sc:
         sp = st.session_state.scene_progress
         total_scn = st.session_state.total_scenes or (sp.get("total", 0) if sp else 0)
-        completed_stg = sum(1 for s in stages if s.get("status") == "completed")
+        done_stg = sum(1 for s in stages if s.get("status") == "completed")
         total_ms = sum(s.get("duration_ms") or 0 for s in stages)
-        st.markdown(
-            f'<div class="card">'
-            f'<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;">'
-            f'<div><div style="font-size:0.65rem;color:#64748B;margin-bottom:3px;">SESSION</div>'
-            f'<span class="session-chip">{sid}</span></div>'
-            f'<div><div style="font-size:0.65rem;color:#64748B;margin-bottom:3px;">STATUS</div>'
-            f'{badge(ps)}</div>'
-            f'<div><div style="font-size:0.65rem;color:#64748B;margin-bottom:3px;">STAGES</div>'
-            f'<span style="font-weight:700;">{completed_stg}/{len(PIPELINE_STAGES)}</span></div>'
-            f'<div><div style="font-size:0.65rem;color:#64748B;margin-bottom:3px;">SCENES</div>'
-            f'<span style="font-weight:700;">{total_scn or "—"}</span></div>'
-            f'<div><div style="font-size:0.65rem;color:#64748B;margin-bottom:3px;">RUNTIME</div>'
-            f'<span style="font-weight:700;">{fmt_dur(total_ms) if total_ms else "—"}</span></div>'
-            f'</div></div>',
-            unsafe_allow_html=True,
-            )
+        kv_html = (
+                f'<div class="kv-block">'
+                + kv_pair("Session", sid[-14:])
+                + kv_pair("Stages", f"{done_stg}/{len(PIPELINE_STAGES)}")
+                + (kv_pair("Scenes", str(total_scn)) if total_scn else "")
+                + (kv_pair("Runtime", fmt_dur(total_ms)) if total_ms else "")
+                + f'</div>'
+        )
+        st.markdown('<div class="card">' + kv_html + badge(ps) + '</div>', unsafe_allow_html=True)
+
     with ca:
-        if st.button("↻ Refresh", key="pp_refresh", use_container_width=True):
+        if st.button("Refresh", key="pp_refresh", use_container_width=True):
             refresh_all(sid)
-            ad = fetch_analytics(sid)
-            if ad:
-                st.session_state.analytics = ad.get("analytics", {})
             st.rerun()
         if ps in ("failed", "running"):
             if st.button("Resume", key="pp_resume", use_container_width=True):
@@ -1130,270 +1381,143 @@ def page_pipeline() -> None:
                 except Exception as e:
                     st.error(str(e))
 
-    # Pipeline visualization
-    st.markdown('<div class="section-title">Pipeline Stages</div>', unsafe_allow_html=True)
-    if not stages:
-        stages_placeholder = [
-            {"stage": k, "label": l, "status": "pending", "duration_ms": None, "error": None}
-            for k, l in PIPELINE_STAGES
-            ]
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            render_pipeline(stages_placeholder)
-            st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        with st.container():
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            render_pipeline(stages)
-            st.markdown('</div>', unsafe_allow_html=True)
+    # ── Status counters dashboard ─────────────────────────────────────────────
+    if stages:
+        n_success = sum(1 for s in stages if s.get("status") == "completed")
+        n_failed = sum(1 for s in stages if s.get("status") == "failed")
+        n_running = sum(1 for s in stages if s.get("status") == "running")
+        n_pending = sum(1 for s in stages if s.get("status") == "pending")
+        n_skipped = sum(1 for s in stages if s.get("status") == "skipped")
 
-    # Stage detail table
-    done_stages = [s for s in stages if s.get("status") in ("completed", "failed", "running")]
-    if done_stages:
-        st.markdown('<div class="section-title">Stage Details</div>', unsafe_allow_html=True)
-        for s in done_stages:
-            icon = "✓" if s["status"] == "completed" else ("↺" if s["status"] == "running" else "✕")
-            with st.expander(f"{icon} {s['label']}  ·  {fmt_dur(s.get('duration_ms'))}", expanded=False):
-                if s.get("error"):
-                    st.error(f"Error: {s['error']}")
+        sp2 = st.session_state.scene_progress
+        scene_done = sp2.get("completed", 0) if sp2 else 0
+        scene_total = sp2.get("total", 0) if sp2 else 0
+        scene_fail = sp2.get("failed", 0) if sp2 else 0
+
+        cards = (
+                counter_card(n_success, "Success", "success") +
+                counter_card(n_failed, "Failed", "failed") +
+                counter_card(n_running, "Running", "running") +
+                counter_card(n_pending, "Pending", "pending") +
+                (counter_card(n_skipped, "Skipped", "skipped") if n_skipped else "") +
+                (counter_card(f"{scene_done}/{scene_total}", "Scenes", "success") if scene_total else "")
+        )
+        st.markdown('<div class="counter-row">' + cards + '</div>', unsafe_allow_html=True)
+
+    # ── Pipeline visualization ────────────────────────────────────────────────
+    st.markdown('<div class="section-hd">Pipeline Stages</div>', unsafe_allow_html=True)
+    display_stages = stages or [
+        {"stage": k, "label": l, "status": "pending", "duration_ms": None}
+        for k, l in PIPELINE_STAGES
+        ]
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    render_pipeline(display_stages)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Stage details with inline artifact previews ───────────────────────────
+    active_stages = [s for s in stages if s.get("status") in ("completed", "failed", "running")]
+    if active_stages:
+        st.markdown('<div class="section-hd">Stage Details</div>', unsafe_allow_html=True)
+        for s in active_stages:
+            stage_key = s["stage"]
+            label = s["label"]
+            status = s.get("status", "pending")
+            dur_str = fmt_dur(s.get("duration_ms"))
+            err = s.get("error")
+
+            icon = "Completed" if status == "completed" else ("Running" if status == "running" else "Failed")
+            header = f"{icon} — {label}  [{dur_str}]"
+
+            with st.expander(header, expanded=False):
+                # Status indicator row
                 summ = s.get("output_summary", {})
+                kv_row = [status_ind(status)]
                 if summ:
-                    cols = st.columns(min(len(summ), 4))
-                    for i, (k, v) in enumerate(summ.items()):
-                        with cols[i % len(cols)]:
-                            st.metric(k.replace("_", " ").title(), str(v)[:40])
-                if st.session_state.dev_mode:
-                    st.json(s)
+                    for k, v in summ.items():
+                        kv_row.append(kv_pair(k.replace("_", " ").title(), str(v)[:40]))
+                if kv_row[1:]:
+                    st.markdown(
+                        '<div class="kv-block">' + "".join(kv_row[1:]) + '</div>',
+                        unsafe_allow_html=True,
+                        )
+                st.markdown(kv_row[0], unsafe_allow_html=True)
 
-    # Scene progress (visual planning)
+                if err:
+                    st.error(f"Error: {err}")
+
+                # Stage-specific preview
+                preview_fn = _STAGE_PREVIEW.get(stage_key)
+                if preview_fn and status in ("completed", "running"):
+                    st.markdown('<div class="spacer-sm"></div>', unsafe_allow_html=True)
+                    try:
+                        preview_fn(sid)
+                    except Exception:
+                        pass
+
+    # ── Scene progress (visual planning / critique) ───────────────────────────
     vp_status = by_name.get("visual_planning", {}).get("status")
-    sp = st.session_state.scene_progress
-    if vp_status in ("running", "completed") and sp and sp.get("total", 0) > 0:
-        st.markdown('<div class="section-title">Scene Progress — Visual Planning</div>', unsafe_allow_html=True)
-        tot = sp["total"]
-        done = sp.get("completed", 0)
-        fail = sp.get("failed", 0)
-        pct = done / tot if tot else 0
+    vpc_status = by_name.get("visual_plan_critique", {}).get("status")
+    sp_data = st.session_state.scene_progress
+    if (vp_status in ("running", "completed") or vpc_status in ("running", "completed")) and sp_data and sp_data.get(
+            "total",
+            0,
+            ) > 0:
+        active_stage_label = "Plan Review" if vpc_status in ("running", "completed") else "Visual Planning"
+        st.markdown(f'<div class="section-hd">Scene Progress — {active_stage_label}</div>', unsafe_allow_html=True)
+        tot = sp_data["total"]
+        done = sp_data.get("completed", 0)
+        fail = sp_data.get("failed", 0)
         st.markdown(
-            f'<div class="card"><div style="margin-bottom:8px;font-size:0.82rem;">'
-            f'<strong>{done}/{tot}</strong> scenes &nbsp;·&nbsp; '
-            + (f'<span style="color:#EF4444;">{fail} failed</span>' if fail else "all ok")
+            f'<div class="card">'
+            f'<div style="margin-bottom:8px;font-size:0.82rem;">'
+            f'<strong>{done}/{tot}</strong> scenes'
+            + (f' &nbsp;·&nbsp; <span style="color:#EF4444;">{fail} failed</span>' if fail else " &nbsp;·&nbsp; all ok")
             + f'</div>',
             unsafe_allow_html=True,
             )
-        st.progress(pct)
-        render_scenes(sp.get("scenes", []))
+        st.progress(done / tot if tot else 0)
+        render_scene_timeline(sp_data.get("scenes", []))
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Render progress
+    # ── Render progress ───────────────────────────────────────────────────────
     rs = st.session_state.render_status
     rnd_status = by_name.get("scene_rendering", {}).get("status")
     if rnd_status in ("running", "completed") and rs:
         rr = rs.get("scene_render_results", [])
         if rr:
-            st.markdown('<div class="section-title">Scene Progress — Rendering</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-hd">Scene Progress — Rendering</div>', unsafe_allow_html=True)
             ready = sum(1 for r in rr if r.get("status") == "READY")
             fail_r = sum(1 for r in rr if r.get("status") == "FAILED")
             scene_data = [
                 {"scene_index": r.get("scene_index"), "title": r.get("title", ""),
-                    "status": r.get("status", "PENDING").lower(), "error": r.get("error"),
+                    "status": r.get("status", "PENDING").lower()
                     }
                 for r in rr
                 ]
             st.markdown(
-                f'<div class="card"><div style="margin-bottom:8px;font-size:0.82rem;">'
-                f'<strong>{ready}</strong> ready · <strong>{fail_r}</strong> failed · <strong>{len(rr)}</strong> total'
+                f'<div class="card">'
+                f'<div style="margin-bottom:8px;font-size:0.82rem;">'
+                f'<strong>{ready}</strong> ready &nbsp;·&nbsp; <strong>{fail_r}</strong> failed &nbsp;·&nbsp; <strong>{len(rr)}</strong> total'
                 f'</div>',
                 unsafe_allow_html=True,
                 )
-            render_scenes(scene_data)
+            render_scene_timeline(scene_data)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # Final video
+    # ── Final video ───────────────────────────────────────────────────────────
     asm_done = by_name.get("video_assembly", {}).get("status") == "completed"
     if asm_done:
-        st.markdown('<div class="section-title">Final Video</div>', unsafe_allow_html=True)
-        video_url = f"{API_BASE}/video/{sid}"
-        try:
-            st.video(video_url)
-            video_bytes = requests.get(video_url, timeout=60).content
-            st.download_button(
-                "⬇ Download MP4",
-                data=video_bytes,
-                file_name=f"{sid}_final.mp4",
-                mime="video/mp4",
-                key="dl_vid_pipe",
-                )
-        except Exception:
-            st.info("Video available in the Downloads page once assembly completes.")
+        st.markdown('<div class="section-hd">Final Video</div>', unsafe_allow_html=True)
+        _preview_video_assembly(sid)
 
-    # Status banner
+    # ── Status banner ─────────────────────────────────────────────────────────
     if ps == "completed":
-        st.success("✅ Pipeline completed successfully!")
+        st.success("Pipeline completed successfully.")
     elif ps == "failed":
-        err = next((s.get("error") for s in stages if s.get("status") == "failed"), "An error occurred.")
-        st.error(f"❌ Pipeline failed: {err}")
+        err_msg = next((s.get("error") for s in stages if s.get("status") == "failed"), "An error occurred.")
+        st.error(f"Pipeline failed: {err_msg}")
     elif ps in ("running", "queued"):
-        st.info(f"⏳ Pipeline {ps}…")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PAGE: ARTIFACTS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def page_artifacts() -> None:
-    sid = st.session_state.session_id
-    if not sid:
-        st.info("No active session. Select one from Sessions or generate a new video.")
-        return
-
-    artifacts = fetch_artifacts(sid)
-    if not artifacts:
-        st.info("No artifacts stored yet. Run the pipeline to generate artifacts.")
-        return
-
-    ART_ORDER = [
-        ("refined_input", "Intent Spec"),
-        ("outline", "Outline"),
-        ("scene_map", "Scene Map"),
-        ("visual_plans", "Visual Plans"),
-        ("manim_codes", "Manim Code"),
-        ("render_results", "Render Results"),
-        ]
-    art_map = {a["artifact_type"]: a for a in artifacts}
-    scene_arts = [a for a in artifacts if a["artifact_type"].startswith("scene_")]
-
-    avail_tabs = [(k, l) for k, l in ART_ORDER if k in art_map]
-    if scene_arts:
-        avail_tabs.append(("_scenes", f"Scenes ({len(scene_arts)})"))
-
-    if not avail_tabs:
-        st.info("No viewable artifacts.")
-        return
-
-    tab_labels = [l for _, l in avail_tabs]
-    tabs = st.tabs(tab_labels)
-
-    for tab, (atype, _) in zip(tabs, avail_tabs):
-        with tab:
-            if atype == "_scenes":
-                scene_keys = sorted(a["artifact_type"] for a in scene_arts)
-                sel = st.selectbox("Select scene", scene_keys, key="scene_art_sel")
-                if sel:
-                    data = fetch_artifact(sid, sel)
-                    if data and isinstance(data, dict):
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("Scene", data.get("scene_index", "?"))
-                        c2.metric("Model", (data.get("model_used") or "—")[-30:])
-                        c3.metric("Attempts", data.get("total_attempts", "?"))
-                        if data.get("error"):
-                            st.error(data["error"])
-                        plan = data.get("plan")
-                        if plan:
-                            json_card(plan, key_suffix=f"_{sel}")
-                    elif data:
-                        json_card(data, key_suffix=f"_{sel}")
-                continue
-
-            art_info = art_map.get(atype, {})
-            size_kb = art_info.get("size_bytes", 0) / 1024
-            st.caption(f"{size_kb:.1f} KB · JSON")
-
-            data = fetch_artifact(sid, atype)
-            if data is None:
-                st.warning("Could not load artifact.")
-                continue
-
-            # ── Enhanced views ──
-            if atype == "refined_input" and isinstance(data, dict):
-                c1, c2 = st.columns(2)
-                with c1:
-                    req = data.get("requirement") or data.get("refined_requirement", "—")
-                    st.markdown("**Requirement**")
-                    st.write(req[:400] + ("…" if len(req) > 400 else ""))
-                    st.markdown(f"**Approach:** `{data.get('approach', '—')}`")
-                with c2:
-                    sp = data.get("system_prompt", "")
-                    if sp:
-                        with st.expander("System Prompt", expanded=False):
-                            st.code(sp[:2000], language="text")
-                with st.expander("Raw JSON", expanded=False):
-                    json_card(data, key_suffix="_ri")
-
-            elif atype == "outline" and isinstance(data, dict):
-                ot = data.get("outline_type", "")
-                if ot:
-                    st.info(f"Approach: **{ot}**")
-                outline_body = data.get("outline", data)
-                if isinstance(outline_body, dict):
-                    segs = outline_body.get("outline", [])
-                    if segs:
-                        st.markdown(f"**{len(segs)} segments:**")
-                        for i, seg in enumerate(segs, 1):
-                            lbl = seg.get("title", "") if isinstance(seg, dict) else str(seg)[:60]
-                            with st.expander(f"Segment {i}: {lbl}", expanded=False):
-                                if isinstance(seg, (dict, list)):
-                                    st.json(seg)
-                                elif isinstance(seg, str):
-                                    st.text(seg)
-                                else:
-                                    st.code(str(seg))
-                with st.expander("Raw JSON", expanded=False):
-                    json_card(data, key_suffix="_ol")
-
-            elif atype == "visual_plans" and isinstance(data, dict):
-                plans = data.get("scene_visual_plans", [])
-                t = len(plans)
-                f = sum(1 for p in plans if p.get("error"))
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Total Scenes", t)
-                c2.metric("Succeeded", t - f)
-                c3.metric("Failed", f)
-                for p in plans:
-                    idx = p.get("scene_index", "?")
-                    title = p.get("title", f"Scene {idx}")
-                    has_err = bool(p.get("error"))
-                    with st.expander(f"{'⚠' if has_err else '✓'} Scene {idx}: {title}", expanded=False):
-                        if has_err:
-                            st.error(p["error"])
-                        else:
-                            c1, c2 = st.columns(2)
-                            c1.caption(f"Model: `{p.get('model_used', '?')}`")
-                            c2.caption(f"Attempts: `{p.get('total_attempts', '?')}`")
-                            if p.get("plan"):
-                                json_card(p["plan"], key_suffix=f"_vp{idx}")
-
-            elif atype == "manim_codes" and isinstance(data, dict):
-                codes = data.get("scene_manim_codes", [])
-                ready = sum(1 for c in codes if c.get("status") == "READY")
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Total", len(codes))
-                c2.metric("Ready", ready)
-                c3.metric("Failed", len(codes) - ready)
-                for c in codes:
-                    idx = c.get("scene_index", "?")
-                    status = c.get("status", "?")
-                    with st.expander(
-                            f"{'✓' if status == 'READY' else '✕'} Scene {idx}: {c.get('title', '')} — {status}",
-                            expanded=False,
-                            ):
-                        if c.get("error"):
-                            st.error(c["error"])
-                        py = c.get("python_code", "")
-                        if py:
-                            st.code(py[:4000], language="python")
-                            if len(py) > 4000:
-                                st.caption(f"Truncated. Download for full code.")
-                            st.download_button(
-                                f"⬇ scene_{idx:03d}.py",
-                                data=py,
-                                file_name=f"scene_{idx:03d}.py",
-                                mime="text/x-python",
-                                key=f"dl_pyc_{idx}",
-                                )
-
-            else:
-                json_card(data, key_suffix=f"_{atype}")
+        st.info(f"Pipeline {ps}…")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1426,24 +1550,25 @@ def page_logs() -> None:
 
     counts: dict[str, int] = {}
     for e in entries:
-        l = e.get("level", "INFO").upper()
-        counts[l] = counts.get(l, 0) + 1
+        lv = e.get("level", "INFO").upper()
+        counts[lv] = counts.get(lv, 0) + 1
 
     m1, m2, m3, m4, m5 = st.columns(5)
-    for col, val, lbl in [
-        (m1, len(entries), "Shown"),
-        (m2, counts.get("INFO", 0), "Info"),
-        (m3, counts.get("WARNING", 0), "Warnings"),
-        (m4, counts.get("ERROR", 0) + counts.get("CRITICAL", 0), "Errors"),
-        (m5, total, "Total in File"),
+    for col, val, lbl, color in [
+        (m1, len(entries), "Shown", "blue"),
+        (m2, counts.get("INFO", 0), "Info", "green"),
+        (m3, counts.get("WARNING", 0), "Warnings", "amber"),
+        (m4, counts.get("ERROR", 0) + counts.get("CRITICAL", 0), "Errors", "red"),
+        (m5, total, "Total", ""),
         ]:
-        col.metric(lbl, val)
+        with col:
+            st.markdown(metric_tile(str(val), lbl, color), unsafe_allow_html=True)
 
     if logs_data.get("has_more"):
-        st.info(f"Showing {len(entries)} of {total}. Increase limit to see more.")
+        st.info(f"Showing {len(entries)} of {total}. Increase limit for more.")
 
     if not entries:
-        st.info("No entries match the current filters.")
+        st.info("No log entries match the current filters.")
         return
 
     rows_html = []
@@ -1457,302 +1582,56 @@ def page_logs() -> None:
                 ts = ts[11:22] if len(ts) > 11 else ts
 
         level = entry.get("level", "INFO").upper()
-        stage = (entry.get("stage") or "")[:22]
-        node = (entry.get("node") or "")[:22]
+        stage = _html_mod.escape((entry.get("stage") or "")[:22])
+        node = _html_mod.escape((entry.get("node") or "")[:22])
         event = entry.get("event") or ""
         details = entry.get("details") or {}
         dur_ms = entry.get("duration_ms")
         dur_str = f"{dur_ms:.0f}ms" if dur_ms else "—"
 
-        msg_parts = [f"[{event}]"] if event else []
+        msg_parts = [f"[{_html_mod.escape(event)}]"] if event else []
         if isinstance(details, dict):
             for k in ["message", "step", "stage_name", "error"]:
                 if k in details:
-                    msg_parts.append(str(details[k])[:120])
+                    msg_parts.append(_html_mod.escape(str(details[k])[:120]))
                     break
-        msg = " ".join(msg_parts)[:220] if msg_parts else str(details)[:120]
+        msg = " ".join(msg_parts)[:220] if msg_parts else _html_mod.escape(str(details)[:120])
 
         ll = level.lower()
         rows_html.append(
             f'<div class="log-row {ll}">'
-            f'<div style="font-family:monospace;color:#64748B;white-space:nowrap;">{ts}</div>'
+            f'<div style="font-family:monospace;color:#64748B;white-space:nowrap;font-size:0.74rem;">{ts}</div>'
             f'<div><span class="lvl {ll}">{level}</span></div>'
             f'<div style="color:#64748B;font-size:0.72rem;word-break:break-word;">{stage}</div>'
             f'<div style="color:#94A3B8;font-size:0.72rem;word-break:break-word;">{node}</div>'
             f'<div style="color:#0F172A;word-break:break-word;">{msg}</div>'
-            f'<div style="font-family:monospace;color:#94A3B8;white-space:nowrap;">{dur_str}</div>'
-            f'</div>',
+            f'<div style="font-family:monospace;color:#94A3B8;white-space:nowrap;font-size:0.72rem;">{dur_str}</div>'
+            f'</div>'
             )
 
-    header_html = (
-        '<div class="log-head">'
+    hdr = (
+        '<div class="log-hdr">'
         '<div>Time</div><div>Level</div><div>Stage</div>'
         '<div>Node</div><div>Message</div><div>Duration</div>'
         '</div>'
     )
-
     st.markdown(
-        '<div class="log-container">' + header_html + "".join(rows_html) + "</div>",
+        '<div class="log-wrap"><div class="log-body">' + hdr + "".join(rows_html) + '</div></div>',
         unsafe_allow_html=True,
         )
 
-    log_text = "\n".join(json.dumps(e) for e in entries)
-    st.download_button(
-        "⬇ Download Logs (JSONL)",
-        data=log_text,
-        file_name=f"{sid}_logs.jsonl",
-        mime="application/x-ndjson",
-        key="dl_logs_btn",
-        )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PAGE: ANALYTICS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def page_analytics() -> None:
-    sid = st.session_state.session_id
-    if not sid:
-        st.info("No active session.")
-        return
-
-    if not st.session_state.analytics:
-        with st.spinner("Computing analytics…"):
-            ad = fetch_analytics(sid)
-            if ad:
-                st.session_state.analytics = ad.get("analytics", {})
-
-    if st.button("↻ Refresh Analytics", key="ana_refresh"):
-        ad = fetch_analytics(sid)
-        if ad:
-            st.session_state.analytics = ad.get("analytics", {})
-        st.rerun()
-
-    ana = st.session_state.analytics
-
-    # ── Token Usage ───────────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">Token Usage</div>', unsafe_allow_html=True)
-    t_in = ana.get("total_input_tokens", 0)
-    t_out = ana.get("total_output_tokens", 0)
-    t_all = ana.get("total_tokens", t_in + t_out)
-    calls = ana.get("total_llm_calls", 0)
-    retries = ana.get("total_retries", 0)
-    fallbacks = ana.get("total_fallbacks", 0)
-
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    for col, val, lbl, color in [
-        (c1, fmt_num(t_all), "Total Tokens", "blue"),
-        (c2, fmt_num(t_in), "Input Tokens", ""),
-        (c3, fmt_num(t_out), "Output Tokens", ""),
-        (c4, str(calls), "LLM Calls", "green"),
-        (c5, str(retries), "Retries", "amber"),
-        (c6, str(fallbacks), "Fallbacks", ""),
-        ]:
-        with col:
-            st.markdown(metric_tile(val, lbl, color), unsafe_allow_html=True)
-
-    # ── Request Analytics ─────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">Request Analytics</div>', unsafe_allow_html=True)
-    avg_lat = ana.get("avg_llm_latency_ms", 0)
-    max_lat = ana.get("max_llm_latency_ms", 0)
-    min_lat = ana.get("min_llm_latency_ms", 0)
-    errors = ana.get("total_errors", 0)
-
-    c1, c2, c3, c4 = st.columns(4)
-    for col, val, lbl, color in [
-        (c1, f"{avg_lat:.0f} ms", "Avg LLM Latency", ""),
-        (c2, f"{max_lat:.0f} ms", "Max LLM Latency", ""),
-        (c3, f"{min_lat:.0f} ms", "Min LLM Latency", ""),
-        (c4, str(errors), "Log Errors", "red" if errors else ""),
-        ]:
-        with col:
-            st.markdown(metric_tile(val, lbl, color), unsafe_allow_html=True)
-
-    # ── Model Usage Table ─────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">Model Usage</div>', unsafe_allow_html=True)
-    model_usage = ana.get("model_usage", [])
-    if model_usage:
-        try:
-            import pandas as pd
-
-            df = pd.DataFrame(model_usage)
-            cols_show = [c for c in
-                ["model", "provider", "requests", "input_tokens", "output_tokens",
-                    "total_tokens", "avg_latency_ms", "retries",
-                    ]
-                if c in df.columns]
-            st.dataframe(
-                df[cols_show],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "model": st.column_config.TextColumn("Model"),
-                    "provider": st.column_config.TextColumn("Provider"),
-                    "requests": st.column_config.NumberColumn("Requests"),
-                    "input_tokens": st.column_config.NumberColumn("Input"),
-                    "output_tokens": st.column_config.NumberColumn("Output"),
-                    "total_tokens": st.column_config.NumberColumn("Total"),
-                    "avg_latency_ms": st.column_config.NumberColumn("Avg Latency (ms)", format="%.1f"),
-                    "retries": st.column_config.NumberColumn("Retries"),
-                    },
-                )
-        except ImportError:
-            for m in model_usage:
-                st.write(m)
-    else:
-        st.info("No LLM call data available for this session.")
-
-    # ── Pipeline Performance ──────────────────────────────────────────────────
-    stages = st.session_state.stages
-    if stages:
-        st.markdown('<div class="section-title">Pipeline Performance</div>', unsafe_allow_html=True)
-        timed = [(s["label"], s["duration_ms"]) for s in stages if s.get("duration_ms")]
-        if timed:
-            total_ms = sum(d for _, d in timed)
-            fastest = min(timed, key=lambda x: x[1])
-            slowest = max(timed, key=lambda x: x[1])
-            p1, p2, p3 = st.columns(3)
-            p1.metric("Total Runtime", fmt_dur(total_ms))
-            p2.metric("Fastest Stage", f"{fastest[0]} · {fmt_dur(fastest[1])}")
-            p3.metric("Slowest Stage", f"{slowest[0]} · {fmt_dur(slowest[1])}")
-            try:
-                import pandas as pd
-
-                df2 = pd.DataFrame(timed, columns=["Stage", "ms"])
-                df2["s"] = (df2["ms"] / 1000).round(2)
-                st.bar_chart(df2.set_index("Stage")["s"], use_container_width=True)
-            except ImportError:
-                pass
-
-    # ── Errors ───────────────────────────────────────────────────────────────
-    err_list = ana.get("errors", [])
-    if err_list:
-        st.markdown('<div class="section-title">Log Errors</div>', unsafe_allow_html=True)
-        for e in err_list:
-            ts_str = (e.get("timestamp") or "")[:19]
-            stage = e.get("stage", "?")
-            node = e.get("node", "?")
-            etype = e.get("error_type", "Error")
-            msg = (e.get("message") or "")[:200]
-            st.error(f"**{etype}** — `{stage}/{node}` — {ts_str}\n{msg}")
-
-    if st.session_state.dev_mode:
-        st.markdown('<div class="section-title">Raw Analytics (Dev)</div>', unsafe_allow_html=True)
-        st.json(ana)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# PAGE: DOWNLOADS
-# ─────────────────────────────────────────────────────────────────────────────
-
-def page_downloads() -> None:
-    sid = st.session_state.session_id
-    if not sid:
-        st.info("No active session.")
-        return
-
-    stages_map = {s["stage"]: s for s in (st.session_state.stages or [])}
-
-    # ── Artifacts ─────────────────────────────────────────────────────────────
-    st.markdown("#### Pipeline Artifacts (JSON)")
-    arts = fetch_artifacts(sid)
-    if arts:
-        for a in arts:
-            atype = a["artifact_type"]
-            label = a["label"]
-            size_kb = a.get("size_bytes", 0) / 1024
-            c1, c2, c3 = st.columns([4, 2, 1])
-            with c1:
-                st.markdown(f'<div class="dl-row"><span class="dl-name">📄 {label}</span>'
-                            f'<span class="dl-meta">{size_kb:.1f} KB</span></div>',
-                    unsafe_allow_html=True,
-                    )
-            with c3:
-                d = fetch_artifact(sid, atype)
-                if d is not None:
-                    st.download_button(
-                        "⬇",
-                        data=json.dumps(d, indent=2),
-                        file_name=f"{atype}.json",
-                        mime="application/json",
-                        key=f"dl_a_{atype}",
-                        use_container_width=True,
-                        )
-    else:
-        st.info("No artifacts yet.")
-
-    # ── Logs ─────────────────────────────────────────────────────────────────
-    st.markdown("#### Logs")
-    c1, _, c3 = st.columns([4, 2, 1])
+    st.markdown('<div class="spacer-sm"></div>', unsafe_allow_html=True)
+    c1, _ = st.columns([1, 4])
     with c1:
-        st.markdown('<div class="dl-row"><span class="dl-name">📜 Session Logs</span>'
-                    '<span class="dl-meta">JSONL</span></div>',
-            unsafe_allow_html=True,
+        log_text = "\n".join(json.dumps(e) for e in entries)
+        st.download_button(
+            "Download Logs (JSONL)",
+            data=log_text,
+            file_name=f"{sid}_logs.jsonl",
+            mime="application/x-ndjson",
+            key="dl_logs_btn",
+            use_container_width=True,
             )
-    with c3:
-        ld = fetch_logs(sid, limit=2000)
-        if ld:
-            log_raw = "\n".join(json.dumps(e) for e in ld.get("entries", []))
-            st.download_button(
-                "⬇",
-                data=log_raw,
-                file_name=f"{sid}_logs.jsonl",
-                mime="application/x-ndjson",
-                key="dl_logs_dc",
-                use_container_width=True,
-                )
-
-    # ── Python Code ──────────────────────────────────────────────────────────
-    codes_data = fetch_artifact(sid, "manim_codes")
-    if codes_data and isinstance(codes_data, dict):
-        codes = codes_data.get("scene_manim_codes", [])
-        ready_codes = [c for c in codes if c.get("python_code")]
-        if ready_codes:
-            st.markdown("#### Generated Python / Manim Code")
-            for c in ready_codes:
-                idx = c.get("scene_index", "?")
-                py = c.get("python_code", "")
-                c1, _, c3 = st.columns([4, 2, 1])
-                with c1:
-                    st.markdown(
-                        f'<div class="dl-row"><span class="dl-name">🐍 scene_{idx:03d}.py</span>'
-                        f'<span class="dl-meta">{len(py):,} chars</span></div>',
-                        unsafe_allow_html=True,
-                        )
-                with c3:
-                    st.download_button(
-                        "⬇",
-                        data=py,
-                        file_name=f"scene_{idx:03d}.py",
-                        mime="text/x-python",
-                        key=f"dl_py_{idx}",
-                        use_container_width=True,
-                        )
-
-    # ── Final Video ───────────────────────────────────────────────────────────
-    asm_done = stages_map.get("video_assembly", {}).get("status") == "completed"
-    if asm_done:
-        st.markdown("#### Final Video")
-        video_url = f"{API_BASE}/video/{sid}"
-        c1, _, c3 = st.columns([4, 2, 1])
-        with c1:
-            st.markdown(f'<div class="dl-row"><span class="dl-name">🎬 {sid}_final.mp4</span>'
-                        f'<span class="dl-meta">MP4</span></div>',
-                unsafe_allow_html=True,
-                )
-        with c3:
-            try:
-                vbytes = requests.get(video_url, timeout=60).content
-                st.download_button(
-                    "⬇",
-                    data=vbytes,
-                    file_name=f"{sid}_final.mp4",
-                    mime="video/mp4",
-                    key="dl_vid_dc",
-                    use_container_width=True,
-                )
-            except Exception:
-                st.caption("Not available yet")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1765,32 +1644,29 @@ sid = st.session_state.session_id
 ps = st.session_state.pipeline_status
 
 # Header bar
-pulse_cls = "pulse" if ps in ("running", "queued") else ""
-status_dot_color = (
-    "#2563EB" if ps in ("running", "queued") else
+dot_color = (
+    "#3B82F6" if ps in ("running", "queued") else
     "#22C55E" if ps == "completed" else
-    "#EF4444" if ps == "failed" else "#94A3B8"
+    "#EF4444" if ps == "failed" else "#9CA3AF"
 )
 st.markdown(
     f'<div class="app-header">'
     f'<div style="display:flex;align-items:center;">'
-    f'<span class="app-logo">🎬 Text-2-Shorts</span>'
-    f'<span class="app-version">v{VERSION}</span>'
+    f'<span class="app-logo">Text-2-Shorts</span>'
+    f'<span class="app-badge">v{VERSION}</span>'
     f'</div>'
     + (
         f'<div style="display:flex;align-items:center;gap:8px;">'
-        f'<span style="width:8px;height:8px;border-radius:50%;background:{status_dot_color};'
-        f'display:inline-block;" class="{pulse_cls}"></span>'
+        f'<span style="width:8px;height:8px;border-radius:50%;background:{dot_color};display:inline-block;"></span>'
         f'<span class="session-chip">{sid}</span>'
         f'</div>'
         if sid else
-        '<div style="font-size:0.82rem;color:#94A3B8;">No active session</div>'
+        '<div style="font-size:0.82rem;color:#94A3B8;font-family:Inter,sans-serif;">No active session</div>'
     )
     + '</div>',
     unsafe_allow_html=True,
     )
 
-# Three-column layout: empty gutter | main content | right panel
 _, main_col, right_col = st.columns([0.02, 4, 1])
 
 with right_col:
@@ -1800,7 +1676,6 @@ with right_col:
 
 with main_col:
     st.markdown('<div class="content-pad">', unsafe_allow_html=True)
-
     page = st.session_state.page
     if page == "Generate":
         page_generate()
@@ -1808,15 +1683,8 @@ with main_col:
         page_sessions()
     elif page == "Pipeline":
         page_pipeline()
-    elif page == "Artifacts":
-        page_artifacts()
     elif page == "Logs":
         page_logs()
-    elif page == "Analytics":
-        page_analytics()
-    elif page == "Downloads":
-        page_downloads()
-
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Auto-polling ──────────────────────────────────────────────────────────────
@@ -1832,7 +1700,4 @@ if (
     refresh_all(st.session_state.session_id)
     if st.session_state.pipeline_status in _TERMINAL:
         st.session_state.auto_poll = False
-        ad = fetch_analytics(st.session_state.session_id)
-        if ad:
-            st.session_state.analytics = ad.get("analytics", {})
     st.rerun()
