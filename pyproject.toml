@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "boto3==1.43.37",
+    "boto3==1.43.38",
     "fastapi==0.138.2",
     "requests>=2.32",
     "streamlit>=1.31",
@@ -19,7 +19,7 @@ dependencies = [
     "typing-extensions>=4.15.0",
     "uvicorn>=0.30",
     "contextvars>=2.4",
-    "boto3-stubs==1.43.37",
+    "boto3-stubs==1.43.38",
     "google-genai>=2.10.0",
     "tenacity>=9.0",
     "protobuf==7.35.1",
@@ -30,7 +30,7 @@ dependencies = [
     "decorator==5.3.1",
     "glcontext==3.0.0",
     "isosurfaces==0.1.2",
-    "manim==0.19.2",
+    "manim==0.20.1",
     "manimpango==0.6.1",
     "mapbox-earcut==2.0.0",
     "markdown-it-py==4.2.0",
@@ -44,13 +44,17 @@ dependencies = [
     "pyglm==2.8.3",
     "pygments==2.20.0",
     "rich==15.0.0",
-    "scipy==1.16.2",
+    "scipy==1.18.0",
     "screeninfo==0.8.1",
     "soupsieve==2.8.4",
     "srt==3.5.3",
     "svgelements==1.9.6",
     "tqdm==4.68.3",
     "poolgate",
+    "numpy>=2.5.0",
+    "sympy>=1.14.0",
+    "pillow>=12.2.0",
+    "matplotlib>=3.11.0",
 ]
 
 [tool.uv.sources]
