@@ -55,6 +55,22 @@ dependencies = [
     "sympy>=1.14.0",
     "pillow>=12.2.0",
     "matplotlib>=3.11.0",
+    "cairocffi>=1.7.1",
+    "cairosvg>=2.9.0",
+    "cssselect2>=0.9.0",
+    "defusedxml>=0.7.1",
+    "imageio>=2.37.3",
+    "imageio-ffmpeg>=0.6.0",
+    "moviepy>=0.2.3.1",
+    "opencv-python>=4.13.0.92",
+    "proglog>=0.1.12",
+    "shellingham>=1.5.4",
+    "svgpathtools>=1.7.2",
+    "svgwrite>=1.4.3",
+    "tinycss2>=1.5.1",
+    "typer>=0.26.8",
+    "webencodings>=0.5.1",
+    "ipython>=9.15.0",
 ]
 
 [tool.uv.sources]
