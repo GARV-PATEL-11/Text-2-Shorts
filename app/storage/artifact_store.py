@@ -55,8 +55,10 @@ class ArtifactStore:
     LABELS: dict[str, str] = {
         "refined_input": "Refined Input",
         "outline": "Video Outline",
+        "outline_critique": "Outline Critique",
         "scene_map": "Scene Map",
         "visual_plans": "All Visual Plans",
+        "manim_codes": "Manim Code",
         "render_results": "Render Results",
         "video_stats": "Video Stats",
         }

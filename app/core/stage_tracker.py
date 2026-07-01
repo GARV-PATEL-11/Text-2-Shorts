@@ -23,8 +23,9 @@ class SceneRecord:
 PIPELINE_STAGES: list[str] = [
     "validate_input",
     "generate_outline",
-    "map_outline",
+    "outline_critique",
     "visual_planning",
+    "visual_plan_critique",
     "manim_code_generation",
     "scene_rendering",
     "video_assembly",
@@ -33,8 +34,9 @@ PIPELINE_STAGES: list[str] = [
 NODE_TO_STAGE: dict[str, str] = {
     "validate_input": "validate_input",
     "generate_outline": "generate_outline",
-    "map_outline_to_visual_plan": "map_outline",
+    "outline_critique": "outline_critique",
     "visual_planning": "visual_planning",
+    "visual_plan_critique": "visual_plan_critique",
     "manim_code_generation": "manim_code_generation",
     "scene_rendering": "scene_rendering",
     "video_assembly": "video_assembly",
@@ -43,8 +45,9 @@ NODE_TO_STAGE: dict[str, str] = {
 STAGE_LABELS: dict[str, str] = {
     "validate_input": "Validate & Refine Input",
     "generate_outline": "Generate Outline",
-    "map_outline": "Map Outline to Scenes",
+    "outline_critique": "Critique Outline",
     "visual_planning": "Generate Visual Plans",
+    "visual_plan_critique": "Critique Visual Plans",
     "manim_code_generation": "Generate Manim Code",
     "scene_rendering": "Render Scenes",
     "video_assembly": "Assemble Video",
@@ -274,8 +277,18 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
             segments = outline.get("outline", [])
             s["segment_count"] = len(segments) if isinstance(segments, list) else 0
         s["outline_type"] = updates.get("outline_type")
-    elif stage == "map_outline":
-        s["total_scenes"] = updates.get("total_scenes", 0)
+    elif stage == "outline_critique":
+        outline = updates.get("outline") or {}
+        if isinstance(outline, dict):
+            segments = outline.get("outline", [])
+            s["scene_count"] = len(segments) if isinstance(segments, list) else 0
+    elif stage == "visual_plan_critique":
+        plans = updates.get("scene_visual_plans") or []
+        s["total_scenes"] = len(plans)
+        s["refined_scenes"] = sum(
+            1 for p in plans
+                if not ((isinstance(p, dict) and p.get("error")) or (hasattr(p, "error") and p.error)),
+            )
     elif stage == "visual_planning":
         plans = updates.get("scene_visual_plans") or []
         s["total_scenes"] = len(plans)

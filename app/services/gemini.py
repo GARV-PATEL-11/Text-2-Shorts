@@ -27,8 +27,10 @@ Structural parity with the previous implementation:
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from poolgate.pool import SchedulingStrategyType
 from poolgate.schemas.common.runtime import RequestConfig
@@ -41,6 +43,18 @@ from .base import LLMClient, SchemaT
 
 
 logger = StructuredLogger.get_logger(__name__)
+
+# JSONL file at the project root that receives every Gemini API call record.
+_GEMINI_TRACE_FILE = Path(__file__).parent.parent.parent / "gemini_trace.jsonl"
+
+
+def _append_gemini_trace(record: dict) -> None:
+    """Append one call record to gemini_trace.jsonl at the repository root."""
+    try:
+        with _GEMINI_TRACE_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
 
 class GeminiClient(LLMClient):
@@ -112,12 +126,16 @@ class GeminiClient(LLMClient):
         input_tokens = getattr(usage, "input_tokens", 0) or 0
         output_tokens = getattr(usage, "output_tokens", 0) or 0
         total_tokens = getattr(usage, "total_tokens", 0) or 0
+        ts = datetime.now(timezone.utc).isoformat()
+        session = session_id_var.get()
+        workflow = workflow_id_var.get()
+        node = node_name_var.get()
 
         record_trace(GeminiTrace(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            session_id=session_id_var.get(),
-            workflow_id=workflow_id_var.get(),
-            node_name=node_name_var.get(),
+            timestamp=ts,
+            session_id=session,
+            workflow_id=workflow,
+            node_name=node,
             model_id=model,
             latency_ms=latency_ms,
             input_tokens=input_tokens,
@@ -128,6 +146,23 @@ class GeminiClient(LLMClient):
             response_preview=text[:200],
             is_structured=is_structured,
             ),
+            )
+
+        _append_gemini_trace({
+            "timestamp": ts,
+            "session_id": session,
+            "workflow_id": workflow,
+            "node": node,
+            "model": model,
+            "latency_ms": latency_ms,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "is_structured": is_structured,
+            "system_prompt_preview": system_prompt[:300],
+            "user_prompt_preview": user_prompt[:300],
+            "response_preview": text[:300],
+            },
             )
 
         logger.info(
