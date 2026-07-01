@@ -30,6 +30,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
+from poolgate.pool import SchedulingStrategyType
 from poolgate.schemas.common.runtime import RequestConfig
 from poolgate.services.gemini_provider import GeminiService
 
@@ -76,6 +77,7 @@ class GeminiClient(LLMClient):
         """Return (or lazily create) the shared :class:`GeminiService`."""
         if cls._service is None:
             cls._service = GeminiService()
+            cls._service._scheduler.set_strategy(SchedulingStrategyType.LEAST_USED)
         return cls._service
 
     @staticmethod
