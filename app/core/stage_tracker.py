@@ -287,7 +287,7 @@ def _summarize_output(stage: str, updates: dict[str, Any]) -> dict:
         s["total_scenes"] = len(plans)
         s["refined_scenes"] = sum(
             1 for p in plans
-                if not ((isinstance(p, dict) and p.get("error")) or (hasattr(p, "error") and p.error)),
+                if not ((isinstance(p, dict) and p.get("error")) or (hasattr(p, "error") and p.error))
             )
     elif stage == "visual_planning":
         plans = updates.get("scene_visual_plans") or []
