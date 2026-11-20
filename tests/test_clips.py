@@ -1,5 +1,6 @@
 """Clip pipeline without LLM calls: a fake agent writes real clip files; ./check gates + the jailed re-check run."""
 import json
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -87,7 +88,10 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
 
     def build(clip_id, code):  # what the clip-builder subagent does: write the file in the prepared work dir
         w = C.prepare_clip(run, clip_id)
-        assert "CLIP_SECONDS: 3.1" in (w / "TASK.md").read_text() and (w / "check").exists()
+        task = (w / "TASK.md").read_text()
+        assert "CLIP_SECONDS: 3.1" in task and (w / "check").exists()
+        read_first = [Path(x.strip()) for x in task.split("READ FIRST:")[1].splitlines()[0].split(",")]
+        assert len(read_first) == 4 and all(f.exists() for f in read_first)   # standards + 3 always-on cards
         (w / f"clip_{clip_id[-2:]}.py").write_text(code)
         return C.accept_clip(run, clip_id)
 
