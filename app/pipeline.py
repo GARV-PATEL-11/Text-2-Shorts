@@ -21,6 +21,7 @@ from app import speech
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent.parent
+ENV = ROOT / "env"  # the execution environment: Claude Code plugin + settings + workspace template
 PYTHON = sys.executable  # the venv interpreter — manim is installed here
 FPS = int(os.environ.get("T2S_FPS", 60))  # final render is always 2560x1440 (-qp, 16:9); 60–120 fps
 MAX_PARALLEL = int(os.environ.get("T2S_PARALLEL", 4))  # scenes at a time (user's call: 4)
@@ -72,12 +73,52 @@ def cmd_new(a) -> None:
         sys.exit(f"Font not installed: {a.font!r} — pick one from `fc-list : family`")
     slug =re.sub(r"[^a-z0-9]+", "-", a.requirement.lower())[:40].strip("-")
     run = ROOT / "runs" / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
-    run.mkdir(parents=True)
-    write_json(run / "brief.json", {
-        "requirement": a.requirement, "approach": a.approach, "minutes": a.minutes, "pace": a.pace,
-        "audience": a.audience, "notes": a.notes, "tts": a.tts, "voice": a.voice, "engine": a.engine, "font": a.font,
-        })
+    provision(run, {"requirement": a.requirement, "approach": a.approach, "minutes": a.minutes, "pace": a.pace,
+                    "audience": a.audience, "notes": a.notes, "tts": a.tts, "voice": a.voice, "engine": a.engine,
+                    "font": a.font}, json.loads(pf.stdout))
     print(run.relative_to(ROOT))
+    print(f"next: t2s open {run.relative_to(ROOT)}   (starts Claude Code inside this run's isolated workspace)")
+
+
+def provision(run: Path, brief: dict, env_report: dict) -> None:
+    """Create one run workspace from the environment definition in env/ (the run's own CLAUDE.md + inputs)."""
+    run.mkdir(parents=True)
+    write_json(run / "brief.json", brief)
+    write_json(run / "environment_report.json", env_report)
+    (run / "CLAUDE.md").write_text((ENV / "workspace" / "CLAUDE.md").read_text())
+
+
+def jail_cmd(run: Path, command: list[str]) -> list[str]:
+    """bwrap argv: everything read-only, the run folder and Claude Code's own state/caches writable, a private
+    throwaway $HOME (tool dirs on PATH and TTS credentials mounted back read-only), network kept for the API."""
+    home = Path.home()
+    tool_dirs = {home / Path(d).relative_to(home).parts[0] for d in os.environ.get("PATH", "").split(":")
+                 if d.startswith(f"{home}/") and Path(d).exists()}
+    argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
+            "--tmpfs", str(home)]
+    for d in sorted(tool_dirs | {home / ".aws", home / ".config" / "gcloud"}):
+        argv += ["--ro-bind-try", str(d), str(d)]
+    argv += ["--ro-bind", str(ROOT), str(ROOT), "--bind", str(run), str(run)]
+    for d in (home / ".claude", home / ".cache"):
+        d.mkdir(exist_ok=True)
+        argv += ["--bind", str(d), str(d)]
+    argv += ["--ro-bind-try", str(home / ".claude.json"), str(home / ".claude.json.host"),
+             "--setenv", "PATH", f"{ROOT / '.venv' / 'bin'}:{os.environ.get('PATH', '')}",
+             "--chdir", str(run), "--die-with-parent", "--",
+             "sh", "-c", 'cp ~/.claude.json.host ~/.claude.json 2>/dev/null; exec "$@"', "sh", *command]
+    return argv
+
+
+def cmd_open(a) -> None:
+    """Start an interactive Claude Code session for this run inside its jail, with the env/ plugin and settings."""
+    run = Path(a.run)
+    if not (run / "brief.json").exists():
+        sys.exit(f"{run} is not a run workspace (no brief.json) — create one with t2s new")
+    command = a.command[1:] if a.command[:1] == ["--"] else a.command
+    command = command or ["claude", "--plugin-dir", str(ENV), "--settings", str(ENV / "settings.json"),
+                            "--add-dir", str(ENV), "--add-dir", str(ROOT / "schemas"),
+                            "Produce this video: follow the t2s-produce skill from the current state."]
+    os.execvp("bwrap", jail_cmd(run.resolve(), command))
 
 
 def tts_for(brief: dict):
@@ -152,6 +193,11 @@ def main() -> None:
     p.add_argument("--font", help="font family for all Text (any name from `fc-list : family`); default: Manim's")
     p.add_argument("--voice", help="Polly: Matthew, Joanna, Ruth, Stephen … · Google: en-US-Neural2-D, en-US-Studio-O …")
     p.set_defaults(fn=cmd_new)
+
+    p = sub.add_parser("open")
+    p.add_argument("run")
+    p.add_argument("command", nargs=argparse.REMAINDER, help="-- CMD…: run CMD instead of claude in the jail (debugging)")
+    p.set_defaults(fn=cmd_open)
 
     from app import clips  # clip-level commands (imports pipeline, so register late)
     clips.register(sub)

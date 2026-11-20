@@ -42,3 +42,34 @@ def test_standards_reference_matches_the_code():
     from app import clips
     text = (REFS / "standards.md").read_text()
     assert clips.STYLE["background"] in text and f"{clips.LEAD_IN} s" in text and f"{clips.HOLD} s" in text
+
+
+def test_provision_creates_the_run_workspace(tmp_path):
+    from app import pipeline as P
+    run = tmp_path / "20261120-000000-topic"
+    P.provision(run, {"requirement": "topic", "approach": "zoom", "minutes": 1}, {"problems": []})
+    assert P.read_json(run / "brief.json")["requirement"] == "topic"
+    assert P.read_json(run / "environment_report.json") == {"problems": []}
+    assert (run / "CLAUDE.md").read_text() == (ENV / "workspace" / "CLAUDE.md").read_text()
+
+
+def test_settings_enable_sandbox_and_deny_secrets():
+    s = json.loads((ENV / "settings.json").read_text())
+    assert s["sandbox"]["enabled"] and s["sandbox"]["failIfUnavailable"] and not s["sandbox"]["allowUnsandboxedCommands"]
+    assert any(".aws" in r for r in s["permissions"]["deny"])
+
+
+def test_jail_lets_a_session_write_only_its_own_run(tmp_path):
+    import shutil, subprocess
+    import pytest
+    from app import pipeline as P
+    if not (shutil.which("bwrap") and subprocess.run(["bwrap", "--ro-bind", "/", "/", "true"]).returncode == 0):
+        pytest.skip("needs a working bubblewrap")
+    run, sibling = tmp_path / "run", tmp_path / "other"
+    run.mkdir(), sibling.mkdir()
+    probe = (f"touch {run}/ok; touch {sibling}/no 2>/dev/null; touch '{P.ROOT}/jail_probe' 2>/dev/null; "
+             f"touch ~/home_probe && test -f ~/.claude.json && command -v t2s >/dev/null && echo fine")
+    out = subprocess.run(P.jail_cmd(run, ["sh", "-c", probe]), capture_output=True, text=True)
+    assert out.stdout.strip() == "fine", out.stderr
+    assert (run / "ok").exists() and not (sibling / "no").exists() and not (P.ROOT / "jail_probe").exists()
+    assert not (Path.home() / "home_probe").exists()          # home writes land in the session's private tmpfs
