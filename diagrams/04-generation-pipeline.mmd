@@ -1,0 +1,26 @@
+flowchart TD
+    A["t2s new: preflight + refine"] --> B["outline (existing approach prompts)"]
+    B --> C{"deterministic outline checks"}
+    C -->|fail| B
+    C -->|pass| D["outline review ×1<br/>(+1 refactor only on ERROR)"]
+    D --> CP1{{"CP1 human: outline"}}
+    CP1 -->|feedback| B
+    CP1 -->|approve| E["clip planner per scene (sequential)"]
+    E --> F{"contract + budget validation"}
+    F -->|fail: retry once with errors| E
+    F -->|pass| G["math verifier (all clips, once)"]
+    G --> CP2{{"CP2 human: clip plan + math sheet"}}
+    CP2 -->|clip-scoped feedback| E
+    CP2 -->|approve| H["TTS per clip (cached) → audio seconds"]
+    H --> I["for each scene, for each clip:<br/>clip builder agent + gates"]
+    I --> J["clip reviewer (conditional)"]
+    J -->|ERROR defects, once| I
+    J --> CP3{{"CP3 human: scene preview (per scene)"}}
+    CP3 -->|clip feedback → invalidation| I
+    CP3 -->|approve scene| K["final render per scene (bwrap, sections)"]
+    K --> L["clip A/V mux → scene → video, loudnorm"]
+    L --> M{"final media checks"}
+    M -->|fail| K
+    M --> CP4{{"CP4 human: final video"}}
+    CP4 -->|clip feedback| I
+    CP4 -->|approve| N["delivery: final.mp4 + report + cost"]

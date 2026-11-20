@@ -222,3 +222,20 @@ __marimo__/
 
 # Text-2-Shorts pipeline runs (sandbox folders, media)
 runs/
+
+# ── Text-2-Shorts local/generated files ──────────────────────────────────────
+# Virtualenvs (any name/location)
+.venv/
+venv*/
+# Pipeline outputs, artifacts and logs (any case)
+Runs/
+Artifacts/
+Logs/
+# Manim render output and Tex caches (scene folders, dev-package tests)
+media/
+media_final/
+media_probe/
+# Archives / local backups
+*.zip
+# Local-only Claude Code settings
+.claude/settings.local.json

@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "manim_version": {
+      "title": "Manim Version",
+      "type": "string"
+    },
+    "python_version": {
+      "title": "Python Version",
+      "type": "string"
+    },
+    "claude_code_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Claude Code Version"
+    },
+    "latex": {
+      "title": "Latex",
+      "type": "boolean"
+    },
+    "dvisvgm": {
+      "title": "Dvisvgm",
+      "type": "boolean"
+    },
+    "ffmpeg": {
+      "title": "Ffmpeg",
+      "type": "boolean"
+    },
+    "bwrap": {
+      "title": "Bwrap",
+      "type": "boolean"
+    },
+    "socat": {
+      "title": "Socat",
+      "type": "boolean"
+    },
+    "api_index_hash": {
+      "title": "Api Index Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "manim_version",
+    "python_version",
+    "latex",
+    "dvisvgm",
+    "ffmpeg",
+    "bwrap",
+    "socat",
+    "api_index_hash"
+  ],
+  "title": "EnvironmentReport",
+  "type": "object"
+}

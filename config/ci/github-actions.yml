@@ -1,0 +1,14 @@
+# PROPOSED CI (copy to .github/workflows/ci.yml). Runs the deterministic test suite; no LLM calls.
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg texlive-latex-base texlive-latex-extra dvisvgm libpango1.0-dev pkg-config
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install "manim==0.20.1" pydantic pytest
+      - run: pytest -q tests
+      - run: python tools/build_manim_api_index.py --out cache/idx.json && python tools/audit_prompt_catalog.py app/graph/prompts/*.py --index cache/idx.json

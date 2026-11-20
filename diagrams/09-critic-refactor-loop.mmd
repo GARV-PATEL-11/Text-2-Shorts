@@ -1,0 +1,19 @@
+flowchart TD
+    C["clip_NN.py"] --> S{"static gate"}
+    S -->|"SYNTAX / FORBIDDEN_*"| RA["agent: targeted fix"] --> C
+    S -->|"REMOVED_API / UNKNOWN_*"| RB["agent: fix using cards (lookup)"] --> C
+    S -->|"CONTRACT_*"| RC{"plan feasible?"}
+    RC -->|yes| RA
+    RC -->|"no: contract impossible"| PL["flag plan defect → CP3/CP2"]
+    S -->|ok| P{"probe gate"}
+    P -->|"OUT_OF_FRAME / OVERLAP / TINY_TEXT"| RL["agent: layout fix (positioning card)"] --> C
+    P -->|"CLIP_TOO_SHORT / LONG"| RT["agent: adjust run_time/waits (timing card)"] --> C
+    P -->|ok| R{"render gate"}
+    R -->|"traceback / LaTeX error"| RD["agent: root-cause fix"] --> C
+    R -->|ok| L{"look (≤2 passes)"} --> Q{"code hash changed since last review?"}
+    Q -->|no| DONE["keep previous review"]
+    Q -->|yes| CR["clip reviewer"]
+    CR -->|"ERROR (MISMATCH / MATH_VISUAL / EXIT)"| ONE{"rebuilds used < 1?"}
+    ONE -->|yes| RA
+    ONE -->|no| H["CP3: human decides"]
+    CR -->|"WARN only / none"| H2["CP3 preview"]

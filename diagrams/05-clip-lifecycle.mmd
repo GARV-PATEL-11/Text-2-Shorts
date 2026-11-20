@@ -1,0 +1,18 @@
+stateDiagram-v2
+    [*] --> planned: clip planner
+    planned --> plan_approved: CP2
+    plan_approved --> voiced: TTS (cached)
+    voiced --> building: clip builder session
+    building --> gated: static ✓ probe ✓ draft render ✓
+    building --> failed: gates fail after max attempts
+    gated --> reviewed: clip reviewer (if code changed)
+    reviewed --> building: ERROR defects (once)
+    reviewed --> preview: draft in scene preview
+    preview --> approved: CP3 approve
+    preview --> planned: feedback scope=narration/math (plan:clip)
+    preview --> voiced: feedback scope=visual/timing (spec/code:clip)
+    approved --> final: final render + mux
+    final --> [*]
+    failed --> preview: human decides (simplify / fallback)
+    approved --> stale: upstream change (contract, style, Manim pin)
+    stale --> voiced

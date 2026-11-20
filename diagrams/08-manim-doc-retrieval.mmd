@@ -1,0 +1,15 @@
+flowchart TD
+    PIN["Pinned Manim (pyproject: manim==0.20.1)"] --> IDX["build_manim_api_index.py<br/>introspect installed package"]
+    IDX --> IJ[("cache/manim_api/0.20.1/index.json<br/>+ content hash")]
+    TC["topic cards (markdown)<br/>examples executed in CI"] --> TT{"tests pass on pinned version?"}
+    TT -->|no| FIX["fix card before release"]
+    CPLAN["ClipPlan.manim_topics<br/>(closed vocabulary)"] --> DC["doc_cards.py"]
+    BEATS["names in beats / previous attempt"] --> DC
+    IJ --> DC
+    TT -->|yes| DC
+    DC --> AC["API_CARDS.md for this clip<br/>~0.5–1.5k tokens"]
+    AC --> AG["clip builder agent"]
+    AG -->|"unsure about a name"| LK["./doc_cards.py --names X (sandboxed Bash)"] --> AG
+    AG --> CODE["clip_NN.py"] --> VAL["validate_manim_code.py vs index"]
+    VAL -->|"REMOVED_API / UNKNOWN_NAME / UNKNOWN_KWARG"| AG
+    VAL -->|ok| NEXT["probe → render"]

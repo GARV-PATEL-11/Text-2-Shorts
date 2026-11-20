@@ -1,0 +1,292 @@
+{
+  "$defs": {
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "code": {
+          "description": "stable machine code used by the repair router, e.g. REMOVED_API, OVERLAP",
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "t": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "T"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "GenerationMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "producer": {
+          "description": "agent/tool name, e.g. 'clip_codegen' or 'validate_manim_code'",
+          "title": "Producer",
+          "type": "string"
+        },
+        "producer_kind": {
+          "enum": [
+            "llm",
+            "deterministic",
+            "human"
+          ],
+          "title": "Producer Kind",
+          "type": "string"
+        },
+        "prompt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "prompt template id + version, e.g. 'clip_codegen@3'",
+          "title": "Prompt Id"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
+        "input_hashes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "artifact key \u2192 content hash consumed",
+          "title": "Input Hashes",
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "cache_read_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Read Tokens"
+        },
+        "cache_write_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Write Tokens"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "attempt": {
+          "default": 1,
+          "title": "Attempt",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "producer",
+        "producer_kind"
+      ],
+      "title": "GenerationMetadata",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "INFO",
+        "WARN",
+        "ERROR"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clip_id": {
+      "anyOf": [
+        {
+          "examples": [
+            "s03c02"
+          ],
+          "pattern": "^s\\d{2}c\\d{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Clip Id"
+    },
+    "scene_id": {
+      "anyOf": [
+        {
+          "examples": [
+            "s03"
+          ],
+          "pattern": "^s\\d{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Scene Id"
+    },
+    "critic": {
+      "enum": [
+        "outline",
+        "clip_plan",
+        "clip_render",
+        "scene_continuity"
+      ],
+      "title": "Critic",
+      "type": "string"
+    },
+    "approved": {
+      "title": "Approved",
+      "type": "boolean"
+    },
+    "score": {
+      "maximum": 10,
+      "minimum": 1,
+      "title": "Score",
+      "type": "integer"
+    },
+    "defects": {
+      "description": "every defect must name evidence (frame time, line, field)",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Defects",
+      "type": "array"
+    },
+    "input_hash": {
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "meta": {
+      "$ref": "#/$defs/GenerationMetadata"
+    }
+  },
+  "required": [
+    "critic",
+    "approved",
+    "score",
+    "input_hash",
+    "meta"
+  ],
+  "title": "CriticResult",
+  "type": "object"
+}

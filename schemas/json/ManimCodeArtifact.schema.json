@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "GenerationMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "producer": {
+          "description": "agent/tool name, e.g. 'clip_codegen' or 'validate_manim_code'",
+          "title": "Producer",
+          "type": "string"
+        },
+        "producer_kind": {
+          "enum": [
+            "llm",
+            "deterministic",
+            "human"
+          ],
+          "title": "Producer Kind",
+          "type": "string"
+        },
+        "prompt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "prompt template id + version, e.g. 'clip_codegen@3'",
+          "title": "Prompt Id"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effort"
+        },
+        "input_hashes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "artifact key \u2192 content hash consumed",
+          "title": "Input Hashes",
+          "type": "object"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "cost_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Usd"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "cache_read_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Read Tokens"
+        },
+        "cache_write_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Write Tokens"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "attempt": {
+          "default": 1,
+          "title": "Attempt",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "producer",
+        "producer_kind"
+      ],
+      "title": "GenerationMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clip_id": {
+      "examples": [
+        "s03c02"
+      ],
+      "pattern": "^s\\d{2}c\\d{2}$",
+      "title": "Clip Id",
+      "type": "string"
+    },
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "class_name": {
+      "title": "Class Name",
+      "type": "string"
+    },
+    "method_name": {
+      "pattern": "^clip_\\d{2}$",
+      "title": "Method Name",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "content_hash": {
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "spec_hash": {
+      "description": "hash of the VisualSpecification it implements",
+      "title": "Spec Hash",
+      "type": "string"
+    },
+    "meta": {
+      "$ref": "#/$defs/GenerationMetadata"
+    }
+  },
+  "required": [
+    "clip_id",
+    "path",
+    "class_name",
+    "method_name",
+    "version",
+    "content_hash",
+    "spec_hash",
+    "meta"
+  ],
+  "title": "ManimCodeArtifact",
+  "type": "object"
+}

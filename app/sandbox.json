@@ -1,9 +1,13 @@
 {
   "sandbox": {
     "enabled": true,
+    "failIfUnavailable": true,
     "autoAllowBashIfSandboxed": true,
     "allowUnsandboxedCommands": false,
-    "filesystem": { "allowWrite": ["~/.cache/manim", "~/.cache/fontconfig"] },
+    "filesystem": {
+      "allowWrite": ["~/.cache/manim", "~/.cache/fontconfig"],
+      "denyRead": ["~/.aws", "~/.ssh", "~/.config/gcloud", "~/.claude.json", "~/.netrc", "./.env"]
+    },
     "network": { "allowedDomains": [] }
   }
 }

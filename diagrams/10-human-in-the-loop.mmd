@@ -1,0 +1,22 @@
+flowchart LR
+    subgraph CP1["CP1 Outline (mandatory)"]
+        O1["outline table + reviewer WARNs"] --> O2{approve?}
+    end
+    subgraph CP2["CP2 Plan (mandatory)"]
+        P1["clip table: narration, seconds, beats<br/>math sheet (ERRORs block)"] --> P2{approve?}
+    end
+    subgraph CP3["CP3 Scene preview (mandatory, per scene)"]
+        S1["per clip: draft mp4, contact sheet,<br/>reviewer WARNs, cost"] --> S2{"per clip: approve / revise(scope) / reject"}
+    end
+    subgraph CP4["CP4 Final (mandatory)"]
+        F1["final.mp4 + report"] --> F2{approve?}
+    end
+    O2 -->|yes| P1
+    O2 -->|"feedback"| OF["outline v+1 → all plans stale"]
+    P2 -->|yes| TTS["TTS"] --> S1
+    P2 -->|"clip feedback"| PF["plan:clip stale (only that scene replanned)"]
+    S2 -->|"all approved"| F1
+    S2 -->|"revise visual/timing"| CF["spec/code:clip stale → rebuild 1 clip"]
+    S2 -->|"revise narration/math"| NF["plan:clip stale → TTS + rebuild 1 clip"]
+    F2 -->|"clip feedback"| CF
+    F2 -->|yes| DEL["delivery"]

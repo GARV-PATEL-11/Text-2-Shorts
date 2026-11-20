@@ -1,0 +1,39 @@
+sequenceDiagram
+    autonumber
+    participant Op as Operator (make-short)
+    participant O as Orchestrator
+    participant L as Ledger/Cache
+    participant LLM as claude -p (roles)
+    participant A as Clip builder (sandboxed agent)
+    participant D as Deterministic tools
+    Op->>O: t2s new "topic"
+    O->>D: preflight
+    O->>LLM: refine → outline → outline review
+    O->>L: outline v1, review
+    O-->>Op: CP1 outline table
+    Op->>O: approve outline
+    loop each scene (sequential)
+        O->>LLM: clip planner(scene, summaries, prev exit)
+        O->>D: validate ScenePlan (contracts, word budget)
+    end
+    O->>LLM: math verifier(all clips)
+    O-->>Op: CP2 clip table + math sheet
+    Op->>O: approve plan
+    O->>D: TTS per clip (cache by text hash)
+    loop each clip of each scene (sequential)
+        O->>L: cache lookup(code key)
+        alt miss
+            O->>D: doc_cards(names, topics)
+            O->>A: TASK.md + API_CARDS.md
+            A->>D: ./check static | probe | render | frames
+            A-->>O: READY/FAILED (+notes)
+            O->>D: ./check all (independent re-check)
+            opt gates passed and code changed
+                O->>LLM: clip reviewer(frames, plan)
+            end
+        end
+    end
+    O-->>Op: CP3 scene preview(s)
+    Op->>O: approve scene / clip feedback
+    O->>D: final render (bwrap) → mux → concat → loudnorm → checks
+    O-->>Op: CP4 final video + report

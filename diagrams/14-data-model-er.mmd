@@ -1,0 +1,19 @@
+erDiagram
+    VideoProject ||--|| Brief : has
+    VideoProject ||--|| EnvironmentReport : has
+    VideoProject ||--|| VideoPlan : has
+    VideoPlan ||--|{ ScenePlan : contains
+    ScenePlan ||--|{ ClipPlan : contains
+    ClipPlan ||--|| ContinuityState : entry
+    ClipPlan ||--|| ContinuityState : exit
+    ClipPlan ||--o| AudioArtifact : voiced_as
+    ClipPlan ||--o{ ManimCodeArtifact : implemented_by
+    ManimCodeArtifact ||--o{ ValidationResult : checked_by
+    ManimCodeArtifact ||--o{ RenderArtifact : rendered_as
+    ManimCodeArtifact ||--o{ CriticResult : reviewed_by
+    ClipPlan ||--o{ HumanFeedback : receives
+    ClipPlan ||--|| ClipState : tracked_in_ledger
+    ManimCodeArtifact }o--o{ DocumentationReference : used
+    AudioArtifact ||--|| GenerationMetadata : provenance
+    ManimCodeArtifact ||--|| GenerationMetadata : provenance
+    CriticResult ||--|| GenerationMetadata : provenance

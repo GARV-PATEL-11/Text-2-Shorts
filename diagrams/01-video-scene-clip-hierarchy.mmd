@@ -1,0 +1,12 @@
+flowchart TD
+    V["Video<br/>learning outcome · audience · style tokens · total length"] --> S1["Scene s01<br/>one teaching objective"]
+    V --> S2["Scene s02"]
+    V --> S3["Scene …"]
+    S2 --> C1["Clip s02c01<br/>objective · exact narration · beats<br/>entry/exit contract · audio seconds"]
+    S2 --> C2["Clip s02c02"]
+    S2 --> C3["Clip s02c03"]
+    C2 --> B1["Beat: narration phrase → visual event"]
+    C2 --> B2["Beat …"]
+    B1 --> M1["Animation elements<br/>Mobjects in self.reg · self.play calls · waits"]
+    C1 -. "exit contract = entry contract" .-> C2
+    C2 -. "exit contract = entry contract" .-> C3

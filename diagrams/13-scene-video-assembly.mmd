@@ -1,0 +1,13 @@
+flowchart TD
+    AP["all clips of scene approved"] --> CO["compose scene.py from approved clip files"]
+    CO --> FR["bwrap jailed render -q{h} (+ -r for 9:16)<br/>--save_sections"]
+    FR --> SJ["sections JSON: one mp4 per clip + durations"]
+    SJ --> CHK{"sections == planned clips?<br/>durations within tolerance?"}
+    CHK -->|no| FAILR["FAILED(final_render) — never fall back to draft silently"]
+    CHK -->|yes| MUX["per clip: mux video + clip audio<br/>(lead-in, tail; pad shorter)"]
+    MUX --> SC["concat clips → scene.mp4"]
+    SC --> VID["concat scenes → video_raw.mp4"]
+    VID --> LN["loudnorm I=-16 LUFS, TP=-1.5"]
+    LN --> QC{"media checks: duration = Σ clips ±0.2 s,<br/>codec/fps/size, audio present, no black/silent gaps > 2 s"}
+    QC -->|fail| FAILR
+    QC -->|pass| DEL["delivery/final.mp4 + report.json"]

@@ -1,0 +1,27 @@
+flowchart TB
+    subgraph L0["Operator layer"]
+        CC["Claude Code session<br/>skill: make-short"]
+    end
+    subgraph L1["Application (Python, sequential)"]
+        CLI["t2s CLI"] --> ORCH["Orchestrator<br/>steps · checkpoints"]
+        ORCH <--> LED[("Run ledger<br/>state.json · versions/ · feedback.jsonl")]
+        ORCH <--> DG["Dependency graph<br/>invalidation planner"]
+        ORCH <--> CACHE[("Content-addressed cache<br/>.cache/llm · tts · render · checks")]
+    end
+    subgraph L2["LLM roles (claude -p)"]
+        RF[Refiner] --- OW[Outline writer] --- OR[Outline reviewer] --- CP[Clip planner] --- MV[Math verifier]
+        CB["Clip builder agent<br/>(sandboxed Claude Code)"] --- CR[Clip reviewer]
+    end
+    subgraph L3["Deterministic tools"]
+        PF[preflight] --- IDX[API index · doc cards] --- VAL[static validator] --- PR[layout/timing probe]
+        HAR["scene harness<br/>sections render"] --- TTS[TTS Kokoro/Polly] --- ASM[assembly · loudnorm] --- QC[media checks]
+    end
+    subgraph L4["Execution isolation"]
+        SB["Claude Code Bash sandbox<br/>(bubblewrap, no network)"] --- BW["bwrap jail for final renders"]
+    end
+    CC -->|"runs one command at a time"| CLI
+    ORCH --> L2
+    ORCH --> L3
+    CB --> SB
+    HAR --> BW
+    ORCH -.-> OBS[("log.jsonl · reports/")]

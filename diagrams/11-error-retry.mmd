@@ -1,0 +1,15 @@
+flowchart TD
+    E["step error"] --> K{classify}
+    K -->|"AUTH / CLI missing / version too old"| FATAL["stop run · FAILED(step) · show fix"]
+    K -->|"RATE_LIMIT / OVERLOADED / 5xx"| BO["backoff 10s → 40s → 120s"] --> RT{"attempts < 3?"}
+    RT -->|yes| RETRY["retry same input"]
+    RT -->|no| PAUSE["pause run (resumable)"]
+    K -->|"TIMEOUT"| T1{"first timeout?"} -->|yes| RETRY
+    T1 -->|no| PAUSE
+    K -->|"SCHEMA_INVALID"| SV["retry once with validation errors appended"] --> SV2{ok?}
+    SV2 -->|no| FAILSTEP["FAILED(step) → checkpoint shows error"]
+    K -->|"BUDGET_EXCEEDED"| STOP["stop; report spend; ask operator"]
+    K -->|"GATE_FAILED (clip)"| GB{"clip sessions < 3?"} -->|yes| ESC["next session, escalated effort/model"]
+    GB -->|no| CF["clip FAILED → CP3 (simplify / fallback / accept)"]
+    K -->|"RENDER_INFRA (latex/dvisvgm/ffmpeg missing)"| FATAL
+    K -->|"ARTIFACT_CORRUPT (hash mismatch / unreadable)"| INV["invalidate artifact → rebuild via graph"]

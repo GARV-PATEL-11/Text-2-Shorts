@@ -1,0 +1,11 @@
+flowchart LR
+    TP["Scene talking points + visual_plan<br/>(outline, approved)"] --> CPL["Clip planner"]
+    CPL --> N["clip.narration (exact words)"]
+    CPL --> BT["clip.beats<br/>'phrase' → visual event"]
+    CPL --> CT["entry/exit contracts"]
+    CPL --> MT["on_screen_math (LaTeX)"]
+    N --> TTS["TTS"] --> SEC["audio seconds (+ word marks if Polly)"]
+    BT & CT & MT & SEC --> TASK["TASK.md + API cards"]
+    TASK --> CODE["clips/clip_NN.py"]
+    CODE --> PROBE["probe: per-beat event timeline<br/>clip span vs seconds"]
+    PROBE --> REND["section render"] --> MUX["mux with clip audio"]

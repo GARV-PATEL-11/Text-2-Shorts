@@ -1,0 +1,307 @@
+{
+ "app/graph/prompts/__init__.py": {
+  "not_in_api_and_not_marked_banned": {},
+  "not_in_api_but_marked_banned_ok": [],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/manim_reference.py": {
+  "not_in_api_and_not_marked_banned": {
+   "SceneName": [
+    227,
+    245
+   ],
+   ".write()": [
+    353
+   ],
+   "TypeError": [
+    375,
+    378
+   ],
+   ".set_text()": [
+    394
+   ],
+   ".get_line_graph()": [
+    513,
+    634
+   ],
+   "InteractiveScene": [
+    526
+   ],
+   "ImplicitCurve": [
+    583
+   ],
+   "GenericGraph": [
+    654
+   ],
+   "LayoutFunction": [
+    655
+   ],
+   "NeuralNetwork": [
+    1014
+   ],
+   "DecisionTree": [
+    1015
+   ],
+   "FiniteStateMachine": [
+    1016
+   ],
+   "SortingVisualization": [
+    1017
+   ],
+   "GraphTraversal": [
+    1018
+   ],
+   "AlgorithmVisualization": [
+    1019
+   ],
+   "PhysicsSimulation": [
+    1020
+   ],
+   "MathematicalProof": [
+    1021
+   ],
+   "CalculusVisualization": [
+    1022
+   ],
+   "DataStructureVisualization": [
+    1023
+   ],
+   "CircuitDiagram": [
+    1024
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [
+   ".get_graph()",
+   ".get_implicit_curve()",
+   ".get_parametric_curve()",
+   ".setup_axes()",
+   "AnimationOnSurroundingRectangle",
+   "CircleIndicate",
+   "FadeInFrom",
+   "FadeInFromLarge",
+   "FadeInFromPoint",
+   "FadeOutAndShift",
+   "FadeOutToPoint",
+   "GraphScene",
+   "LineGraph",
+   "OpenGLTexMobject",
+   "OpenGLTextMobject",
+   "ReconfigurableScene",
+   "SampleSpaceScene",
+   "ShowCreation",
+   "ShowCreationThenDestruction",
+   "ShowCreationThenDestructionAround",
+   "ShowCreationThenFadeAround",
+   "ShowPassingFlashAround",
+   "ShowPassingFlashWithThinningStroke",
+   "TexMobject",
+   "TextMobject",
+   "TurnInsideOut",
+   "WiggleOutThenIn"
+  ],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/outline_critic_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "BaseModel": [
+    7,
+    12
+   ],
+   "OutlineCritiqueResult": [
+    12,
+    134
+   ],
+   "Field": [
+    14,
+    17,
+    21,
+    24
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/render_debug_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "TypeError": [
+    151
+   ],
+   "NameError": [
+    151,
+    182
+   ],
+   "KeyError": [
+    152
+   ],
+   "AttributeError": [
+    152
+   ],
+   "IndexError": [
+    152
+   ],
+   "FileNotFoundError": [
+    173
+   ],
+   ".write()": [
+    198
+   ],
+   "OpenAI": [
+    436
+   ],
+   "Anthropic": [
+    448
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [
+   ".graph()",
+   "ClassName",
+   "GraphScene",
+   "ValueError"
+  ],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/script_gen_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "VideoOutline": [
+    582,
+    1172
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/visual_code_gen_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "CoT": [
+    5
+   ],
+   "ReAct": [
+    5,
+    142
+   ],
+   "AnimationType": [
+    416,
+    422,
+    423,
+    703
+   ],
+   "NameError": [
+    547
+   ],
+   "PascalCaseTitle": [
+    659,
+    775
+   ],
+   "ManimClass": [
+    674
+   ],
+   "ValueError": [
+    872,
+    875
+   ],
+   "OpenAI": [
+    885,
+    907,
+    908,
+    909
+   ],
+   "Anthropic": [
+    898
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [
+   "ClassName",
+   "GraphScene",
+   "SpeechBubble",
+   "ThoughtBubble"
+  ],
+  "banned_in_prompt_but_exists_in_api": {}
+ },
+ "app/graph/prompts/visual_plan_critic_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "BaseModel": [
+    7,
+    12
+   ],
+   "CritiqueResult": [
+    12,
+    129
+   ],
+   "Field": [
+    14,
+    17,
+    21,
+    24
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [
+   "ShowCreationThenDestruction",
+   "ShowCreationThenFadeAround"
+  ],
+  "banned_in_prompt_but_exists_in_api": {
+   "ShowPassingFlash": [
+    49
+   ],
+   "ShowPassingFlashWithThinningStrokeWidth": [
+    49
+   ],
+   "GrowFromCenter": [
+    50
+   ],
+   "DrawBorderThenFill": [
+    50
+   ],
+   "GrowFromPoint": [
+    50
+   ],
+   "GrowArrow": [
+    50
+   ]
+  }
+ },
+ "app/graph/prompts/visual_plan_gen_prompt.py": {
+  "not_in_api_and_not_marked_banned": {
+   "ClassName": [
+    285,
+    320
+   ],
+   "Method": [
+    442,
+    443,
+    517
+   ],
+   "HoldFinal": [
+    574
+   ],
+   "CameraZoom": [
+    574
+   ],
+   "SlideOut": [
+    574
+   ],
+   "TypeError": [
+    650
+   ],
+   "SceneDirectorInput": [
+    706,
+    718,
+    762
+   ]
+  },
+  "not_in_api_but_marked_banned_ok": [
+   ".method()",
+   "GraphScene",
+   "ShowCreationThenDestruction",
+   "ShowCreationThenFadeAround",
+   "ShowPassingFlashWithThinningStroke"
+  ],
+  "banned_in_prompt_but_exists_in_api": {
+   "ManimColor": [
+    134
+   ],
+   "Sector": [
+    134
+   ]
+  }
+ }
+}

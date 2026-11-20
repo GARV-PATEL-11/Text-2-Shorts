@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "Brief": {
+      "additionalProperties": false,
+      "properties": {
+        "requirement": {
+          "title": "Requirement",
+          "type": "string"
+        },
+        "refined": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Refined"
+        },
+        "approach": {
+          "default": "zoom",
+          "enum": [
+            "zoom",
+            "arc",
+            "linear"
+          ],
+          "title": "Approach",
+          "type": "string"
+        },
+        "target_minutes": {
+          "default": 2.0,
+          "exclusiveMinimum": 0,
+          "maximum": 12,
+          "title": "Target Minutes",
+          "type": "number"
+        },
+        "pace": {
+          "default": "medium",
+          "enum": [
+            "slow",
+            "medium",
+            "fast"
+          ],
+          "title": "Pace",
+          "type": "string"
+        },
+        "audience": {
+          "default": "curious beginners",
+          "title": "Audience",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "aspect": {
+          "default": "16:9",
+          "enum": [
+            "16:9",
+            "9:16",
+            "1:1"
+          ],
+          "title": "Aspect",
+          "type": "string"
+        },
+        "voice": {
+          "default": "af_heart",
+          "title": "Voice",
+          "type": "string"
+        },
+        "tts_engine": {
+          "default": "kokoro",
+          "enum": [
+            "kokoro",
+            "neural",
+            "generative",
+            "standard"
+          ],
+          "title": "Tts Engine",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement"
+      ],
+      "title": "Brief",
+      "type": "object"
+    },
+    "EnvironmentReport": {
+      "additionalProperties": false,
+      "properties": {
+        "manim_version": {
+          "title": "Manim Version",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "claude_code_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claude Code Version"
+        },
+        "latex": {
+          "title": "Latex",
+          "type": "boolean"
+        },
+        "dvisvgm": {
+          "title": "Dvisvgm",
+          "type": "boolean"
+        },
+        "ffmpeg": {
+          "title": "Ffmpeg",
+          "type": "boolean"
+        },
+        "bwrap": {
+          "title": "Bwrap",
+          "type": "boolean"
+        },
+        "socat": {
+          "title": "Socat",
+          "type": "boolean"
+        },
+        "api_index_hash": {
+          "title": "Api Index Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "manim_version",
+        "python_version",
+        "latex",
+        "dvisvgm",
+        "ffmpeg",
+        "bwrap",
+        "socat",
+        "api_index_hash"
+      ],
+      "title": "EnvironmentReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "project_id": {
+      "pattern": "^\\d{8}-\\d{6}-[a-z0-9-]{1,40}$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "brief": {
+      "$ref": "#/$defs/Brief"
+    },
+    "environment": {
+      "$ref": "#/$defs/EnvironmentReport"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "budget_usd": {
+      "default": 15.0,
+      "description": "hard stop for the whole run (PROVISIONAL default)",
+      "exclusiveMinimum": 0,
+      "title": "Budget Usd",
+      "type": "number"
+    }
+  },
+  "required": [
+    "project_id",
+    "brief",
+    "environment"
+  ],
+  "title": "VideoProject",
+  "type": "object"
+}

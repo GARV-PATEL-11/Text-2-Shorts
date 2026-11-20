@@ -1,0 +1,82 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "feedback_id": {
+      "title": "Feedback Id",
+      "type": "string"
+    },
+    "target_kind": {
+      "enum": [
+        "video_plan",
+        "scene",
+        "clip_plan",
+        "clip_render",
+        "final_video"
+      ],
+      "title": "Target Kind",
+      "type": "string"
+    },
+    "target_id": {
+      "title": "Target Id",
+      "type": "string"
+    },
+    "target_version": {
+      "title": "Target Version",
+      "type": "integer"
+    },
+    "action": {
+      "enum": [
+        "approve",
+        "revise",
+        "reject",
+        "regenerate"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "text": {
+      "default": "",
+      "title": "Text",
+      "type": "string"
+    },
+    "scope": {
+      "default": "any",
+      "enum": [
+        "visual",
+        "narration",
+        "math",
+        "timing",
+        "structure",
+        "any"
+      ],
+      "title": "Scope",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "resolved_by_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved By Version"
+    }
+  },
+  "required": [
+    "feedback_id",
+    "target_kind",
+    "target_id",
+    "target_version",
+    "action"
+  ],
+  "title": "HumanFeedback",
+  "type": "object"
+}

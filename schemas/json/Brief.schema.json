@@ -1,0 +1,89 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "requirement": {
+      "title": "Requirement",
+      "type": "string"
+    },
+    "refined": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Refined"
+    },
+    "approach": {
+      "default": "zoom",
+      "enum": [
+        "zoom",
+        "arc",
+        "linear"
+      ],
+      "title": "Approach",
+      "type": "string"
+    },
+    "target_minutes": {
+      "default": 2.0,
+      "exclusiveMinimum": 0,
+      "maximum": 12,
+      "title": "Target Minutes",
+      "type": "number"
+    },
+    "pace": {
+      "default": "medium",
+      "enum": [
+        "slow",
+        "medium",
+        "fast"
+      ],
+      "title": "Pace",
+      "type": "string"
+    },
+    "audience": {
+      "default": "curious beginners",
+      "title": "Audience",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "aspect": {
+      "default": "16:9",
+      "enum": [
+        "16:9",
+        "9:16",
+        "1:1"
+      ],
+      "title": "Aspect",
+      "type": "string"
+    },
+    "voice": {
+      "default": "af_heart",
+      "title": "Voice",
+      "type": "string"
+    },
+    "tts_engine": {
+      "default": "kokoro",
+      "enum": [
+        "kokoro",
+        "neural",
+        "generative",
+        "standard"
+      ],
+      "title": "Tts Engine",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement"
+  ],
+  "title": "Brief",
+  "type": "object"
+}

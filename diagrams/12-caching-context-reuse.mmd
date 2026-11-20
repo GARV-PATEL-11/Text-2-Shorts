@@ -1,0 +1,9 @@
+flowchart LR
+    IN["step inputs"] --> H["canonical hash(inputs)<br/>+ prompt_id + model + effort<br/>+ manim pin + api index hash"]
+    H --> K{"in .cache?"}
+    K -->|hit, valid| REUSE["reuse artifact · log cache_hit · no LLM/TTS/render"]
+    K -->|miss| RUN["run step"] --> STORE["store artifact + GenerationMetadata"] --> REUSE2["link into run (versions/)"]
+    subgraph PromptCache["Provider prompt cache (inside a call)"]
+        ST["static prefix: role + rules + topic cards"] --> DY["dynamic suffix: task data"]
+    end
+    RUN -.-> PromptCache
