@@ -1,0 +1,9 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": { "allowWrite": ["~/.cache/manim", "~/.cache/fontconfig"] },
+    "network": { "allowedDomains": [] }
+  }
+}

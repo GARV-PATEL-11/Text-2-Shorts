@@ -1,29 +1,16 @@
 [project]
 name = "text-2-shorts"
 version = "0.1.0"
-description = "Add your description here"
+description = "Topic in, narrated Manim explainer video out — every LLM stage is a sandboxed Claude Code run"
 readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
     "boto3==1.43.38",
-    "fastapi==0.138.2",
-    "requests>=2.32",
-    "streamlit>=1.31",
-    "langchain-aws>=1.6.0",
-    "langgraph==1.2.7",
     "pydantic>=2.13.4",
-    "pydantic-settings>=2.0",
     "pyrefly>=0.60.0",
     "python-dotenv>=1.0",
     "typing-extensions>=4.15.0",
-    "uvicorn>=0.30",
-    "contextvars>=2.4",
-    "boto3-stubs==1.43.38",
-    "google-genai>=2.10.0",
-    "tenacity>=9.0",
-    "protobuf==7.35.1",
-    "langgraph-checkpoint-sqlite>=3.1.0",
     "av==17.1.0",
     "beautifulsoup4==4.15.0",
     "cloup==3.1.0",
@@ -50,7 +37,6 @@ dependencies = [
     "srt==3.5.3",
     "svgelements==1.9.6",
     "tqdm==4.68.3",
-    "poolgate",
     "numpy>=2.5.0",
     "sympy>=1.14.0",
     "pillow>=12.2.0",
@@ -71,10 +57,8 @@ dependencies = [
     "typer>=0.26.8",
     "webencodings>=0.5.1",
     "ipython>=9.15.0",
+    "kokoro-onnx>=0.6.1",
 ]
-
-[tool.uv.sources]
-poolgate = { git = "ssh://git@github.com/GARV-PATEL-11/PoolGate.git" }
 
 [dependency-groups]
 dev = [

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run python -m app.pipeline:*)",
+      "Bash(xdg-open runs/:*)",
+      "Read(runs/**)"
+    ]
+  }
+}

@@ -219,3 +219,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Text-2-Shorts pipeline runs (sandbox folders, media)
+runs/

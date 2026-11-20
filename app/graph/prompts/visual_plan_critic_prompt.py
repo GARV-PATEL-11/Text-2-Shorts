@@ -30,6 +30,22 @@ class CritiqueResult(BaseModel):
 
 # ── Critic system prompt ──────────────────────────────────────────────────────
 
+# Animation subclasses exported by manim 0.20.1 (introspected: issubclass(o, manim.Animation)).
+# ponytail: hardcoded snapshot, regenerate if manim is upgraded.
+MANIM_ANIMATIONS = (
+    "Add AddTextLetterByLetter AddTextWordByWord Animation AnimationGroup ApplyComplexFunction ApplyFunction "
+    "ApplyMatrix ApplyMethod ApplyPointwiseFunction ApplyPointwiseFunctionToCenter ApplyWave Blink Broadcast "
+    "ChangeDecimalToValue ChangeSpeed ChangingDecimal Circumscribe ClockwiseTransform ComplexHomotopy "
+    "CounterclockwiseTransform Create CyclicReplace DrawBorderThenFill FadeIn FadeOut FadeToColor FadeTransform "
+    "FadeTransformPieces Flash FocusOn GrowArrow GrowFromCenter GrowFromEdge GrowFromPoint Homotopy Indicate "
+    "LaggedStart LaggedStartMap MaintainPositionRelativeTo MoveAlongPath MoveToTarget PhaseFlow "
+    "RemoveTextLetterByLetter ReplacementTransform Restore Rotate Rotating ScaleInPlace ShowIncreasingSubsets "
+    "ShowPartial ShowPassingFlash ShowPassingFlashWithThinningStrokeWidth ShowSubmobjectsOneByOne ShrinkToCenter "
+    "SmoothedVectorizedHomotopy SpinInFromNothing SpiralIn Succession Swap Transform TransformAnimations "
+    "TransformFromCopy TransformMatchingShapes TransformMatchingTex TypeWithCursor Uncreate UntypeWithCursor "
+    "Unwrite UpdateFromAlphaFunc UpdateFromFunc Wait Wiggle Write"
+).split()
+
 CRITIC_SYSTEM = """
 You are a Visual Director Critic. Your role is to review a Manim Visual DSL plan before it
 proceeds to Manim Python code generation.
@@ -43,14 +59,18 @@ You MUST check the following dimensions and flag any that fail:
    • The sum of all clip durations equals the TARGET_DURATION (±2 s tolerance).
    • At least one clip per 15 s of total duration.
 
-2. MANIM CE v0.20 COMPATIBILITY
+2. MANIM CE v0.20 COMPATIBILITY  (verified against the installed manim 0.20.1)
    • Only use class names and methods that exist in Manim Community Edition v0.20.x.
-   • BANNED: ShowCreationThenDestruction, ShowCreationThenFadeAround,
-     ShowPassingFlash (must be ShowPassingFlashWithThinningStrokeWidth),
-     GrowFromCenter (use GrowFromPoint / GrowArrow), DrawBorderThenFill without
-     stroke_width, .shift() chained after .animate.
-   • MathTex indices: always use [0][0], [0][1]… not [0] alone on multi-part expressions.
+     Do NOT penalise a valid API just because it is uncommon.
+   • REMOVED — flag if used: ShowCreationThenDestruction, ShowCreationThenFadeAround,
+     ShowCreation (use Create), TextMobject/TexMobject (use Text/Tex/MathTex),
+     GraphScene, axes.get_graph (use axes.plot).
+   • MathTex indexing: with several string args, MathTex("T^2", "=", "a^3")[i] selects the
+     i-th arg (correct). With ONE string arg, glyphs are [0][k]; flag bare [k] on a
+     single-string MathTex, or [0][k] glyph counts that cannot match the TeX.
    • VGroup and Group must not be mixed as siblings in .animate chains.
+   • Chaining a rotation inside .animate interpolates in a straight line — flag it when a
+     curved/orbital path is intended (use Rotate, MoveAlongPath or an updater instead).
 
 3. EDUCATIONAL VALUE
    • Each clip drives the learning objective of the scene.
@@ -64,9 +84,14 @@ You MUST check the following dimensions and flag any that fail:
      has a distinct entry.
 
 5. TRANSITION SANITY
-   • Clips use only: FadeOut, FadeIn, Write, Create, Transform,
-     ReplacementTransform, Indicate, Flash, GrowArrow, DrawBorderThenFill,
-     SurroundingRectangle, MoveToTarget.
+   • Every animation must be a real manim 0.20.1 Animation class:
+     """ + ", ".join(MANIM_ANIMATIONS) + """.
+     Also valid: mobject.animate chains, ValueTracker(.animate.set_value), always_redraw,
+     add_updater/remove_updater, TracedPath, SurroundingRectangle, rate functions from
+     manim.utils.rate_functions (incl. squish_rate_func), self.wait / self.camera.frame on
+     MovingCameraScene. Anything else (invented names) fails this check.
+   • Updaters/always_redraw objects must be removed or cleared before the object is
+     transformed or faded, and the plan must say when.
    • No clip ends with objects left in an unknown position unless the next clip
      explicitly re-introduces them.
 ────────────────────────────────────────────────────────────
