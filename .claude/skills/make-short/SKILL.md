@@ -1,34 +1,41 @@
 ---
 name: make-short
-description: Start a Text-2-Shorts video (2560x1440, 60–120 fps) from a topic — ask the setup questions, provision an isolated run workspace with `t2s new`, and hand over to `t2s open`, which runs the whole production in its own Claude Code session. Use when the user says /make-short, "make a video/short about X", or asks how to continue a run in runs/.
+description: Use when the user wants a narrated explainer video or "short" made from a topic, script or outline, or asks how to start, continue or check a Text-2-Shorts video run in runs/.
 ---
 
-# make-short (launcher)
+# Starting a Text-2-Shorts video
 
-Production does NOT happen in this session. Each video runs in its own isolated Claude Code session inside its run
-folder (only that folder is writable; the env/ plugin supplies the workflow skill, subagents and hooks). This
-skill only sets the run up.
+Turn the user's request into a provisioned run workspace and hand it to that run's own isolated Claude Code
+session. Production never happens in this session. If the current folder is already a run workspace (it has `brief.json`), use
+`t2s-produce` instead.
 
-## 1. Ask (one AskUserQuestion call; skip what the user already said)
-- **Approach**: `zoom` Conceptual Zoom · `arc` Problem → Solution · `linear` Classic linear lesson.
-- **Audience / level**: curious beginners · students with high-school math · practitioners.
-- **Length**: 1 · 2 · 3 · 5 minutes.
-- **Voice**: AWS Polly (`--tts polly`, `--engine neural`): Matthew · Joanna · Ruth · Stephen — or Google Cloud TTS
-  (`--tts google`): en-US-Neural2-D · en-US-Neural2-F · en-US-Studio-O · en-GB-Neural2-B.
-- **Font** (optional): Roboto · Noto Sans · DejaVu Sans · Latin Modern Roman (`fc-list : family` for all).
+## What the product supports (check before promising)
+| Need | Supported | How |
+|---|---|---|
+| Length | any number of minutes > 0 | `--minutes 7` (decimals fine; longer = more scenes, longer build) |
+| Structure | `zoom` big picture → detail · `arc` problem → solution · `linear` lesson | `--approach`; a user's own outline/script → `--notes` + paste it in the run session |
+| Audience, pace | free text · slow / medium / fast | `--audience`, `--pace` |
+| Voice | AWS Polly (any voice id; `--engine neural`, `generative` or `standard`) or Google Cloud TTS (any voice name) | `--tts polly\|google --voice <id>` |
+| Font | any installed family | `--font "<family>"`; list: `fc-list : family` |
+| Output | 2560×1440 (16:9), 60–120 fps | fixed; fps via `T2S_FPS` |
 
-## 2. Provision
-```
-uv run t2s new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --tts <polly|google> --voice <v> [--font "<family>"] [--notes "<extra>"]
-```
-It runs the preflight and the voice-credential check, then creates `runs/<id>/` (brief, CLAUDE.md, environment
-report). Show the user the printed run folder.
+`uv run t2s new --help` is the source of truth for flags. A request outside this table (another TTS vendor,
+vertical 9:16, the user's own audio, …) is not supported: say so plainly, offer the closest supported option, and
+ask before substituting. Never invent a flag or quietly change what the user asked for.
 
-## 3. Hand over
-Tell the user to run, in a terminal of their own (it is an interactive session):
-```
-uv run t2s open runs/<id>
-```
-That session asks them at the four checkpoints and produces `runs/<id>/final.mp4`. To continue an interrupted run,
-the same command resumes it (the session starts with the run's status and next steps). `uv run t2s status runs/<id>`
-shows progress from here at any time.
+## Steps
+1. In one question round: flag anything unsupported (with the closest option) and ask only for what is missing;
+   offer common choices as suggestions, not as the only options (e.g. voices Matthew/Joanna for Polly,
+   en-US-Neural2-D/F for Google).
+2. `uv run t2s new "<topic in the user's words>" --approach … --minutes … --audience "…" --tts … --voice … [--engine …] [--pace …] [--font …] [--notes "…"]`.
+   It checks the machine (LaTeX, ffmpeg, bubblewrap, Claude Code version) and the voice credentials, then prints
+   `runs/<id>`. On failure, relay the fix it prints.
+3. Tell the user to run `uv run t2s open runs/<id>` in their own terminal: an interactive session that produces
+   the video and asks them at four checkpoints. The same command resumes an interrupted run;
+   `uv run t2s status runs/<id>` shows progress from anywhere.
+
+Done when the run exists and the user has the `t2s open` command (plus anything unsupported clearly flagged).
+
+Related: `t2s-produce` (inside the run session) · `t2s-clip-debugging` · `t2s-prompt-maintenance`.
+Voices: [Polly](https://docs.aws.amazon.com/polly/latest/dg/available-voices.html) ·
+[Google Cloud TTS](https://cloud.google.com/text-to-speech/docs/list-voices-and-types).

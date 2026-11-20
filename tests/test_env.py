@@ -192,3 +192,21 @@ def test_state_updates_are_safe_across_processes(tmp_path):
     codes = [p.wait() for p in procs]
     from app import pipeline as P
     assert codes == [0] * 16 and len(P.read_json(tmp_path / "state.json")["clips"]) == 320
+
+
+def test_skill_scripts_are_the_repo_tools_not_copies():
+    scripts = sorted((ENV / "skills" / "manim-ce-0-20-1-reference" / "scripts").glob("*.py"))
+    assert scripts
+    for s in scripts:
+        assert s.is_symlink() and s.resolve() == (ENV.parent / "tools" / s.name).resolve(), s.name
+
+
+def test_every_skill_and_agent_meets_the_standard():
+    root = ENV.parent
+    files = [*root.glob(".claude/skills/*/SKILL.md"), *ENV.glob("skills/*/SKILL.md"), *ENV.glob("agents/*.md")]
+    assert len(files) == 7
+    for f in files:
+        desc = frontmatter(f)["description"].strip()
+        assert desc.startswith("Use when") and len(desc) <= 500, f"{f}: {desc[:60]}"
+        body = f.read_text().split("---", 2)[2]
+        assert len(body.split()) <= 650, f"{f}: {len(body.split())} words"

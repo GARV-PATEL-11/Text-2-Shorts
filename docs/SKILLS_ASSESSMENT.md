@@ -2,6 +2,37 @@
 
 > **Repo status (merged):** the custom skills live in `.claude/skills/` (`make-short` now operates the clip-level `t2s` CLI). The vendored `external/` skills were removed: use the built-in `claude-api` and `skill-creator` skills; `webapp-testing`, `manimce-best-practices` and the template are listed with their sources in `reference/SOURCES.md` (and in git history, commit ee787a2).
 
+## Skills audit — 2026-11-20 (current)
+Scope: the project's own skills (3 repo-session skills in `.claude/skills/`, 2 environment skills in `env/skills/`)
+and the 2 environment subagents (`env/agents/`). Third-party plugins are out of scope.
+Method (writing-skills TDD): one or two realistic scenarios per skill run by fresh agents **before** the rewrite
+(baseline), the same scenarios after (green), then targeted re-tests of every refinement.
+Standard for every skill/agent (enforced by `tests/test_env.py`): description starts "Use when…" and only says when
+to use it (≤ 500 chars); body ≤ 650 words; mandatory rules separated from the adaptable approach; done criteria;
+related skills; verified links.
+
+| Skill / agent | Baseline failure (before) | Change | Validation |
+|---|---|---|---|
+| make-short | closed lists (1/2/3/5 min) — silently turned a 7-minute request into 5; no rule for unsupported requests | capability table (any length, any Polly/Google voice, fonts, fixed output); unsupported → say so, offer nearest, ask; `--help` is the source of truth; hands off to t2s-produce inside a run | green: 7 min kept, ElevenLabs and 9:16 flagged with alternatives, asked before substituting |
+| t2s-produce | one fixed pipeline: no path for a user's own outline, no revision flow for an approved run, unclear for non-math topics | mandatory rules (checkpoints, gates, user objective wins, status = truth) + artifact/gate table + adaptation cases (own outline, revisions, colours, parallelism, repeated failures) | green + re-test: converts the user's outline, flags a 180 s vs 120 s mismatch and asks, minimal revision path, accuracy check kept |
+| manim-ce-0-20-1-reference | paths relative to the skill, stale index path, `api:all` fiction; scripts were drifted copies of tools/; `doc_cards` reported `Axes.plot` as missing | repo-root commands, real index path, version-bump steps; scripts/ are symlinks to tools/ (one source); `doc_cards` resolves `Class.method` | green: every command worked; correct answer (`plot`, `get_graph_label`) |
+| t2s-clip-debugging | did not explain CLIP_SECONDS (lead-in + narration + hold) or the tolerance | finding-code table with formulas and where to read the numbers; classify → fix where it lives | green: exact diagnosis (5.0 + 0.5 < 5.6) |
+| t2s-prompt-maintenance | missed the approach plumbing, model choice per clip, where tone lives | change → files table (all of them), rules, validation, Claude Code doc links | green: complete file list for a new approach, tone and per-clip model |
+| clip-builder (agent) | timing conflict with the topic card; EXIT naming and highlight end-state unclear | CLIP_SECONDS wins; EXIT objects may be created/grouped; highlights are temporary unless stated; report missing things instead of inventing | green + re-test: 5.3 s plan, highlight reverts, lbl_abc grouped |
+| math-reviewer (agent) | math-only wording; NOTATION severity unclear | accuracy for any topic (math, science, history, facts); explicit severities; empty findings valid | green: 2 ERROR + 1 WARN, correct |
+
+Cross-skill fixes: one timing vocabulary (`CLIP_SECONDS`) in topic cards, builder, debugging and standards;
+make-short defers to t2s-produce inside a run; tool scripts have one source; descriptions trigger-only.
+Links verified reachable: Claude Code docs (skills, sub-agents, hooks, plugins, settings, sandboxing, memory), AWS
+Polly voices, Google Cloud TTS voices, agentskills.io spec, Manim GitHub releases. Not verifiable from this machine:
+docs.manim.community (no response) — the generated API cards still link there.
+Remaining limitations: scenario tests are dry runs (no live Claude Code session or video, per the current
+no-video rule); per-clip model routing is documented but not built; repo skills also load inside run sessions.
+
+---
+
+## Original assessment (v0.2 package, historical)
+
 **Question answered:** which Claude Skills are needed to *develop, operate and maintain* this system, which exist,
 which need customization, and which must be built.
 

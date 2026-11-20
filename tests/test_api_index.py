@@ -15,3 +15,11 @@ def test_known_names(api_index):
         assert n not in names, n
     assert "plot" in names["Axes"]["methods"] and "get_graph" not in names["Axes"]["methods"]
     assert "plot_line_graph" in names["Axes"]["methods"] and "get_line_graph" not in names["Axes"]["methods"]
+
+
+def test_doc_cards_resolve_class_dot_method(api_index):
+    from conftest import run
+    rc, out = run("doc_cards.py", "--index", api_index, "--names", "Axes.plot,Axes.get_graph")
+    assert "### Axes.plot" in out                                       # a real method is not "missing"
+    assert "NOT IN Manim" in out and "Axes.get_graph" in out.split("NOT IN Manim")[1]
+    assert "Axes.plot" not in out.split("NOT IN Manim")[1]

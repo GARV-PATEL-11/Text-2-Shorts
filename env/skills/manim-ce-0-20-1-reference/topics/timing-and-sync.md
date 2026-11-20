@@ -1,6 +1,7 @@
 ## Topic: timing & narration sync
-- Clip length is set by its narration audio (seconds given in the task). Budget the clip so that
-  `sum(run_time) + sum(wait) ≈ narration_seconds` (checker tolerance ±0.5 s; shorter is an error, longer is a warning).
+- Clip length: `CLIP_SECONDS` from TASK.md = 0.3 s visual lead-in + narration audio + ≥ 0.8 s hold. The voice starts
+  at t = 0.3 s. The probe fails a clip shorter than CLIP_SECONDS − 0.5 s (CLIP_TOO_SHORT) and warns above
+  CLIP_SECONDS + 1.5 s (CLIP_TOO_LONG). Beats with a time (`@ 2.4s`) start at that time ± 0.2 s.
 - Map each beat to a narration phrase: start the animation when the phrase starts; hold (`self.wait`) while the
   phrase is still being spoken. A formula that is being explained must stay on screen ≥ 2 s after it finishes writing.
 - One visual event per narration phrase. Never run two unrelated animations while one sentence is spoken.

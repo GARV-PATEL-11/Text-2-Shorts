@@ -61,9 +61,13 @@ def main():
     if a.from_spec:
         wanted |= names_from_spec(json.loads(Path(a.from_spec).read_text()))
     out = [f"## Manim CE {ver} — API cards (generated from the installed package; authoritative)\n"]
-    unknown = sorted(n for n in wanted if n not in names)
+    def method_sig(n):  # "Axes.plot" → the method's signature, if the class has it (inherited methods included)
+        cls, _, meth = n.partition(".")
+        return names.get(cls, {}).get("methods", {}).get(meth) if meth else None
+    unknown = sorted(n for n in wanted if n not in names and method_sig(n) is None)
     for n in sorted(wanted - set(unknown)):
-        out.append(card(n, names[n], ver, a.max_methods))
+        out.append(card(n, names[n], ver, a.max_methods) if n in names
+                   else f"### {n}{method_sig(n)}\nmethod of {n.partition('.')[0]}\n")
     if unknown:
         out.append(f"!! NOT IN Manim {ver}: {', '.join(unknown)} — do not use; pick an existing alternative.\n")
     for t in [t for t in a.topics.split(",") if t]:
