@@ -14,14 +14,14 @@ CLIP_01 = '''from manim import *
 def clip_01(self):
     title = Text("Hello").to_edge(UP)
     self.play(Write(title), run_time=1)
-    self.wait(1.2)
+    self.wait(2.2)
     self.reg["title"] = title
 '''
 CLIP_02 = '''from manim import *
 
 def clip_02(self):
     self.play(FadeOut(self.reg.pop("title")), run_time=0.5)
-    self.wait(1.7)
+    self.wait(2.7)
 '''
 
 
@@ -57,7 +57,7 @@ def test_build_runs_gates_and_installs_clips(tmp_path, monkeypatch):
     assert all("| READY |" in r for r in rows), rows
     assert (sd / "clips" / "clip_02.py").read_text() == CLIP_02
     checks = json.loads((sd / "work" / "clip_02" / "checks" / "render.json").read_text())
-    assert checks["ok"] and checks["duration"] >= 2.0
+    assert checks["ok"] and checks["duration"] >= 3.1   # lead-in + narration + hold
     # unchanged inputs → nothing rebuilt
     monkeypatch.setattr(P, "claude", lambda *a, **k: pytest.fail("rebuilt an unchanged clip"))
     assert all("unchanged" in r for r in C.build_scene(run, plan, set()))

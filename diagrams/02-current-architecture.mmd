@@ -2,7 +2,7 @@ flowchart LR
     U["Operator in Claude Code<br/>(/make-short skill — missing)"] -->|"python -m app.pipeline …"| CLI[pipeline.py]
     CLI --> R["new: refine<br/>haiku/low"] --> B[(brief.json)]
     CLI --> O["outline: approach prompt<br/>+ critic×2 + refactor×2<br/>+ narration (all scenes)"] --> OJ[(outline.json<br/>narration.json)]
-    CLI --> T["tts: Kokoro / Polly<br/>per scene"] --> A[(scenes/NNN/narration.mp3)]
+    CLI --> T["tts: Polly / Google<br/>per scene"] --> A[(scenes/NNN/narration.mp3)]
     CLI --> P["plan: Visual Director DSL<br/>+ critic×2 + refactor×2 per scene"] --> PM[(scenes/NNN/plan.md)]
     CLI --> RE["render: Claude Code agent per scene<br/>write → render ≤6 → frames → fix"] --> SP[(scene.py, clip.mp4)]
     RE --> J["bwrap final render -qh"]

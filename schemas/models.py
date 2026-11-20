@@ -103,8 +103,9 @@ class Brief(Strict):
     audience: str = "curious beginners"
     notes: str = ""
     aspect: Literal["16:9", "9:16", "1:1"] = "16:9"
-    voice: str = "af_heart"
-    tts_engine: Literal["kokoro", "neural", "generative", "standard"] = "kokoro"
+    voice: str = "Matthew"
+    tts: Literal["polly", "google"] = "polly"
+    tts_engine: Literal["neural", "generative", "standard"] = "neural"
 
 
 class EnvironmentReport(Strict):

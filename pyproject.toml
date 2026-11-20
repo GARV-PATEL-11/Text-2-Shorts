@@ -1,6 +1,6 @@
 [project]
 name = "text-2-shorts"
-version = "0.2.0"
+version = "0.4.0"
 description = "Topic in, narrated Manim explainer video out — every LLM stage is a sandboxed Claude Code run"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -9,8 +9,9 @@ dependencies = [
     "manim==0.20.1",          # pinned: API index, topic cards and critic allowlist are version-specific
     "pydantic>=2.13.4",
     "python-dotenv>=1.0",
-    "kokoro-onnx>=0.6.1",     # local TTS (default engine)
+    # local TTS (default engine)
     "boto3==1.43.38",         # AWS Polly (optional TTS engine)
+    "google-cloud-texttospeech>=2.16",
 ]
 
 [dependency-groups]

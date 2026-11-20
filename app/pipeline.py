@@ -2,7 +2,7 @@
 brief/outline/TTS stages. The clip-level stages (clips, voice, build, final, approve, feedback, status) are in
 app/clips.py. Driven by the /make-short skill, one step at a time:
 
-    t2s new "<topic>" --approach zoom --minutes 2 --voice af_heart [--font Roboto]
+    t2s new "<topic>" --approach zoom --minutes 2 --tts polly --voice Matthew [--font Roboto]
     t2s outline  runs/<id> [--feedback "..."]        CP1 → t2s approve runs/<id> outline
     t2s clips    runs/<id> [--scenes 2]              CP2 → t2s approve runs/<id> plan
     t2s voice    runs/<id>
@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
+from app import speech
 from app.graph.models.classic_linear_narrative import ClassicLinearNarrativeOutline
 from app.graph.models.conceptual_zoom import ConceptualZoomOutline
 from app.graph.models.problem_solution_arc import ProblemSolutionArcOutline
@@ -234,6 +235,17 @@ def cmd_new(a) -> None:
     pf = subprocess.run([PYTHON, str(ROOT / "tools" / "preflight.py")], capture_output=True, text=True)
     if pf.returncode:  # fail before any paid call: missing LaTeX/ffmpeg/bwrap/… would only surface at render
         sys.exit(f"Preflight failed: {json.loads(pf.stdout)['problems']}")
+    if a.tts == "polly":
+        import boto3
+        if boto3.Session().get_credentials() is None:
+            sys.exit("AWS credentials not found for Polly — run `aws configure` or set AWS_PROFILE (or use --tts google)")
+    else:
+        import google.auth
+        try:
+            google.auth.default()
+        except google.auth.exceptions.DefaultCredentialsError:
+            sys.exit("Google credentials not found — run `gcloud auth application-default login` or set "
+                     "GOOGLE_APPLICATION_CREDENTIALS (or use --tts polly)")
     families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True).stdout
     if a.font and a.font.lower() not in {f.strip().lower() for line in families.splitlines() for f in line.split(",")}:
         sys.exit(f"Font not installed: {a.font!r} — pick one from `fc-list : family`")
@@ -243,7 +255,7 @@ def cmd_new(a) -> None:
     refined = claude(run, "refine", a.requirement, REQ_MODIFIER_SYSTEM)
     write_json(run / "brief.json", {
         "requirement": a.requirement, "approach": a.approach, "minutes": a.minutes, "pace": a.pace,
-        "audience": a.audience, "notes": a.notes, "voice": a.voice, "engine": a.engine, "font": a.font, "refined": refined.strip(),
+        "audience": a.audience, "notes": a.notes, "tts": a.tts, "voice": a.voice, "engine": a.engine, "font": a.font, "refined": refined.strip(),
         })
     print(run.relative_to(ROOT))
     print(refined.strip())
@@ -257,7 +269,9 @@ def _refactor_outline(run: Path, outline: dict, schema, critique: OutlineCritiqu
 def cmd_outline(a) -> None:
     run = Path(a.run)
     brief = read_json(run / "brief.json")
+    from app.clips import EXPLANATION_STYLE  # late import: clips imports pipeline
     system, schema = APPROACHES[brief["approach"]]
+    system = f"{system}\n\n{EXPLANATION_STYLE}"  # static → still one cached prompt per approach
 
     if a.feedback and (run / "outline.json").exists():
         human = OutlineCritiqueResult(approved=False, score=5, critique="Human reviewer requested changes.",
@@ -297,56 +311,57 @@ def cmd_outline(a) -> None:
     print(f"\nFull outline: {run}/outline.json")
 
 
-KOKORO_DIR = Path(os.environ.get("KOKORO_DIR", Path.home() / ".cache" / "kokoro"))
-KOKORO_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
-# ponytail: pinned from the copies downloaded 2026-11-19 (trust on first use); re-pin if upstream re-releases v1.0
-KOKORO_SHA256 = {
-    "kokoro-v1.0.onnx": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5",
-    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
-}
-
-
-def kokoro_tts(voice: str):
-    """Local Kokoro (ONNX). Downloads the ~350MB model to KOKORO_DIR on first use."""
-    import urllib.request
-    from kokoro_onnx import Kokoro
-
-    for f, sha in KOKORO_SHA256.items():
-        if not (KOKORO_DIR / f).exists():
-            KOKORO_DIR.mkdir(parents=True, exist_ok=True)
-            print(f"downloading {f} → {KOKORO_DIR}")
-            urllib.request.urlretrieve(KOKORO_URL + f, KOKORO_DIR / f)
-            with open(KOKORO_DIR / f, "rb") as fh:
-                got = hashlib.file_digest(fh, "sha256").hexdigest()
-            if got != sha:
-                (KOKORO_DIR / f).unlink()
-                sys.exit(f"{f}: sha256 {got} != pinned {sha} — download deleted")
-    kokoro = Kokoro(str(KOKORO_DIR / "kokoro-v1.0.onnx"), str(KOKORO_DIR / "voices-v1.0.bin"))
-
-    def synth(text: str) -> bytes:
-        samples, rate = kokoro.create(text, voice=voice, lang="en-us")
-        return subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "f32le", "-ar", str(rate), "-ac", "1",
-                               "-i", "-", "-f", "mp3", "-"],
-                              input=samples.astype("float32").tobytes(), capture_output=True, check=True).stdout
-    return synth
+def tts_for(brief: dict):
+    """The narration synthesiser the user chose for this video: AWS Polly or Google Cloud TTS."""
+    return google_tts(brief["voice"]) if brief.get("tts") == "google" else polly_tts(brief["voice"], brief["engine"])
 
 
 def polly_tts(voice: str, engine: str):
+    """AWS Polly with SSML (pauses) and word speech marks (beat timing). Falls back to plain text when an engine
+    rejects a tag, and to no marks when an engine has none."""
     import boto3
 
     polly = boto3.client("polly")
 
-    def synth(text: str) -> bytes:
-        # Polly caps one request at 3000 chars; split on sentences and join the MP3 frames.
-        chunks, cur = [], ""
-        for sent in re.split(r"(?<=[.!?])\s+", text):
-            if cur and len(cur) + len(sent) > 2800:
-                chunks.append(cur)
-                cur = ""
-            cur = f"{cur} {sent}".strip()
-        chunks.append(cur)
-        return b"".join(polly.synthesize_speech(Text=c, OutputFormat="mp3", VoiceId=voice, Engine=engine)
-                        ["AudioStream"].read() for c in chunks)
+    def call(text: str, **kw):
+        try:
+            return polly.synthesize_speech(Text=speech.to_ssml(text), TextType="ssml", VoiceId=voice, Engine=engine, **kw)
+        except polly.exceptions.InvalidSsmlException:
+            return polly.synthesize_speech(Text=speech.to_plain(text), VoiceId=voice, Engine=engine, **kw)
+
+    def synth(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
+        # ponytail: one request per clip (clips are ≤ 30 s, far under Polly's 3000-char limit)
+        audio = call(text, OutputFormat="mp3")["AudioStream"].read()
+        try:
+            raw = call(text, OutputFormat="json", SpeechMarkTypes=["word"])["AudioStream"].read().decode()
+            marks = [(m["value"], m["time"] / 1000) for m in map(json.loads, raw.splitlines()) if m["type"] == "word"]
+        except Exception:  # noqa: BLE001 — speech marks are a timing aid, never a reason to fail the voice step
+            marks = None
+        return audio, marks
+    return synth
+
+
+def google_tts(voice: str):
+    """Google Cloud TTS (v1beta1 for timepoints): SSML with a <mark/> per word → word timings for beat sync.
+    Voices without SSML support (e.g. Chirp 3 HD) fall back to plain text without timings."""
+    from google.api_core.exceptions import InvalidArgument
+    from google.cloud import texttospeech_v1beta1 as gtts
+
+    client = gtts.TextToSpeechClient()
+    voice_cfg = {"language_code": "-".join(voice.split("-")[:2]), "name": voice}
+    mp3 = {"audio_encoding": gtts.AudioEncoding.MP3}
+
+    def synth(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
+        ssml, words = speech.to_ssml_marked(text)
+        try:
+            r = client.synthesize_speech(request={
+                "input": {"ssml": ssml}, "voice": voice_cfg, "audio_config": mp3,
+                "enable_time_pointing": [gtts.SynthesizeSpeechRequest.TimepointType.SSML_MARK]})
+        except InvalidArgument:
+            r = client.synthesize_speech(request={"input": {"text": speech.to_plain(text)}, "voice": voice_cfg,
+                                                  "audio_config": mp3})
+            return r.audio_content, None
+        return r.audio_content, [(words[int(tp.mark_name)], tp.time_seconds) for tp in r.timepoints] or None
     return synth
 
 
@@ -361,10 +376,12 @@ def main() -> None:
     p.add_argument("--pace", choices=["slow", "medium", "fast"], default="medium")
     p.add_argument("--audience", default="curious beginners")
     p.add_argument("--notes", default="")
-    p.add_argument("--engine", default=os.environ.get("TTS_ENGINE", "kokoro"),
-                   help="kokoro (local, free) or a Polly engine: neural | generative | standard")
+    p.add_argument("--tts", choices=["polly", "google"], default=os.environ.get("T2S_TTS", "polly"),
+                   help="narration provider: AWS Polly or Google Cloud Text-to-Speech")
+    p.add_argument("--engine", choices=["neural", "generative", "standard"],
+                   default=os.environ.get("POLLY_ENGINE", "neural"), help="Polly engine (ignored for Google)")
     p.add_argument("--font", help="font family for all Text (any name from `fc-list : family`); default: Manim's")
-    p.add_argument("--voice", help="Kokoro: af_heart, am_michael, … · Polly: Matthew, Joanna, …")
+    p.add_argument("--voice", help="Polly: Matthew, Joanna, Ruth, Stephen … · Google: en-US-Neural2-D, en-US-Studio-O …")
     p.set_defaults(fn=cmd_new)
 
     p = sub.add_parser("outline")
@@ -376,7 +393,7 @@ def main() -> None:
     clips.register(sub)
     a = ap.parse_args()
     if a.cmd == "new" and not a.voice:
-        a.voice = (os.environ.get("KOKORO_VOICE", "af_heart") if a.engine == "kokoro"
+        a.voice = (os.environ.get("GOOGLE_VOICE", "en-US-Neural2-D") if a.tts == "google"
                    else os.environ.get("POLLY_VOICE", "Matthew"))
     if getattr(a, "run", None):
         a.run = str(Path(a.run).resolve())  # child `claude -p` runs with cwd inside the run dir

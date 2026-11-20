@@ -1,0 +1,26 @@
+flowchart LR
+    subgraph ONCE["Sent once per stage (static system prompt → prompt cache)"]
+        STD["VIDEO_STANDARDS<br/>palette roles · type scale · zones<br/>timing · narration convention"]
+        STY["EXPLANATION_STYLE<br/>ELI5 / Feynman"]
+        CARDS["always-on topic cards<br/>(clip agent only)"]
+    end
+    subgraph PER["Per call (user message)"]
+        SCN["scene + other-scene summaries<br/>SYMBOL COLORS SO FAR<br/>PREVIOUS SCENE FINAL IMAGE"]
+        TASK["TASK.md: narration · beats @ t<br/>CLIP_SECONDS · symbol colours · font"]
+    end
+    OUT["outline"] --> PLAN["clip planner"]
+    STD --> PLAN
+    STY --> OUT
+    STY --> PLAN
+    SCN --> PLAN
+    PLAN -->|"narration with `a` and [pause]"| SPK["speech.py<br/>symbols · units · abbreviations · M vs m"]
+    SPK -->|"SSML + breaks"| POL["AWS Polly<br/>word speech marks"]
+    SPK -->|"SSML + mark per word"| GOO["Google Cloud TTS<br/>timepoints"]
+    POL --> TIMES["beat start times"]
+    GOO --> TIMES
+    TIMES --> TASK
+    STD --> AG["clip agent"]
+    CARDS --> AG
+    TASK --> AG
+    AG --> CHK["./check: probe enforces<br/>lead-in + narration + hold"]
+    CHK --> FIN["final: audio delayed 0.3 s per clip<br/>scenes start/end empty"]

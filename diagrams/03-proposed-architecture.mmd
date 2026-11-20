@@ -14,7 +14,7 @@ flowchart TB
     end
     subgraph L3["Deterministic tools"]
         PF[preflight] --- IDX[API index · doc cards] --- VAL[static validator] --- PR[layout/timing probe]
-        HAR["scene harness<br/>sections render"] --- TTS[TTS Kokoro/Polly] --- ASM[assembly · loudnorm] --- QC[media checks]
+        HAR["scene harness<br/>sections render"] --- TTS[TTS Polly/Google] --- ASM[assembly · loudnorm] --- QC[media checks]
     end
     subgraph L4["Execution isolation"]
         SB["Claude Code Bash sandbox<br/>(bubblewrap, no network)"] --- BW["bwrap jail for final renders"]

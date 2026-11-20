@@ -8,6 +8,7 @@
 > M6 prompts → constants in `app/clips.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
 > M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
 > M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
+> v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see Plan.md §29.
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 
@@ -98,8 +99,8 @@ run-specific values (test: render twice with different inputs → identical STAT
 def synth_clip(clip: ClipPlan, voice: str, engine: str, cache: Store) -> AudioArtifact     # mp3 + seconds (+ word_marks)
 def phrase_times(clip: ClipPlan, audio: AudioArtifact) -> list[tuple[str, float]]          # beats' quoted phrases → start s
 ```
-Kokoro download verified against `KOKORO_MODEL_SHA256`. Polly: chunking as today; speech marks request when
-`engine != kokoro`. **Tests:** cache hit on identical text; seconds measured via ffprobe; phrase_times monotonic.
+Providers: AWS Polly (SSML + word speech marks) and Google Cloud TTS (SSML `<mark>` timepoints); `app/speech.py`
+normalises pronunciation for both. **Tests:** cache hit on identical text; seconds measured via ffprobe; phrase_times monotonic.
 
 ## M10 `app/assembly/` [BUILT-HERE `assemble_clips.py`; media checks PROPOSED]
 `assemble(manifest, out, workdir, loudnorm=True) -> report`; `media_checks(path, expected) -> list[Finding]`
@@ -122,3 +123,15 @@ markdown tables for the operator skill; `--json` on every command for scripting.
 
 ## M14 Preflight [BUILT-HERE `tools/preflight.py`]
 Runs in `t2s new`; writes `environment_report.json`; blocks on missing hard requirements.
+
+## M15 `app/speech.py` [BUILT · v0.3]
+`speakable(text, both_cases) -> str` · `case_pairs(texts) -> set[str]` · `to_ssml(text)` (Polly) ·
+`to_ssml_marked(text) -> (ssml, words)` (Google timepoints) · `to_plain(text)` · `phrase_times(marks, beats) -> [s | None]`.
+Providers in `app/pipeline.py`: `polly_tts(voice, engine)`, `google_tts(voice)`, `tts_for(brief)`; each `synth(text)`
+returns `(mp3_bytes, word_marks | None)`. **Tests:** `tests/test_speech.py` (normalisation, SSML, fallbacks, timings).
+
+## M16 Video standards [BUILT · v0.3]
+`VIDEO_STANDARDS`, `EXPLANATION_STYLE`, `STYLE`, `LEAD_IN`, `HOLD` in `app/clips.py`; included in the static system
+prompts (Plan.md §29.1); `plan_scene()` enforces empty scene boundaries; `color_roles` carried across scenes;
+`media_checks()` enforces 2560×1440 and ≥ 60 fps. **Tests:** `tests/test_clips.py` (timing via CLIP_SECONDS).
+

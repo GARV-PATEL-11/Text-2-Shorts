@@ -65,14 +65,22 @@
       "type": "string"
     },
     "voice": {
-      "default": "af_heart",
+      "default": "Matthew",
       "title": "Voice",
       "type": "string"
     },
-    "tts_engine": {
-      "default": "kokoro",
+    "tts": {
+      "default": "polly",
       "enum": [
-        "kokoro",
+        "polly",
+        "google"
+      ],
+      "title": "Tts",
+      "type": "string"
+    },
+    "tts_engine": {
+      "default": "neural",
+      "enum": [
         "neural",
         "generative",
         "standard"

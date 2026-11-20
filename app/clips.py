@@ -5,7 +5,7 @@ Run layout (scene ids sNN, clip ids sNNcMM):
   runs/<id>/feedback.jsonl          human feedback, scoped to outline | plan | sNN | sNNcMM
   runs/<id>/math.json               math verifier findings
   runs/<id>/scenes/sNN/plan.json    ScenePlan (plan.vN.json = earlier versions)
-  runs/<id>/scenes/sNN/audio/       clip_MM.mp3 + index.json (text hash → seconds)
+  runs/<id>/scenes/sNN/audio/       clip_MM.mp3 + index.json (spoken text hash → seconds, beat start times)
   runs/<id>/scenes/sNN/clips/       approved clip_MM.py files (the harness composes scene.py from them)
   runs/<id>/scenes/sNN/work/clip_MM agent sandbox: TASK.md/.json, API_CARDS.md, ./check, its own scene copy
 Every stage skips work whose inputs are unchanged (content hashes), so re-running after feedback redoes only the
@@ -27,6 +27,7 @@ from typing import Literal
 from pydantic import BaseModel, ValidationError
 
 from app import pipeline as P
+from app import speech
 from schemas.models import ScenePlan
 
 MANIM = "0.20.1"  # pinned in pyproject.toml
@@ -35,8 +36,41 @@ TOPICS_DIR = P.ROOT / ".claude" / "skills" / "manim-ce-0-20-1-reference" / "topi
 API_INDEX = P.ROOT / ".cache" / f"manim_api_{MANIM}.json"
 ALWAYS_TOPICS = ["clip-structure", "timing-and-sync", "positioning-layout"]
 WPM = {"slow": 130, "medium": 150, "fast": 170}
-STYLE = {"background": "#0e2733", "text": "WHITE", "highlight": "YELLOW", "accent": "TEAL", "contrast": "ORANGE",
-         "error": "RED"}
+STYLE = {"background": "#0e2733", "text": "WHITE", "focus": "YELLOW", "given": "BLUE", "derived": "GREEN",
+         "warning": "RED", "secondary": "GREY_B"}
+LEAD_IN, HOLD = 0.3, 0.8  # seconds of picture before the voice starts / after it ends, in every clip
+
+# Shared by the planner, the math verifier and the builder: written once into each static system prompt (prompt cache),
+# so every scene and clip of every video follows the same rules without resending them per call.
+VIDEO_STANDARDS = f"""
+VIDEO STANDARDS — identical for every scene and clip
+Frame: 16:9, 2560×1440 (Manim frame 14.2 × 8 units); keep 0.5 units clear of every edge. One background for the whole
+video ({STYLE["background"]}, set by the harness — never set it in clip code).
+Palette roles (Manim colour constants): text {STYLE["text"]} · current focus/highlight {STYLE["focus"]} ·
+given quantities {STYLE["given"]} · derived results {STYLE["derived"]} · mistakes/warnings {STYLE["warning"]} ·
+secondary/dimmed {STYLE["secondary"]}. Each math symbol keeps ONE colour for the whole video (SYMBOL COLORS).
+Type scale (font_size): title 48 · body 34 · label 28 · caption 24, never smaller. MathTex: main formula 44, inline 34.
+Zones: top_center = title or the running formula · center = main diagram · left_half/right_half = comparisons ·
+bottom_center = one-line caption. At most 2 text blocks and 1 diagram on screen at once.
+Timing: Write/Create 0.8–1.5 s · FadeIn/FadeOut 0.4–0.6 s · Transform 0.8–1.2 s · hold ≥ 0.8 s after a key result.
+Nothing moves during a [pause]: that is when the viewer looks.
+Clip rhythm: the picture starts {LEAD_IN} s before the voice; the final frame holds ≥ {HOLD} s after the voice ends.
+Scenes: every scene starts on an empty frame and ends with its objects faded out (last beat of the last clip).
+Narration text: plain spoken English for a voice. Write math symbols in backticks (`a`, `M`, `v_1`, `θ`) so the voice
+says their names; write [pause] where the viewer needs a moment to look (after a key result, before a new step);
+write units and abbreviations as words when in doubt ("meters per second", "astronomical units"). If one letter is used
+in both cases (M and m), say the difference in words the first time ("big `M`, the Sun's mass").
+""".strip()
+
+EXPLANATION_STYLE = """
+EXPLANATION STYLE — ELI5 / Feynman
+- Start from something the viewer already knows (an everyday object or experience), then name the idea.
+- One new idea per sentence; short sentences; every term gets a plain-words meaning where it first appears.
+- Concrete before abstract: a picture or a worked number first, the general rule after.
+- Show why it is true, not only that it is true: give the step the viewer would otherwise have to take on trust.
+- After each key step, a one-line plain recap ("So: …").
+- Talk to one curious person ("you"), warm and direct; no filler, no hype.
+""".strip()
 _lock = threading.Lock()
 
 # ── Static prompts (identical for every call → prompt-cache hits; dynamic data only in the user message) ─────────
@@ -49,8 +83,8 @@ CLIP RULES
 1. One teaching purpose per clip. If the objective needs "and", split it.
 2. 2–6 clips per scene; 4–20 s of narration per clip (hard max 30 s). The scene's clips together should match the
    scene's duration_seconds.
-3. narration: the exact words the voice will say. Spoken English for TTS: no markdown, symbols written as
-   spoken ("x squared", "theta", "is greater than"), numbers ≤ 2 decimals. Word budget per clip
+3. narration: the exact words the voice will say, following "Narration text" in VIDEO STANDARDS (symbols in
+   backticks, [pause] markers, no markdown, numbers ≤ 2 decimals). Word budget per clip
    = est_seconds × target_wpm / 60 (±10%). Across the scene, cover the scene's talking_points in order.
 4. beats: 1–8 visual events in narration order. Each beat names the narration phrase it starts on, in quotes,
    then what visibly changes. Example: "\\"the hypotenuse\\" → side c highlights in YELLOW".
@@ -59,8 +93,10 @@ CLIP RULES
    Keep a formula on screen while the narration discusses it.
 6. Continuity contracts. entry = what is on screen when the clip starts; exit = what must remain at its end.
    Name objects with snake_case registry names (eq_main, axes, curve_f). Clip N+1's entry must equal clip N's exit.
-   The first clip's entry is the previous scene's exit only if the outline says the scene continues it; otherwise
-   empty. Prefer clearing the screen at scene ends (last clip exit empty).
+   The FIRST clip's entry and the LAST clip's exit are always empty: each scene renders separately.
+   Transitions between scenes are visual: the last clip's final beat leads into transition_to_next and fades the
+   scene out; when the outline continues an idea, the first clip's first beat re-draws PREVIOUS SCENE FINAL IMAGE
+   (same objects, colours and zones) before moving on, so the cut feels like one continuous video.
 7. object_positions use semantic zones only: top_center, top_left, top_right, center, left_half, right_half,
    bottom_center, bottom_left, bottom_right.
 8. manim_topics: choose from this closed list only: clip-structure, mathtex-indexing, text-and-latex,
@@ -69,9 +105,13 @@ CLIP RULES
    If a talking point is ambiguous, keep the claim narrower rather than adding content.
 10. Screen budget: at most 2 text blocks and 1 diagram visible at once; say in beats when things leave.
 11. Ids: scene_id is given; clip_id = scene_id + "c" + two-digit index (s02c01, s02c02, …); index starts at 1.
-12. HUMAN FEEDBACK, when present, overrides everything above for what it mentions.
+12. color_roles: map every math symbol and recurring object of this scene to one palette constant. Reuse SYMBOL
+   COLORS SO FAR exactly; add only symbols that are new in this scene.
+13. Pacing: about one [pause] per clip, after the key result; beats never put motion inside a pause.
+14. HUMAN FEEDBACK, when present, overrides everything above for what it mentions.
 Return the ScenePlan as structured output.
-""".strip()
+
+""" + VIDEO_STANDARDS + "\n\n" + EXPLANATION_STYLE
 
 MATH_VERIFIER_SYSTEM = """
 You are a mathematics editor checking an explainer script before it is animated.
@@ -86,6 +126,8 @@ Report only real problems:
 For each problem give clip_id, the quoted text, why it is wrong, and the minimal correction.
 Severity: ERROR for FALSE, NOTATION and UNSTATED; WARN otherwise, and WARN whenever you are not sure.
 Do not comment on style, pacing or visuals. No problems → empty findings list.
+Narration convention (intended, not a problem): math symbols are written in backticks (`a`) and spoken by name;
+[pause] marks a pause. Report SPOKEN when a symbol outside backticks would be read ambiguously.
 """.strip()
 
 CLIP_BUILDER_SYSTEM = f"""
@@ -99,13 +141,15 @@ FILE CONTRACT
 - Objects crossing clip boundaries live in self.reg (a dict). Read only the ENTRY names; when the clip ends,
   self.reg must hold exactly the EXIT names and those objects must be on screen. Remove everything else.
 - Never set the background or camera background: the harness sets one background for the whole video.
-- Use the STYLE colours and, if TASK.md names a FONT, pass font=<FONT> to every Text/MarkupText.
+- Use the palette roles and SYMBOL COLORS from TASK.md; if TASK.md names a FONT, pass font=<FONT> to every
+  Text/MarkupText.
 - Use only APIs that appear in API_CARDS.md or that you confirm with `./check doc Name1,Name2`.
   If a name is reported as not in Manim, do not use it.
 
 LOOP (stop as soon as all gates pass)
 1. Write clip_MM.py implementing every beat in TASK.md, in order, synced to the narration phrases.
-   The clip's animation time must be ≥ NARRATION_SECONDS and ≤ NARRATION_SECONDS + 1.5.
+   The clip must run between CLIP_SECONDS and CLIP_SECONDS + 1.5 (TASK.md). The voice starts at t = {LEAD_IN} s;
+   when BEATS carry times ("@ 2.4s"), start that beat's animation at that time (±0.2 s), using self.wait() to line up.
 2. Gate A (static):  ./check static  → fix every ERROR. Do not render while Gate A fails.
 3. Gate B (layout+timing): ./check probe → fix OUT_OF_FRAME, OVERLAP, CLIP_TOO_SHORT, CONTRACT_* errors.
 4. Gate C (render):  ./check render  → draft render of this clip only; on failure read the error,
@@ -120,7 +164,9 @@ REPAIR DISCIPLINE
 - If the same finding repeats after 2 fixes, change approach (different construction), and say so in notes.
 - HUMAN_FEEDBACK in TASK.md overrides beats/visual intent for what it mentions — nothing else.
 - Run only ./check, python, ffmpeg, ffprobe, ls.
-""".strip()
+
+""" + VIDEO_STANDARDS + f"\n\nALWAYS-ON TOPIC CARDS (Manim {MANIM})\n" + "\n".join(
+    (TOPICS_DIR / f"{name}.md").read_text() for name in ALWAYS_TOPICS)
 
 
 class MathFinding(BaseModel):
@@ -208,30 +254,50 @@ def cmd_clips(a) -> None:
             add_feedback(run, sid_of(n), "plan", a.feedback)
     summaries = "\n".join(f"  {sid_of(i)} {s.get('title', '')}: {s.get('visual_plan', '')[:140]}"
                           for i, s in enumerate(segs, 1))
-    prev_exit = "none — start from an empty frame"
-    for i, seg in enumerate(segs, 1):  # sequential: each scene needs the previous scene's exit state
+    prev_image, colors = "none — this is the first scene", {}
+    for i, seg in enumerate(segs, 1):  # sequential: each scene builds on the previous scene's colours and final image
         sid, d = sid_of(i), run / "scenes" / sid_of(i)
         if targets is None or i in targets:
             d.mkdir(parents=True, exist_ok=True)
             fb = feedback_for(run, "outline", sid, *(f"{sid}c{k:02d}" for k in range(1, 9)))
             user = (f"VIDEO: {meta.get('title', '')} · audience: {brief['audience']} · "
                     f"target_wpm: {WPM.get(brief.get('pace'), 150)} · aspect: 16:9\n"
-                    f"STYLE TOKENS: {json.dumps(STYLE)}\nOTHER SCENES (one line each):\n{summaries}\n"
-                    f"PREVIOUS SCENE EXIT STATE: {prev_exit}\n"
+                    f"OTHER SCENES (one line each):\n{summaries}\n"
+                    f"SYMBOL COLORS SO FAR: {json.dumps(colors)}\nPREVIOUS SCENE FINAL IMAGE: {prev_image}\n"
                     f"TARGET SCENE {sid} ({seg.get('duration_seconds', 30)}s, {seg.get('segment_type', '')}):\n"
                     f"  title: {seg.get('title', '')}\n  talking_points: {json.dumps(seg.get('talking_points', []))}\n"
                     f"  visual_plan: {seg.get('visual_plan', '')}\n  narration_hint: {seg.get('narration_hint', '')}\n"
                     f"  transition_to_next: {seg.get('transition_to_next', '')}\nHUMAN FEEDBACK:\n{feedback_text(fb)}")
-            plan = P.claude(run, "clip_plan", user, CLIP_PLANNER_SYSTEM, schema=ScenePlan, scene=sid)
-            if plan.scene_id != sid or plan.index != i:
-                plan = plan.model_copy(update={"scene_id": sid, "index": i})
-                plan = ScenePlan.model_validate(plan.model_dump())  # re-run the contract validators
-            save_versioned(d / "plan.json", plan.model_dump_json(indent=1))
+            save_versioned(d / "plan.json", plan_scene(run, sid, i, user).model_dump_json(indent=1))
         if (d / "plan.json").exists():
-            last = ScenePlan.model_validate_json((d / "plan.json").read_text()).clips[-1].exit
-            prev_exit = last.model_dump_json() if last.persistent_objects else "none — start from an empty frame"
+            sp = ScenePlan.model_validate_json((d / "plan.json").read_text())
+            prev_image = f"{sp.clips[-1].visual_intent} Final beat: {sp.clips[-1].beats[-1]}"
+            colors.update(sp.color_roles)
     verify_math(run, brief)
     print_plan(run)
+
+
+def plan_scene(run: Path, sid: str, index: int, user: str) -> ScenePlan:
+    """Clip-plan one scene; a plan that breaks the scene-boundary rule is sent back once with the exact problem."""
+    problems: list[str] = []
+    for _ in (1, 2):
+        plan = P.claude(run, "clip_plan", user, CLIP_PLANNER_SYSTEM, schema=ScenePlan, scene=sid)
+        plan = ScenePlan.model_validate({**plan.model_dump(), "scene_id": sid, "index": index})  # re-run validators
+        problems = scene_end_problems(plan)
+        if not problems:
+            return plan
+        user += "\n\nYOUR PREVIOUS PLAN WAS REJECTED: " + "; ".join(problems) + ". Fix exactly that."
+    raise RuntimeError(f"{sid}: clip plan still breaks the scene-boundary rule: {problems}")
+
+
+def scene_end_problems(plan: ScenePlan) -> list[str]:
+    """Each scene renders as its own Manim Scene, so no object can cross a scene boundary."""
+    out = []
+    if plan.clips[0].entry.persistent_objects:
+        out.append(f"{plan.clips[0].clip_id} entry must be empty (scenes start on an empty frame)")
+    if plan.clips[-1].exit.persistent_objects:
+        out.append(f"{plan.clips[-1].clip_id} exit must be empty (scenes end with everything faded out)")
+    return out
 
 
 def verify_math(run: Path, brief: dict) -> None:
@@ -259,18 +325,23 @@ def cmd_voice(a) -> None:
     run = Path(a.run)
     brief = P.read_json(run / "brief.json")
     synth = None
-    for plan in scene_plans(run):
+    plans = scene_plans(run)
+    pairs = speech.case_pairs([c.narration for p in plans for c in p.clips])  # letters used as both M and m
+    for plan in plans:
         adir = run / "scenes" / plan.scene_id / "audio"
         adir.mkdir(exist_ok=True)
         idx = P.read_json(adir / "index.json") if (adir / "index.json").exists() else {}
         for c in plan.clips:
-            key, mp3 = sha(c.narration, brief["voice"], brief["engine"]), adir / f"clip_{c.index:02d}.mp3"
+            text = speech.speakable(c.narration, pairs)
+            key = sha(text, brief.get("tts", "polly"), brief["voice"], brief["engine"])
+            mp3 = adir / f"clip_{c.index:02d}.mp3"
             if idx.get(c.clip_id, {}).get("hash") == key and mp3.exists():
                 continue  # unchanged text → keep the audio
-            synth = synth or (P.kokoro_tts(brief["voice"]) if brief["engine"] == "kokoro"
-                              else P.polly_tts(brief["voice"], brief["engine"]))
-            mp3.write_bytes(synth(c.narration))
-            idx[c.clip_id] = {"hash": key, "seconds": round(P.probe_seconds(mp3), 2)}
+            synth = synth or P.tts_for(brief)
+            audio, marks = synth(text)
+            mp3.write_bytes(audio)
+            idx[c.clip_id] = {"hash": key, "seconds": round(P.probe_seconds(mp3), 2), "spoken": text,
+                              "beat_times": speech.phrase_times(marks, c.beats, pairs) if marks else None}
             print(f"{c.clip_id}: {idx[c.clip_id]['seconds']}s")
         P.write_json(adir / "index.json", idx)
     total = sum(v["seconds"] for p in scene_plans(run)
@@ -313,14 +384,14 @@ def build_scene(run: Path, plan: ScenePlan, redo: set[str]) -> list[str]:
     for c in plan.clips:
         mm = f"clip_{c.index:02d}"
         fb = feedback_for(run, plan.scene_id, c.clip_id)
-        key = sha(c.model_dump(), audio[c.clip_id]["seconds"], fb, prev, brief.get("font"), STYLE, CLIP_BUILDER_SYSTEM)
+        key = sha(c.model_dump(), audio[c.clip_id], plan.color_roles, fb, prev, brief.get("font"), CLIP_BUILDER_SYSTEM)
         done = load_state(run)["clips"].get(c.clip_id, {})
         final = sd / "clips" / f"{mm}.py"
         if done.get("status") == "READY" and done.get("key") == key and final.exists() and c.clip_id not in redo:
             rows.append(f"| {c.clip_id} | READY (unchanged) | 0 | |")
         else:
             notes_math = [f"{f['kind']}: \"{f['quote']}\" → {f['fix']}" for f in math if f["clip_id"] == c.clip_id]
-            result = build_clip(run, plan, c, mm, audio[c.clip_id]["seconds"], fb, notes_math, brief.get("font"))
+            result = build_clip(run, plan, c, mm, audio[c.clip_id], fb, notes_math, brief.get("font"))
             update_state(run, lambda s: s["clips"].__setitem__(c.clip_id, {
                 "status": result.status, "key": key if result.status == "READY" else None,
                 "notes": result.notes[:500], "open_findings": result.open_findings, "at": datetime.now().isoformat()}))
@@ -332,7 +403,7 @@ def build_scene(run: Path, plan: ScenePlan, redo: set[str]) -> list[str]:
     return rows
 
 
-def build_clip(run, plan, c, mm, seconds, fb, math_notes, font) -> ClipResult:
+def build_clip(run, plan, c, mm, audio: dict, fb, math_notes, font) -> ClipResult:
     sd = run / "scenes" / plan.scene_id
     w = sd / "work" / mm
     w.mkdir(parents=True, exist_ok=True)
@@ -344,24 +415,28 @@ def build_clip(run, plan, c, mm, seconds, fb, math_notes, font) -> ClipResult:
     if (sd / "clips" / f"{mm}.py").exists() and not (w / f"{mm}.py").exists():
         shutil.copy(sd / "clips" / f"{mm}.py", w)  # rebuild starts from the approved version
     task = {"clip": mm, "clip_id": c.clip_id, "scene_id": plan.scene_id, "class": "Scene" + plan.scene_id[1:],
-            "seconds": seconds, "entry": c.entry.persistent_objects, "exit": c.exit.persistent_objects,
+            "seconds": round(LEAD_IN + audio["seconds"] + HOLD, 2), "entry": c.entry.persistent_objects, "exit": c.exit.persistent_objects,
             "api_index": str(API_INDEX), "background": STYLE["background"]}
     P.write_json(w / "TASK.json", task)
-    beats = "\n".join(f"  {i}. {b}" for i, b in enumerate(c.beats, 1))
+    times = audio.get("beat_times") or [None] * len(c.beats)  # Polly word marks → when the voice says each phrase
+    beats = "\n".join(f"  {i}. {'' if at is None else f'@ {LEAD_IN + at:.1f}s  '}{b}"
+                      for i, (b, at) in enumerate(zip(c.beats, times), 1))
     md = (f"CLIP {c.clip_id}  (scene {plan.scene_id}, clip {c.index} of {len(plan.clips)})   "
-          f"FILE: {mm}.py   NARRATION_SECONDS: {seconds}\nOBJECTIVE: {c.objective}\n"
+          f"FILE: {mm}.py   NARRATION_SECONDS: {audio['seconds']}   CLIP_SECONDS: {task['seconds']} "
+          f"(voice from {LEAD_IN}s, hold {HOLD}s)\nOBJECTIVE: {c.objective}\n"
           f"NARRATION (exact):\n  {c.narration}\nVISUAL INTENT: {c.visual_intent}\nBEATS:\n{beats}\n"
           f"ON-SCREEN MATH (exact LaTeX): {json.dumps(c.on_screen_math)}\n"
           f"ENTRY (already on screen, in self.reg): {json.dumps(c.entry.model_dump())}\n"
           f"EXIT (must be in self.reg and on screen at the end): {json.dumps(c.exit.model_dump())}\n"
-          f"STYLE: {json.dumps(STYLE)}   FONT: {font or 'Manim default'}   ASPECT: 16:9\n"
+          f"SYMBOL COLORS: {json.dumps(plan.color_roles)}   FONT: {font or 'Manim default'}\n"
           f"MATH NOTES (verified): {'; '.join(math_notes) or 'none'}\nHUMAN_FEEDBACK:\n{feedback_text(fb)}\n"
           f"PREVIOUS ATTEMPT: {mm + '.py exists — start from it' if (w / f'{mm}.py').exists() else 'none'}\n")
     (w / "TASK.md").write_text(md)
-    topics = list(dict.fromkeys(ALWAYS_TOPICS + c.manim_topics))
+    topics = [x for x in dict.fromkeys(c.manim_topics) if x not in ALWAYS_TOPICS]  # always-on cards are in the system prompt
     cards = subprocess.run([P.PYTHON, str(TOOLS / "doc_cards.py"), "--index", str(API_INDEX), "--topics",
                             ",".join(topics), "--topics-dir", str(TOPICS_DIR)], capture_output=True, text=True)
-    (w / "API_CARDS.md").write_text(cards.stdout)
+    (w / "API_CARDS.md").write_text(cards.stdout if topics else "No extra topic cards for this clip — the always-on "
+                                    "cards are in your instructions. Check any other name with ./check doc Name.\n")
     (w / "check").write_text(f'#!/bin/sh\nexec "{P.PYTHON}" "{P.ROOT / "app" / "check.py"}" "$@"\n')
     (w / "check").chmod(0o755)
 
@@ -422,7 +497,8 @@ def cmd_final(a) -> None:
         {"clip_id": c.clip_id,
          "video": str(run / "scenes" / p.scene_id / next(s["path"] for s in renders[p.scene_id]["sections"]
                                                          if s["name"] == f"clip_{c.index:02d}")),
-         "audio": str(run / "scenes" / p.scene_id / "audio" / f"clip_{c.index:02d}.mp3")} for c in p.clips]}
+         "audio": str(run / "scenes" / p.scene_id / "audio" / f"clip_{c.index:02d}.mp3"),
+         "lead_in": LEAD_IN} for c in p.clips]}
         for p in plans]}
     P.write_json(run / "assembly.json", manifest)
     sys.path.insert(0, str(TOOLS))
@@ -445,6 +521,9 @@ def media_checks(path: Path) -> list[dict]:
     v = next((s for s in streams if s["codec_type"] == "video"), {})
     if (v.get("width"), v.get("height")) != (2560, 1440):
         out.append({"severity": "ERROR", "code": "RESOLUTION", "message": f"{v.get('width')}x{v.get('height')}"})
+    num, _, den = (v.get("avg_frame_rate") or "0/1").partition("/")
+    if float(num) / float(den or 1) < 59.5:
+        out.append({"severity": "ERROR", "code": "FRAME_RATE", "message": f"{v.get('avg_frame_rate')} fps (minimum 60)"})
     if not any(s["codec_type"] == "audio" for s in streams):
         out.append({"severity": "ERROR", "code": "NO_AUDIO", "message": "no audio stream"})
     log = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-af", "ebur128", "-vf",

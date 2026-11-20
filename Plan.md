@@ -8,6 +8,7 @@
 > M6 prompts → constants in `app/clips.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
 > M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
 > M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
+> v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see Plan.md §29.
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 
@@ -1256,3 +1257,94 @@ agent with source register and on-screen citations · multilingual narration (TT
 · shared, versioned helper library for recurring visuals · semantic search over Manim guides for free-form questions ·
 MCP server exposing the ledger to other tools (`skills/external/_reference-only` → mcp-builder) · learned routing:
 findings histogram → automatic proposals for new validator rules and topic cards.
+
+---
+
+## 29. Consistency, Explanation Style, Sync, Transitions and Speech [BUILT · v0.3–0.4]
+Requirements from the CCW-V01 review: (1) prompt caching and context reuse, (2) universal rules across the video,
+(3) ELI5/Feynman explanations, (4) narration synchronised with the picture, with pauses, (5) meaningful scene
+transitions, (6) SSML speech with correct symbols, abbreviations, units and case. Diagram: `diagrams/15-standards-sync-speech.mmd`.
+
+```mermaid
+flowchart LR
+    subgraph ONCE["Sent once per stage (static system prompt → prompt cache)"]
+        STD["VIDEO_STANDARDS<br/>palette roles · type scale · zones<br/>timing · narration convention"]
+        STY["EXPLANATION_STYLE<br/>ELI5 / Feynman"]
+        CARDS["always-on topic cards<br/>(clip agent only)"]
+    end
+    subgraph PER["Per call (user message)"]
+        SCN["scene + other-scene summaries<br/>SYMBOL COLORS SO FAR<br/>PREVIOUS SCENE FINAL IMAGE"]
+        TASK["TASK.md: narration · beats @ t<br/>CLIP_SECONDS · symbol colours · font"]
+    end
+    OUT["outline"] --> PLAN["clip planner"]
+    STD --> PLAN
+    STY --> OUT
+    STY --> PLAN
+    SCN --> PLAN
+    PLAN -->|"narration with `a` and [pause]"| SPK["speech.py<br/>symbols · units · abbreviations · M vs m"]
+    SPK -->|"SSML + breaks"| POL["AWS Polly<br/>word speech marks"]
+    SPK -->|"SSML + mark per word"| GOO["Google Cloud TTS<br/>timepoints"]
+    POL --> TIMES["beat start times"]
+    GOO --> TIMES
+    TIMES --> TASK
+    STD --> AG["clip agent"]
+    CARDS --> AG
+    TASK --> AG
+    AG --> CHK["./check: probe enforces<br/>lead-in + narration + hold"]
+    CHK --> FIN["final: audio delayed 0.3 s per clip<br/>scenes start/end empty"]
+```
+
+### 29.1 Context sent once (harness-style reuse)
+Every stage's system prompt is static and byte-identical across calls, so Claude Code's prompt cache writes it once and
+re-reads it cheaply; everything that varies goes in the user message.
+| Stage | Static system prompt (cached) | Per call (user message) |
+|---|---|---|
+| outline | approach prompt + `EXPLANATION_STYLE` | brief |
+| clip planner | rules + `VIDEO_STANDARDS` + `EXPLANATION_STYLE` | target scene, other-scene one-liners, symbol colours so far, previous scene's final image, feedback |
+| math verifier | rules + narration convention | all clips' narration + math |
+| clip agent | contract + loop + `VIDEO_STANDARDS` + always-on topic cards (clip-structure, timing-and-sync, positioning-layout) | `TASK.md` + clip-specific cards in `API_CARDS.md` |
+Identical non-agent calls are answered from `.cache/llm/` without a call. Measured on the scene agents: a second
+agent with an identical system prompt read ~42k tokens from cache and wrote ~3.5k (first: ~42k written).
+Not used: `--exclude-dynamic-system-prompt-sections` (made no measurable difference).
+
+### 29.2 Universal standards (`VIDEO_STANDARDS`, `app/clips.py`)
+Frame 2560×1440, 0.5-unit safe margin, one background (set by the harness). Palette roles: text WHITE · focus YELLOW ·
+given BLUE · derived GREEN · warning RED · secondary GREY_B. Type scale 48/34/28/24 (never smaller); MathTex 44/34.
+Zones: top_center (title or running formula) · center (diagram) · left/right halves (comparison) · bottom_center
+(one-line caption); ≤ 2 text blocks + 1 diagram on screen. Animation timings (Write/Create 0.8–1.5 s, fades
+0.4–0.6 s, Transform 0.8–1.2 s, ≥ 0.8 s hold after a key result). Each math symbol keeps one colour for the whole
+video: `ScenePlan.color_roles` is carried from scene to scene and the planner may only add new symbols.
+Enforced by code: background, font, resolution/fps, timing (probe), tiny text (probe WARN). By instruction only:
+colours, type sizes, zones.
+
+### 29.3 Explanation style (`EXPLANATION_STYLE`)
+Familiar thing first, then the name; one idea per sentence; every term defined where it first appears; concrete
+(picture, worked number) before abstract; show why, not only that; a one-line recap after each key step; talk to one
+curious person. Used by the outline and the clip planner. Not checked automatically (a critic dimension is a
+candidate once real runs show drift).
+
+### 29.4 Audio–visual synchronisation
+- Clip rhythm: the picture starts `LEAD_IN` = 0.3 s before the voice (assembly delays each clip's audio) and holds
+  ≥ `HOLD` = 0.8 s after it; the probe fails a clip shorter than lead-in + narration + hold (`CLIP_SECONDS`).
+- `[pause]` markers in narration become SSML breaks (600 ms); nothing animates during a pause.
+- Beat timing: Polly word speech marks / Google `<mark>` timepoints → `speech.phrase_times()` finds when each beat's
+  quoted phrase is spoken → `TASK.md` lists beats as `@ 2.4s …`; the agent lines animations up with `self.wait()`.
+Gap: no check verifies that a beat's animation actually starts at its time; frames are sampled every 2 s, not at beats.
+
+### 29.5 Scene transitions
+Each scene renders as its own Manim Scene, so objects cannot cross scene boundaries. Rule (enforced in `plan_scene`,
+a violating plan is sent back once): the first clip's entry and the last clip's exit are empty. Continuity is visual:
+the last clip's final beat leads into the outline's `transition_to_next` and fades the scene out; when the outline
+continues an idea, the next scene's first beat re-draws `PREVIOUS SCENE FINAL IMAGE` (same objects, colours, zones).
+Gap: scenes still cut (on an empty frame); an assembly crossfade is a candidate.
+
+### 29.6 Speech (`app/speech.py`, AWS Polly or Google Cloud TTS)
+Narration convention: math symbols in backticks (`` `a` ``, `` `M` ``, `` `v_1` ``, `` `θ` ``), `[pause]` for pauses.
+`speakable()` turns symbols into names (letters → "ay", "bee"…; Greek → "theta"; `r_1` → "ar 1"), a letter used in
+both cases anywhere in the video → "capital em" / "small em", math symbols → words (≈, ≠, ≤, ×, √, ², %…), units after
+numbers → words (km/h, m/s², °C, AU, Hz…), common abbreviations → words (e.g., i.e., etc.). Providers (chosen per
+video, `t2s new --tts polly|google`): Polly receives SSML (`<break>`) and returns word speech marks; Google receives
+SSML with a `<mark>` per word and returns timepoints (v1beta1). Both fall back to plain text for voices that reject
+SSML (then no word timings). Kokoro was removed. Gaps: fixed lists rather than a pronunciation lexicon / `<phoneme>`;
+"context-aware" relies on the planner marking symbols; not yet validated by listening on real runs.
+

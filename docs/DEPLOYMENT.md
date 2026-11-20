@@ -24,7 +24,13 @@ Install per https://code.claude.com/docs (native installer), then `claude --vers
 (≥ 2.1.259 for `--permission-prompts`, ≥ 2.1.248 for `--restricted`).
 Auth: `claude auth login --console` (API billing) or `claude setup-token` (subscription). Check: `claude auth status`.
 
-## 4. Configuration
+## 4. Voice provider credentials (one of them, chosen per video with `t2s new --tts polly|google`)
+- **AWS Polly** (default): `aws configure` (or `AWS_PROFILE`); the identity needs `polly:SynthesizeSpeech`.
+- **Google Cloud TTS**: enable the Text-to-Speech API in your project, then
+  `gcloud auth application-default login` (or `GOOGLE_APPLICATION_CREDENTIALS=/path/key.json`).
+`t2s new` checks the chosen provider's credentials before any Claude call.
+
+## 5. Configuration
 ```bash
 cp .env.example .env                                 # optional: T2S_PARALLEL, T2S_FPS, T2S_MODEL, TTS/voice
 uv run python tools/preflight.py                     # exit 0 = ready (t2s new runs it too)
@@ -32,17 +38,17 @@ uv run python tools/preflight.py                     # exit 0 = ready (t2s new r
 `app/sandbox.json` is the agents' sandbox (no network, writes only in the clip folder, secrets unreadable, fails
 closed). The Manim API index is built on first `t2s build` into `.cache/`.
 
-## 5. Verify the installation (no LLM calls, ~2 min)
+## 6. Verify the installation (no LLM calls, ~2 min)
 ```bash
 uv run pytest -q           # tools, contracts, topic cards, harness, assembly, and a fake-agent build → final run
 node tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm i mermaid@11 jsdom@24`)
 ```
 CI runs the same suite on every push (`.github/workflows/ci.yml`).
 
-## 6. Operating
+## 7. Operating
 Open Claude Code in the repo and ask "/make-short a 2-minute video about the Pythagorean theorem". The skill
 (`.claude/skills/make-short/`) drives `t2s` step by step and asks you at the four checkpoints.
 
-## 7. Docker
+## 8. Docker
 Not shipped. The agents depend on bubblewrap, which inside Docker needs unprivileged user namespaces; a container
 image only makes sense once the container itself is chosen as the isolation boundary.

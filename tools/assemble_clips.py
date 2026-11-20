@@ -31,7 +31,7 @@ def mux_clip(video: Path, audio: Path, out: Path, lead_in: float = 0.0, tail: fl
             f"[1:a]adelay={int(lead_in * 1000)}:all=1,apad[a]")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(video), "-i", str(audio), "-filter_complex", filt,
                     "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                    "-r", "30", "-c:a", "aac", "-ar", "48000", "-ac", "2", str(out)], check=True)
+                    "-c:a", "aac", "-ar", "48000", "-ac", "2", str(out)], check=True)
     return {"video_s": round(v, 3), "audio_s": round(au, 3), "out_s": round(probe(out), 3),
             "video_padded_s": round(max(0.0, total - v), 3), "audio_padded_s": round(max(0.0, total - a_total), 3)}
 

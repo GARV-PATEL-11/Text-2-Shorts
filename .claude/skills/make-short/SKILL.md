@@ -28,12 +28,14 @@ Ask in one AskUserQuestion call (skip what the user already said):
 - **Approach**: `zoom` Conceptual Zoom · `arc` Problem → Solution · `linear` Classic linear lesson.
 - **Audience / level**: curious beginners · students with high-school math · practitioners.
 - **Length**: 1 · 2 · 3 · 5 minutes.
-- **Voice** (Kokoro, local): af_heart (female, best) · af_bella · am_michael (male) · bm_george (British male).
-  Polly: Matthew/Joanna with `--engine neural`, Ruth/Stephen with `--engine generative`.
+- **Voice provider and voice** (both give SSML pauses + word timings that sync beats to speech):
+  AWS Polly (`--tts polly`, default; `--engine neural`): Matthew · Joanna · Ruth · Stephen (`--engine generative` for
+  Ruth/Stephen generative) · Google Cloud TTS (`--tts google`): en-US-Neural2-D (male) · en-US-Neural2-F (female) ·
+  en-US-Studio-O (female) · en-GB-Neural2-B (British male).
 - **Font** for on-screen text (MathTex keeps LaTeX fonts): Roboto · Noto Sans · DejaVu Sans · Latin Modern Roman
   (full list: `fc-list : family`); skip for Manim's default.
 ```
-uv run t2s new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --voice <v> [--font "<family>"] [--engine neural|generative] [--notes "<extra>"]
+uv run t2s new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --tts <polly|google> --voice <v> [--font "<family>"] [--engine neural|generative] [--notes "<extra>"]
 ```
 `new` runs a preflight first (LaTeX, ffmpeg, bubblewrap, Claude Code version) and stops with the fix if something is
 missing. Its first output line is the run folder.
@@ -52,8 +54,10 @@ Approve → `uv run t2s approve runs/<id> outline`.
 Ask: **Approve plan** · **Change clips**. Approve → `uv run t2s approve runs/<id> plan`.
 
 ## 4. Voice
-`uv run t2s voice runs/<id>` (foreground). Report the total narration seconds. The first Kokoro run downloads
-~350 MB (hash-checked). Polly errors → check `~/.aws` credentials/region.
+`uv run t2s voice runs/<id>` (foreground). Report the total narration seconds. Symbols, units, abbreviations and
+M-vs-m are spoken by name automatically (`app/speech.py`; `audio/index.json` shows the exact `spoken` text — check it
+if the user reports a mispronunciation). Polly errors → check `~/.aws` credentials/region; Google errors → `gcloud auth
+application-default login` and that the Text-to-Speech API is enabled in the project.
 
 ## 5. CP3 — Build and preview, per scene
 `uv run t2s build runs/<id>` (background; 4 scenes at a time, clips in order). Show the status table.
