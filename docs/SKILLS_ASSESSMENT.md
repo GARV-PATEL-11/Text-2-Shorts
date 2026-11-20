@@ -5,10 +5,10 @@
 **Question answered:** which Claude Skills are needed to *develop, operate and maintain* this system, which exist,
 which need customization, and which must be built.
 
-**Important constraint discovered:** every `claude -p` call the app makes — including the render agent — passes
-`--safe-mode` (it is in the base command of `pipeline.claude()`), and `--safe-mode` disables skills, CLAUDE.md, hooks
-and plugins (CLI reference).
-So skills serve the **operator session** and **developers**; the runtime agent receives its knowledge as an appended
+**Historical constraint (v0.2–0.4):** the app's per-stage subprocess calls ran in `--safe-mode`, which disables
+skills, CLAUDE.md, hooks and plugins — so skills could only serve the operator session and developers. Since v0.5
+(Plan.md §30) the run session itself uses the `env/` plugin's skills, subagents and hooks.
+Before v0.5, the runtime agent receives its knowledge as an appended
 prompt + generated API/topic cards instead. This is deliberate: runtime context must be minimal and version-exact.
 
 ## Summary
@@ -66,8 +66,8 @@ Use to draft/iterate the four custom skills and to run description-trigger evals
 ### 6. claude-api — REUSE AS-IS
 Directly relevant references: `shared/prompt-caching.md` (minimum cacheable prefix 512 tokens on current models,
 TTL economics), `shared/cost-optimization.md` (workflow `cost-optimize`), `shared/models.md` (ids, pricing),
-`shared/token-counting.md`, `shared/prompt-audit.md` (workflow `prompt-audit` — run it on `app/graph/prompts` in
-Phase 4). Note the skill itself instructs to verify live pricing/models before quoting.
+`shared/token-counting.md`, `shared/prompt-audit.md` (workflow `prompt-audit` — run it on `env/skills/t2s-produce/references` and
+`env/agents`). Note the skill itself instructs to verify live pricing/models before quoting.
 
 ### 7. manimce-best-practices — REUSE WITH CUSTOMIZATION
 Validated against 0.20.1 with our validator (results in its SOURCE.md). Customizations: version pin in description,

@@ -35,8 +35,8 @@ Auth: `claude auth login --console` (API billing) or `claude setup-token` (subsc
 cp .env.example .env                                 # optional: T2S_PARALLEL, T2S_FPS, T2S_MODEL, TTS/voice
 uv run python tools/preflight.py                     # exit 0 = ready (t2s new runs it too)
 ```
-`app/sandbox.json` is the agents' sandbox (no network, writes only in the clip folder, secrets unreadable, fails
-closed). The Manim API index is built on the first `t2s task` into `.cache/`.
+`env/settings.json` is the run session's sandbox and permissions (no network except `t2s voice`, secrets
+unreadable, fails closed). The Manim API index is built on the first `t2s task` into `~/.cache/t2s/`.
 
 ## 6. Verify the installation (no LLM calls, ~2 min)
 ```bash

@@ -82,8 +82,9 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
     plan = ScenePlan.model_validate({"scene_id": "s01", "index": 1, "title": "t", "objective": "o", "segment_type": "x",
                                      "clips": [clip(1, [], ["title"]), clip(2, ["title"], [])]})
     (sd / "plan.json").write_text(plan.model_dump_json())
-    P.write_json(sd / "audio" / "index.json", {"s01c01": {"hash": "h", "seconds": 2.0}, "s01c02": {"hash": "h", "seconds": 2.0}})
     P.write_json(run / "brief.json", {"font": None})
+    h = C.voice_key(run, "n")                                   # audio made from the current narration ("n")
+    P.write_json(sd / "audio" / "index.json", {"s01c01": {"hash": h, "seconds": 2.0}, "s01c02": {"hash": h, "seconds": 2.0}})
     C.ensure_api_index()
 
     def build(clip_id, code):  # what the clip-builder subagent does: write the file in the prepared work dir
@@ -120,3 +121,46 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
     report = json.loads((run / "final_report.json").read_text())
     assert not [f for f in report["checks"] if f["severity"] == "ERROR"], report["checks"]
     assert report["final_s"] >= 4.0
+
+
+def test_next_steps_tracks_missing_plans_stale_audio_and_stale_approvals(tmp_path):
+    import argparse
+    run = tmp_path
+    P.write_json(run / "brief.json", {"approach": "zoom", "minutes": 1, "tts": "polly", "voice": "Matthew",
+                                      "engine": "neural", "font": None})
+    P.write_json(run / "outline.json", outline(30, 30))
+    sd = run / "scenes" / "s01"
+    (sd / "audio").mkdir(parents=True)
+    plan = {"scene_id": "s01", "index": 1, "title": "t", "objective": "o", "segment_type": "x",
+            "clips": [clip(1, [], [])]}
+    (sd / "plan.json").write_text(json.dumps(plan))
+    assert any(s.startswith("s02") for s in C.next_steps(run))                     # outline has 2 scenes, 1 plan
+
+    P.write_json(sd / "audio" / "index.json", {"s01c01": {"hash": C.voice_key(run, "n"), "seconds": 2.0}})
+    assert not any("audio" in s for s in C.next_steps(run))
+    (sd / "plan.json").write_text(json.dumps({**plan, "clips": [{**clip(1, [], []), "narration": "new words"}]}))
+    assert any("s01" in s and "audio" in s for s in C.next_steps(run))              # narration edited → voice
+
+    (sd / "plan.json").write_text(json.dumps(plan))
+    C.update_state(run, lambda s: s["clips"].__setitem__("s01c01", {"status": "READY",
+                   "key": C.clip_key(run, C.ScenePlan.model_validate(plan), C.ScenePlan.model_validate(plan).clips[0])}))
+    C.cmd_approve(argparse.Namespace(run=str(run), target="s01", force=False))
+    assert not any("CP3" in s and "s01" in s for s in C.next_steps(run))
+    C.add_feedback(run, "s01c01", "visual", "bigger")                                # clip stale → approval stale
+    steps = C.next_steps(run)
+    assert any("build s01c01" in s for s in steps) and any("CP3" in s and "s01" in s for s in steps)
+
+
+def test_approve_refuses_unfinished_checkpoints(tmp_path):
+    import argparse
+    run = tmp_path
+    P.write_json(run / "brief.json", {"approach": "zoom", "minutes": 1})
+    approve = lambda target, force=False: C.cmd_approve(argparse.Namespace(run=str(run), target=target, force=force))  # noqa: E731
+    with pytest.raises(SystemExit, match="outline"):
+        approve("outline")                                                            # no outline.json
+    with pytest.raises(SystemExit, match="math"):
+        approve("plan")                                                               # no plans / math review
+    with pytest.raises(SystemExit, match="s01"):
+        approve("s01")                                                                # clips not READY
+    approve("outline", force=True)
+    assert "outline" in C.load_state(run)["approved"]

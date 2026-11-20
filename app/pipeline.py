@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -89,16 +90,27 @@ def provision(run: Path, brief: dict, env_report: dict) -> None:
 
 
 def jail_cmd(run: Path, command: list[str]) -> list[str]:
-    """bwrap argv: everything read-only, the run folder and Claude Code's own state/caches writable, a private
-    throwaway $HOME (tool dirs on PATH and TTS credentials mounted back read-only), network kept for the API."""
+    """bwrap argv for one run session: system and repo read-only (the repo's .env blanked), only the run folder plus
+    Claude Code's own state/caches writable, a private throwaway $HOME into which exactly the PATH folders, the
+    install roots of claude and python, and the TTS credentials are mounted back read-only; own PID/IPC namespace;
+    network kept for the API."""
     home = Path.home()
-    tool_dirs = {home / Path(d).relative_to(home).parts[0] for d in os.environ.get("PATH", "").split(":")
-                 if d.startswith(f"{home}/") and Path(d).exists()}
+    under = lambda p, d: p == d or d in p.parents  # noqa: E731
+    mounts = {Path(d) for d in os.environ.get("PATH", "").split(":")
+              if d.startswith(f"{home}/") and Path(d).is_dir() and not under(Path(d), ROOT)}
+    claude = Path(shutil.which("claude") or "/").resolve()
+    mounts |= {claude.parents[1] if len(claude.parents) > 1 else claude, Path(sys.base_prefix)}
+    mounts |= {home / ".aws", home / ".config" / "gcloud"}
+    if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+        mounts.add(Path(os.environ["GOOGLE_APPLICATION_CREDENTIALS"]))
     argv = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
-            "--tmpfs", str(home)]
-    for d in sorted(tool_dirs | {home / ".aws", home / ".config" / "gcloud"}):
+            "--tmpfs", str(home), "--unshare-pid", "--unshare-ipc"]
+    for d in sorted(m for m in mounts if under(m, home)):
         argv += ["--ro-bind-try", str(d), str(d)]
-    argv += ["--ro-bind", str(ROOT), str(ROOT), "--bind", str(run), str(run)]
+    argv += ["--ro-bind", str(ROOT), str(ROOT)]
+    if (ROOT / ".env").exists():
+        argv += ["--ro-bind", "/dev/null", str(ROOT / ".env")]  # repo secrets stay outside the session
+    argv += ["--bind", str(run), str(run)]
     for d in (home / ".claude", home / ".cache"):
         d.mkdir(exist_ok=True)
         argv += ["--bind", str(d), str(d)]

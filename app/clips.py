@@ -15,13 +15,15 @@ clip-builder prompt), so `t2s status` lists exactly what a change made stale.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
-import threading
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -38,12 +40,11 @@ from schemas.models import ScenePlan
 MANIM = "0.20.1"  # pinned in pyproject.toml
 TOOLS = P.ROOT / "tools"
 TOPICS_DIR = P.ROOT / "env" / "skills" / "manim-ce-0-20-1-reference" / "topics"
-API_INDEX = P.ROOT / ".cache" / f"manim_api_{MANIM}.json"
+API_INDEX = Path.home() / ".cache" / "t2s" / f"manim_api_{MANIM}.json"  # writable inside the run jail
 ALWAYS_TOPICS = ["clip-structure", "timing-and-sync", "positioning-layout"]
 STYLE = {"background": "#0e2733", "text": "WHITE", "focus": "YELLOW", "given": "BLUE", "derived": "GREEN",
          "warning": "RED", "secondary": "GREY_B"}
 LEAD_IN, HOLD = 0.3, 0.8  # seconds of picture before the voice starts / after it ends, in every clip
-_lock = threading.Lock()  # state.json / feedback.jsonl writers
 
 
 class MathFinding(BaseModel):
@@ -70,14 +71,22 @@ def load_state(run: Path) -> dict:
     return json.loads(f.read_text()) if f.exists() else {"approved": {}, "clips": {}}
 
 
+@contextmanager
+def run_lock(run: Path):
+    """Exclusive lock across processes (parallel `t2s accept`, hooks, approvals all write the ledger)."""
+    with open(run / ".ledger.lock", "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        yield
+
+
 def update_state(run: Path, fn) -> dict:
-    """Read-modify-write under a lock, written atomically (a crash never leaves a half-written state.json)."""
-    with _lock:
+    """Read-modify-write under the run lock, written atomically (a crash never leaves a half-written state.json)."""
+    with run_lock(run):
         st = load_state(run)
         fn(st)
-        tmp = run / "state.json.tmp"
-        tmp.write_text(json.dumps(st, indent=1))
-        os.replace(tmp, run / "state.json")
+        with tempfile.NamedTemporaryFile("w", dir=run, delete=False, suffix=".tmp") as tmp:
+            tmp.write(json.dumps(st, indent=1))
+        os.replace(tmp.name, run / "state.json")
         return st
 
 
@@ -96,7 +105,14 @@ def sid_of(n: int) -> str:
 
 
 def scene_plans(run: Path) -> list[ScenePlan]:
-    return [ScenePlan.model_validate_json(p.read_text()) for p in sorted((run / "scenes").glob("s[0-9][0-9]/plan.json"))]
+    """The valid scene plans, in order. An invalid plan.json is skipped here; next_steps reports it."""
+    out = []
+    for p in sorted((run / "scenes").glob("s[0-9][0-9]/plan.json")):
+        try:
+            out.append(ScenePlan.model_validate_json(p.read_text()))
+        except ValueError:
+            continue
+    return out
 
 
 def save_versioned(path: Path, text: str) -> bool:
@@ -122,6 +138,23 @@ def scene_end_problems(plan: ScenePlan) -> list[str]:
     return out
 
 
+def voice_key(run: Path, spoken: str) -> str:
+    b = P.read_json(run / "brief.json")
+    return sha(spoken, b.get("tts", "polly"), b.get("voice"), b.get("engine"))
+
+
+def stale_audio(run: Path, plans: list[ScenePlan]) -> set[str]:
+    """Clips whose audio is missing or was made from different narration text/voice."""
+    pairs = speech.case_pairs([c.narration for p in plans for c in p.clips])
+    out = set()
+    for p in plans:
+        f = run / "scenes" / p.scene_id / "audio" / "index.json"
+        idx = P.read_json(f) if f.exists() else {}
+        out |= {c.clip_id for c in p.clips
+                if idx.get(c.clip_id, {}).get("hash") != voice_key(run, speech.speakable(c.narration, pairs))}
+    return out
+
+
 # ── voice: one narration file per clip (audio first: timings come from the real audio) ─────────────────────────
 
 def cmd_voice(a) -> None:
@@ -136,7 +169,7 @@ def cmd_voice(a) -> None:
         idx = P.read_json(adir / "index.json") if (adir / "index.json").exists() else {}
         for c in plan.clips:
             text = speech.speakable(c.narration, pairs)
-            key = sha(text, brief.get("tts", "polly"), brief["voice"], brief["engine"])
+            key = voice_key(run, text)
             mp3 = adir / f"clip_{c.index:02d}.mp3"
             if idx.get(c.clip_id, {}).get("hash") == key and mp3.exists():
                 continue  # unchanged text → keep the audio
@@ -222,7 +255,8 @@ def clip_key(run: Path, plan: ScenePlan, c) -> str:
     """Everything a clip's code depends on; the previous clip's installed code makes changes cascade in order."""
     sd = run / "scenes" / plan.scene_id
     prev = sd / "clips" / f"clip_{c.index - 1:02d}.py"
-    return sha(c.model_dump(), P.read_json(sd / "audio" / "index.json").get(c.clip_id), plan.color_roles,
+    idx = sd / "audio" / "index.json"
+    return sha(c.model_dump(), P.read_json(idx).get(c.clip_id) if idx.exists() else None, plan.color_roles,
                feedback_for(run, plan.scene_id, c.clip_id), prev.read_text() if c.index > 1 and prev.exists() else "",
                P.read_json(run / "brief.json").get("font"), AGENT_FILE.read_text() if AGENT_FILE.exists() else "")
 
@@ -297,32 +331,53 @@ def accept_clip(run: Path, clip_id: str) -> dict:
     return result
 
 
+def fingerprint(run: Path, plans: list[ScenePlan]) -> str:
+    """The clip keys of these scenes: changes whenever any clip they contain would be rebuilt."""
+    return sha([clip_key(run, p, c) for p in plans for c in p.clips])
+
+
+def approved_current(st: dict, target: str, fp: str) -> bool:
+    a = st["approved"].get(target)
+    return isinstance(a, dict) and a.get("fingerprint") == fp
+
+
 def next_steps(run: Path) -> list[str]:
-    """What is left to do, in order — the resume point after any interruption."""
+    """What is left to do, in order — the resume point after any interruption. Approvals and the final render are
+    compared with the current clip keys, so anything rebuilt since is asked again."""
     st, steps = load_state(run), []
-    if (run / "brief.json").exists() and P.read_json(run / "brief.json").get("approach"):
-        steps += [f"outline: {e}" for e in validate_outline(run)]
+    brief = P.read_json(run / "brief.json") if (run / "brief.json").exists() else {}
+    n_scenes = 0
+    if brief.get("approach"):
+        outline_errors = validate_outline(run)
+        steps += [f"outline: {e}" for e in outline_errors]
+        if not outline_errors:
+            n_scenes = len(P.read_json(run / "outline.json")["outline"])
         if "outline" not in st["approved"]:
             steps.append("CP1: approve the outline (t2s approve <run> outline)")
+    sids = sorted({f"s{i:02d}" for i in range(1, n_scenes + 1)} |
+                  {p.parent.name for p in (run / "scenes").glob("s[0-9][0-9]/plan.json")})
+    for sid in sids:
+        steps += [f"{sid} plan: {e}" for e in validate_plan(run, sid)]
     plans = scene_plans(run)
-    for p in plans:
-        steps += [f"{p.scene_id} plan: {e}" for e in validate_plan(run, p.scene_id)]
     if plans and "plan" not in st["approved"]:
         steps.append("CP2: math review + approve the clip plan (t2s approve <run> plan)")
+    if stale := stale_audio(run, plans):
+        steps.append(f"narration audio missing or outdated for {', '.join(sorted(stale))} (t2s voice <run>)")
     for p in plans:
-        idx = run / "scenes" / p.scene_id / "audio" / "index.json"
-        if not idx.exists() or set(P.read_json(idx)) != {c.clip_id for c in p.clips}:
-            steps.append(f"{p.scene_id}: narration audio missing (t2s voice <run>)")
+        if any(c.clip_id in stale for c in p.clips):
             continue
-        stale = next((c.clip_id for c in p.clips if st["clips"].get(c.clip_id, {}).get("key") != clip_key(run, p, c)), None)
-        if stale:
-            steps.append(f"build {stale} (t2s task → clip-builder → t2s accept), then the rest of {p.scene_id}")
-        elif f"scene:{p.scene_id}" not in st["approved"]:
+        todo = next((c.clip_id for c in p.clips if st["clips"].get(c.clip_id, {}).get("key") != clip_key(run, p, c)), None)
+        if todo:
+            steps.append(f"build {todo} (t2s task → clip-builder → t2s accept), then the rest of {p.scene_id}")
+        if not approved_current(st, f"scene:{p.scene_id}", fingerprint(run, [p])):
             steps.append(f"CP3: preview and approve {p.scene_id}")
-    if plans and not (run / "final.mp4").exists():
-        steps.append("t2s final <run>")
-    elif plans and "final" not in st["approved"]:
-        steps.append("CP4: approve the final video")
+    if plans:
+        fp = fingerprint(run, plans)
+        report = P.read_json(run / "final_report.json") if (run / "final_report.json").exists() else {}
+        if not (run / "final.mp4").exists() or report.get("fingerprint") != fp:
+            steps.append("t2s final <run>")
+        elif not approved_current(st, "final", fp):
+            steps.append("CP4: approve the final video")
     return steps
 
 
@@ -371,6 +426,7 @@ def cmd_final(a) -> None:
     from assemble_clips import assemble  # noqa: E402  (tools/ is a script folder, not a package)
     report = assemble(manifest, run / "final.mp4", run / "assembly_work")
     report["checks"] = media_checks(run / "final.mp4")
+    report["fingerprint"] = fingerprint(run, plans)  # next_steps marks the video stale when any clip changes
     P.write_json(run / "final_report.json", report)
     print(f"{run / 'final.mp4'}\nduration: {report['final_s']}s · clips: {len(report['clips'])}")
     for f in report["checks"]:
@@ -404,28 +460,54 @@ def media_checks(path: Path) -> list[dict]:
 # ── checkpoints: approve / feedback / status ────────────────────────────────────────────────────────────────────
 
 def add_feedback(run: Path, target: str, scope: str, text: str) -> None:
-    with _lock, (run / "feedback.jsonl").open("a") as fh:
+    with run_lock(run), (run / "feedback.jsonl").open("a") as fh:
         fh.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "target": target, "scope": scope,
                              "text": text}) + "\n")
 
 
 def cmd_feedback(a) -> None:
     add_feedback(Path(a.run), a.target, a.scope, a.text)
-    print(f"feedback recorded for {a.target} ({a.scope}). Re-run "
-          f"{'clips' if a.scope in ('narration', 'math', 'plan') else 'build'} to apply it.")
+    print(f"feedback recorded for {a.target} ({a.scope}). Apply it: "
+          + ("edit the plan, then t2s validate and t2s voice" if a.scope in ("narration", "math", "plan")
+             else "t2s task → clip-builder → t2s accept for that clip") + "; t2s status lists what is now stale.")
+
+
+def approval_problems(run: Path, target: str) -> list[str]:
+    plans = scene_plans(run)
+    if target == "outline":
+        return validate_outline(run)
+    if target == "plan":
+        n = len(P.read_json(run / "outline.json")["outline"]) if not validate_outline(run) else 0
+        out = [f"s{i:02d}: {e}" for i in range(1, n + 1) for e in validate_plan(run, f"s{i:02d}")]
+        out += [f"math review: {e}" for e in validate_math(run)]
+        if (run / "math.json").exists() and not validate_math(run):
+            errs = [f for f in P.read_json(run / "math.json")["findings"] if f["severity"] == "ERROR"]
+            out += [f"math ERROR in {f['clip_id']}: {f['why']}" for f in errs]
+        return out or ([] if plans else ["no scene plans yet"])
+    if target == "final":
+        report = P.read_json(run / "final_report.json") if (run / "final_report.json").exists() else {}
+        return [] if report.get("fingerprint") == fingerprint(run, plans) else ["final.mp4 is missing or out of date"]
+    sid = target.removeprefix("scene:")
+    plan = next((p for p in plans if p.scene_id == sid), None)
+    if plan is None:
+        return [f"{sid}: no valid plan"]
+    st = load_state(run)["clips"]
+    return [f"{sid}: {c.clip_id} is not built from its current inputs" for c in plan.clips
+            if st.get(c.clip_id, {}).get("key") != clip_key(run, plan, c)]
 
 
 def cmd_approve(a) -> None:
     run = Path(a.run)
     target = a.target if a.target in ("outline", "plan", "final") else f"scene:{a.target}"
-    if target == "plan" and not a.force:
-        errors = [f for f in P.read_json(run / "math.json")["findings"] if f["severity"] == "ERROR"] \
-            if (run / "math.json").exists() else []
-        if errors:
-            sys.exit(f"{len(errors)} math ERROR finding(s) open — fix via `feedback <run> sNNcMM --scope math` "
-                     f"and re-run clips, or approve with --force to accept them.")
-    update_state(run, lambda s: s["approved"].__setitem__(target, datetime.now().isoformat(timespec="seconds")))
-    print(f"approved {target}")
+    problems = approval_problems(run, target)
+    if problems and not a.force:
+        sys.exit(f"cannot approve {target} yet:\n" + "\n".join(f"  - {x}" for x in problems)
+                 + "\n(use --force only if the user explicitly accepts these)")
+    plans = scene_plans(run)
+    scope = plans if target == "final" else [p for p in plans if f"scene:{p.scene_id}" == target]
+    entry = {"at": datetime.now().isoformat(timespec="seconds"), "fingerprint": fingerprint(run, scope) if scope else None}
+    update_state(run, lambda s: s["approved"].__setitem__(target, entry))
+    print(f"approved {target}" + (" (forced)" if problems else ""))
 
 
 def status_text(run: Path) -> str:
@@ -478,23 +560,36 @@ def cmd_report(a) -> None:
           f"cache read {t['cache_read']}, cache write {t['cache_write']}{cached}) · output {t['output']} tokens")
 
 
+def find_run(*starts) -> Path | None:
+    """The run folder (the one holding brief.json) at or above any of the given paths."""
+    for s in filter(None, starts):
+        p = Path(s).resolve()
+        found = next((d for d in [p, *p.parents] if (d / "brief.json").exists()), None)
+        if found:
+            return found
+    return None
+
+
 def cmd_hook(a) -> None:
     """Claude Code hooks (env/hooks/hooks.json): SessionStart → record transcript + print status into context;
     PostToolUse → log the tool call; validate outline/plan/math files right after they are written (exit 2 feeds the
     errors back to Claude)."""
-    ev = json.load(sys.stdin)
-    run = Path(ev.get("cwd") or ".")
-    if not (run / "brief.json").exists():
-        return  # not a run workspace
+    try:
+        ev = json.load(sys.stdin)
+    except json.JSONDecodeError:
+        return
+    ti = ev.get("tool_input") or {}
+    run = find_run(ev.get("cwd"), ti.get("file_path"))
+    if run is None:
+        return  # not inside a run workspace
     if ev.get("hook_event_name") == "SessionStart":
         tp = ev.get("transcript_path")
         if tp:
             update_state(run, lambda s: s.setdefault("sessions", []).count(tp) or s["sessions"].append(tp))
         print(f"Text-2-Shorts run {run.name}\n{status_text(run)}")
     elif ev.get("hook_event_name") == "PostToolUse":
-        ti = ev.get("tool_input") or {}
         detail = ti.get("file_path") or ti.get("command") or ti.get("description") or ""
-        with _lock, (run / "log.jsonl").open("a") as fh:
+        with run_lock(run), (run / "log.jsonl").open("a") as fh:
             fh.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "event": "tool",
                                  "tool": ev.get("tool_name"), "detail": str(detail)[:300]}) + "\n")
         f = Path(ti.get("file_path") or "")

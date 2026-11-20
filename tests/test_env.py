@@ -122,8 +122,73 @@ def test_hooks_config_only_calls_real_commands():
 
 def test_docs_have_no_stale_commands():
     root = ENV.parent
-    docs = [root / "README.md", root / "docs" / "DEPLOYMENT.md", root / ".env.example",
+    docs = [root / "README.md", root / "docs" / "DEPLOYMENT.md", root / ".env.example", root / "tools" / "README.md",
+            root / "docs" / "SKILLS_ASSESSMENT.md", root / "app" / "clips.py", root / "app" / "pipeline.py",
             *root.glob(".claude/skills/*/SKILL.md"), *ENV.glob("skills/*/SKILL.md")]
-    stale = re.compile(r"t2s (clips|build|outline)\b|claude -p|app/graph/prompts|CLIP_BUILDER_SYSTEM|STAGES")
+    stale = re.compile(r"t2s (clips|build|outline)\b|re-run (clips|build)|claude -p|app/graph/prompts|"
+                       r"app/sandbox\.json|CLIP_BUILDER_SYSTEM|STAGES")
     hits = [f"{d.relative_to(root)}: {m[0]}" for d in docs for m in stale.finditer(d.read_text())]
     assert not hits, hits
+
+
+# ── final-review fixes ────────────────────────────────────────────────────────
+
+def jail_sh(tmp_path, script):
+    import shutil, subprocess
+    import pytest
+    from app import pipeline as P
+    if not (shutil.which("bwrap") and subprocess.run(["bwrap", "--ro-bind", "/", "/", "true"]).returncode == 0):
+        pytest.skip("needs a working bubblewrap")
+    run = tmp_path / "run"
+    run.mkdir(exist_ok=True)
+    return subprocess.run(P.jail_cmd(run, ["sh", "-c", script]), capture_output=True, text=True)
+
+
+def test_jail_hides_the_rest_of_home_host_processes_and_repo_env(tmp_path):
+    from app import pipeline as P
+    siblings = [p.name for p in P.ROOT.parent.iterdir()]
+    out = jail_sh(tmp_path, f"ls -A '{P.ROOT.parent}'; echo ---; test -e ~/.ssh && echo SSH; "
+                            f"ls /proc | grep -c '^[0-9]'; cat '{P.ROOT}/.env' 2>/dev/null | wc -c")
+    listing, rest = out.stdout.split("---\n")
+    assert listing.split() == [P.ROOT.name] or len(siblings) == 1     # other projects are not mounted
+    lines = rest.split()
+    assert "SSH" not in lines
+    assert int(lines[0]) < 10                                          # own PID namespace
+    assert lines[1] == "0"                                             # the repo's .env is blanked
+
+
+def test_api_index_lives_outside_the_read_only_repo():
+    from app import clips as C, pipeline as P
+    assert P.ROOT not in C.API_INDEX.parents and Path.home() / ".cache" in C.API_INDEX.parents
+
+
+def test_hook_finds_the_run_from_a_subfolder(tmp_path):
+    from app import pipeline as P
+    run = tmp_path / "run"
+    P.provision(run, {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
+    (run / "scenes" / "s01").mkdir(parents=True)
+    (run / "scenes" / "s01" / "plan.json").write_text("{}")
+    r = run_hook({"hook_event_name": "PostToolUse", "cwd": str(run / "scenes" / "s01"), "tool_name": "Write",
+                  "tool_input": {"file_path": str(run / "scenes" / "s01" / "plan.json")}})
+    assert r.returncode == 2 and (run / "log.jsonl").exists()
+
+
+def test_status_survives_a_malformed_plan(tmp_path):
+    from app import clips as C, pipeline as P
+    P.provision(tmp_path / "r", {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
+    (tmp_path / "r" / "scenes" / "s01").mkdir(parents=True)
+    (tmp_path / "r" / "scenes" / "s01" / "plan.json").write_text('{"scene_id": "s01"}')
+    assert any("s01 plan:" in s for s in C.next_steps(tmp_path / "r"))
+    assert "next:" in C.status_text(tmp_path / "r")
+
+
+def test_state_updates_are_safe_across_processes(tmp_path):
+    import subprocess, sys
+    code = ("import sys; from pathlib import Path; from app import clips as C\n"
+            "for k in range(20): C.update_state(Path(sys.argv[1]), "
+            "lambda s: s['clips'].__setitem__(f'{sys.argv[2]}-{k}', {'status': 'READY'}))")
+    procs = [subprocess.Popen([sys.executable, "-c", code, str(tmp_path), f"p{i}"], cwd=ENV.parent,
+                              stderr=subprocess.DEVNULL) for i in range(16)]
+    codes = [p.wait() for p in procs]
+    from app import pipeline as P
+    assert codes == [0] * 16 and len(P.read_json(tmp_path / "state.json")["clips"]) == 320

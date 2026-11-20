@@ -4,7 +4,7 @@
 > M2 runner → `pipeline.claude()` (LLM result cache, rate/usage-limit waits, start/end log rows) ·
 > M3 ledger → `state.json` + `feedback.jsonl` + versioned `plan.json` (`app/clips.py`) ·
 > M4 invalidation → content-hash keys (a clip's key includes the previous clip's code, so changes cascade in order) ·
-> M5 steps + checkpoints → `t2s clips | voice | build | final | approve | feedback | status` ·
+> M5 steps + checkpoints → `t2s voice | final | approve | feedback | status` (v0.5: + validate, task, accept) ·
 > M6 prompts → constants in `app/clips.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
 > M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
 > M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
@@ -30,7 +30,7 @@ def load_settings(root: Path) -> Settings      # Settings: stages: dict[str, Sta
 Env overrides: `T2S_MODEL` (all LLM stages), `T2S_FPS`. **Tests:** yaml parse; override precedence.
 
 ## M2 `app/llm/runner.py` [PROPOSED — extracted from `pipeline.claude()` EXISTS]
-**Responsibility:** the only place that launches `claude -p`; classification, retries, logging, artifact cache.
+**Responsibility (removed in v0.5, Plan.md §30):** was the only place that launched Claude subprocesses; classification, retries, logging, artifact cache.
 ```python
 class LLMError(Exception): error_class: Literal["AUTH","CLI","RATE_LIMIT","OVERLOADED","TIMEOUT","SCHEMA_INVALID",
                                                "AGENT_LIMIT","UNKNOWN"]
