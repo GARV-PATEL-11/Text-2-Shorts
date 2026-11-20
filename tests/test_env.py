@@ -210,3 +210,10 @@ def test_every_skill_and_agent_meets_the_standard():
         assert desc.startswith("Use when") and len(desc) <= 500, f"{f}: {desc[:60]}"
         body = f.read_text().split("---", 2)[2]
         assert len(body.split()) <= 650, f"{f}: {len(body.split())} words"
+
+
+def test_env_is_not_gitignored():
+    import subprocess
+    files = [str(f.relative_to(ENV.parent)) for f in ENV.rglob("*") if f.is_file() and "__pycache__" not in f.parts]
+    ignored = subprocess.run(["git", "check-ignore", *files], cwd=ENV.parent, capture_output=True, text=True).stdout
+    assert not ignored.strip(), f"git ignores parts of the environment:\n{ignored}"

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": ["Bash(t2s:*)", "Bash(./check:*)", "Bash(ls:*)", "Bash(ffprobe:*)", "Bash(ffmpeg:*)"],
+    "deny": ["Read(~/.aws/**)", "Read(~/.ssh/**)", "Read(~/.config/gcloud/**)", "Read(~/.netrc)", "Read(**/.env)"]
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": false,
+    "failIfUnavailable": true,
+    "excludedCommands": ["t2s voice", "t2s accept", "t2s final"],
+    "filesystem": {
+      "allowWrite": ["~/.cache/manim", "~/.cache/fontconfig"],
+      "denyRead": ["~/.aws", "~/.ssh", "~/.config/gcloud", "~/.netrc", "./.env"]
+    },
+    "network": { "allowedDomains": [] }
+  }
+}
