@@ -40,9 +40,10 @@ Ask: **Approve** · **Change something** (they type what). On change:
 `... plan runs/<id>` (background). Show the table. For each scene, add one line of your own summarising what will be on screen (read `runs/<id>/scenes/NNN/plan.md`, skim only the overview section).
 Ask: **Approve all** · **Change scenes** (they say which scenes and what). On change:
 `... plan runs/<id> --scenes 2,4 --feedback "<their words>"` (one call per distinct feedback), then ask again.
+Scores below 8, or plans that need another critic pass: `... plan runs/<id> --refine [--rounds 4] [--scenes …]`. This critiques and revises the existing `plan.md` without regenerating it. A scene whose plan is already at 8 or above is only scored. Old versions stay as `plan.vN.md`, and the critic history is in `plan_review.json`. If a plan step fails (for example on a usage limit), re-run the same `--refine` command; it resumes from the latest rewrite.
 
 ## 5. Render — CHECKPOINT only if something failed
-`... render runs/<id>` (background; can take 10–30 min). Show the status table.
+`... render runs/<id>` (background; can take 10–30 min). Show the status table. Scenes run 4 at a time (`T2S_PARALLEL`, default 4); use `T2S_PARALLEL=2 …` if usage limits are tight. A usage-limit failure shows as FAILED with "hit your … limit". Re-run just those scenes once the limit resets.
 For each FAILED scene ask: **Retry with a hint** (they type it) · **Simplify** · **Skip scene**.
 - Retry: `... render runs/<id> --scenes N --feedback "<hint>"`
 - Simplify: `... render runs/<id> --scenes N --feedback "Simplify: fewer objects, no LaTeX-heavy constructs, plain Text and basic shapes; keep the narration sync."`
@@ -52,7 +53,7 @@ For each FAILED scene ask: **Retry with a hint** (they type it) · **Simplify** 
 `uv run python -m app.pipeline assemble runs/<id>`. Then present:
 - the final path (clickable `runs/<id>/final.mp4`), duration, scene count, total Claude cost (printed);
 - Read each `runs/<id>/scenes/NNN/thumb.png` and give one line per scene on what it shows and anything that looks off;
-- open it: `xdg-open runs/<id>/final.mp4`.
+- open it in Chrome (the default video player doesn't show up): `google-chrome "file://$PWD/runs/<id>/final.mp4"`, and also print that `file://` URL (spaces as `%20`) so the user can paste it.
 
 Ask: **Looks good** · **Redo scenes** (which + what to change).
 Redo → visual change only: `render --scenes N --feedback ...`; layout/content change: `plan --scenes N --feedback ...` then `render --scenes N`. Then assemble and present again. Loop until "Looks good".

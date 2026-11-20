@@ -19,5 +19,4 @@ A prompt edit is a code change with a blast radius: it invalidates cached artifa
 5. **Run the evals**: `pytest tests/` (contracts, tools) and the golden-topic regression set (Plan.md §22.4) for any
    stage whose prompt changed; compare first-pass gate success, tokens per clip and cost per clip against the
    baseline in `reports/baseline.json`. Do not merge a change that raises cost >10% without a quality gain.
-6. For cost work, the vendored `claude-api` skill (`skills/external/claude-api`, workflow `cost-optimize` and
-   `shared/prompt-caching.md`) is the reference for caching rules and pricing — check live pricing before quoting.
+6. For cost work, the built-in `claude-api` skill (its `cost-optimize` workflow and prompt-caching guide) is the reference for caching rules and pricing — check live pricing before quoting.

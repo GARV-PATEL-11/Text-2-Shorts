@@ -6,63 +6,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 
 dependencies = [
-    "boto3==1.43.38",
+    "manim==0.20.1",          # pinned: API index, topic cards and critic allowlist are version-specific
     "pydantic>=2.13.4",
-    "pyrefly>=0.60.0",
     "python-dotenv>=1.0",
-    "typing-extensions>=4.15.0",
-    "av==17.1.0",
-    "beautifulsoup4==4.15.0",
-    "cloup==3.1.0",
-    "decorator==5.3.1",
-    "glcontext==3.0.0",
-    "isosurfaces==0.1.2",
-    "manim==0.20.1",
-    "manimpango==0.6.1",
-    "mapbox-earcut==2.0.0",
-    "markdown-it-py==4.2.0",
-    "mdurl==0.1.2",
-    "moderngl==5.12.0",
-    "moderngl-window==3.1.1",
-    "networkx==3.6.1",
-    "pycairo==1.29.0",
-    "pydub==0.25.1",
-    "pyglet==2.1.15",
-    "pyglm==2.8.3",
-    "pygments==2.20.0",
-    "rich==15.0.0",
-    "scipy==1.18.0",
-    "screeninfo==0.8.1",
-    "soupsieve==2.8.4",
-    "srt==3.5.3",
-    "svgelements==1.9.6",
-    "tqdm==4.68.3",
-    "numpy>=2.5.0",
-    "sympy>=1.14.0",
-    "pillow>=12.2.0",
-    "matplotlib>=3.11.0",
-    "cairocffi>=1.7.1",
-    "cairosvg>=2.9.0",
-    "cssselect2>=0.9.0",
-    "defusedxml>=0.7.1",
-    "imageio>=2.37.3",
-    "imageio-ffmpeg>=0.6.0",
-    "moviepy>=0.2.3.1",
-    "opencv-python>=4.13.0.92",
-    "proglog>=0.1.12",
-    "shellingham>=1.5.4",
-    "svgpathtools>=1.7.2",
-    "svgwrite>=1.4.3",
-    "tinycss2>=1.5.1",
-    "typer>=0.26.8",
-    "webencodings>=0.5.1",
-    "ipython>=9.15.0",
-    "kokoro-onnx>=0.6.1",
+    "kokoro-onnx>=0.6.1",     # local TTS (default engine)
+    "boto3==1.43.38",         # AWS Polly (optional TTS engine)
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pyrefly>=0.60.0",
 ]
 
 [tool.pytest.ini_options]

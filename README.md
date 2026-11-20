@@ -31,11 +31,12 @@ yet measured.
 | Implementing | `Plan.md` §25 (roadmap) → `docs/MODULE_SPECS.md` → `prompts/` → `schemas/models.py` → `tools/` |
 | An AI coding agent | `Plan.md` §20 (target layout), §25 (phase order + acceptance); run `uv run pytest -q` after every change |
 | Setting up a machine | `docs/DEPLOYMENT.md` |
-| Working on prompts/skills | `prompts/README.md`, `skills/SKILLS_ASSESSMENT.md` |
+| Working on prompts/skills | `prompts/README.md`, `docs/SKILLS_ASSESSMENT.md` |
 
 ```
 Plan.md                 full reference (28 sections, 14 Mermaid diagrams)
-docs/                   MODULE_SPECS.md (M1–M14), DEPLOYMENT.md, make-short.target-cli.md (skill for the PROPOSED t2s CLI)
+docs/                   MODULE_SPECS.md (M1–M14), DEPLOYMENT.md, SKILLS_ASSESSMENT.md,
+                        make-short.target-cli.md (skill for the PROPOSED t2s CLI)
 diagrams/               the 14 diagrams as .mmd
 schemas/                models.py (Pydantic v2 contracts) + export_json_schemas.py → json/ (21 schemas)
 prompts/                [PROPOSED] outline_review, clip_planner, math_verifier, clip_builder_agent, clip_reviewer, …
@@ -44,8 +45,6 @@ tools/                  [BUILT-HERE] API index, validator, layout probe, scene h
 tests/                  pipeline tests + 38 package tests + fixtures
 config/                 stages.yaml, manim.landscape/portrait.cfg, .env.example (target vars), Dockerfile, ci/ [PROPOSED]
 .claude/skills/         make-short (current, working) · manim-ce-0-20-1-reference · t2s-clip-debugging · t2s-prompt-maintenance
-skills/                 SKILLS_ASSESSMENT.md + external/ vendored skills (skill-creator, claude-api, webapp-testing,
-                        manimce-best-practices); kept for developers, not activated
 reference/              SOURCES.md, existing-app inventory, audit evidence
 ```
 `app/sandbox.json` uses the package's hardened settings (`failIfUnavailable`, `denyRead` for secrets).
