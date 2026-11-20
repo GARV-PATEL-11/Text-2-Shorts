@@ -13,10 +13,10 @@ Work from evidence in the run directory, in this order — each step is cheaper 
    ```bash
    cd runs/<id>/scenes/sNN/work/clip_MM && ./check static && ./check probe && ./check render && ./check frames
    ```
-4. `log.jsonl` end rows for the clip (stage `clip_build`/`clip_build_retry`: `outcome`, `notes`, `turns`,
-   `permission_denials`, cost) and `TASK.md` / `API_CARDS.md` in the work folder — exactly what the agent was told.
+4. `TASK.md` / `API_CARDS.md` in the work folder — exactly what the clip-builder was told — and `log.jsonl`
+   (one row per tool call in the run session) to see what it ran.
 
 Classify before fixing: is the finding (a) a tool false positive → fix the tool + add a test fixture;
 (b) a planning defect (impossible budget, contract asks for something the previous clip doesn't leave) → feedback on
-the clip plan, not the code; (c) a code defect → `t2s build runs/<id> --clips sNNcMM --feedback "…"`. If the same code recurs across runs, add a
+the clip plan, not the code; (c) a code defect → `t2s feedback runs/<id> sNNcMM --scope visual --text "…"`, then in the run session: `t2s task` → clip-builder → `t2s accept`. If the same code recurs across runs, add a
 topic-card example or a validator rule — that is cheaper than more prompt text.

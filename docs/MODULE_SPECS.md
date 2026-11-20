@@ -9,6 +9,9 @@
 > M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
 > M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
 > v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see Plan.md §29.
+> **v0.5 inverted control** (Plan.md §30): no runner/orchestrator any more — M2's `claude()`, M5's LLM steps and
+> M6's prompt constants are gone; one Claude Code session per run does the reasoning, env/ holds its skill,
+> subagents and hooks, and `app/` keeps only deterministic commands (validate, voice, task, accept, final, …).
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 

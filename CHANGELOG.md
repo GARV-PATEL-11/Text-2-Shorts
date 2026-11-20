@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — 2026-11-20
+Claude Code-native execution (Plan.md §30).
+- **Inverted control**: no Python orchestrator and no `claude -p` per stage. One interactive Claude Code session per
+  run writes the outline and clip plans and dispatches two subagents (clip-builder per clip, math-reviewer).
+- **Environment as code** (`env/`): a Claude Code plugin (workflow skill + references, subagents, hooks), session
+  settings (sandbox + permissions) and the per-run CLAUDE.md. All prompts moved there verbatim from Python.
+- **Per-run isolation**: `t2s new` provisions `runs/<id>/`; `t2s open` runs Claude Code in a bubblewrap jail where only
+  the run folder (plus Claude Code's own state/caches) is writable and `$HOME` is private.
+- **Deterministic commands** for the session: `t2s validate`, `task`, `accept`, `hook`, `report`; `status` lists the
+  next steps. Hooks: session start → status; every tool call → log; written outline/plan/math → validated.
+- **Removed**: `pipeline.claude()`, the LLM result cache, limit waits, `STAGES`, `t2s outline/clips/build`,
+  `app/graph/prompts/`, `app/sandbox.json` (→ `env/settings.json`).
+
 ## 0.4.0 — 2026-11-20
 - **Voice providers: AWS Polly or Google Cloud TTS**, chosen per video (`t2s new --tts polly|google`, `--voice`,
   `--engine` for Polly). Google uses SSML `<mark>` timepoints for word timings (beat sync) and falls back to plain text

@@ -9,6 +9,9 @@
 > M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
 > M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
 > v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see Plan.md §29.
+> **v0.5 inverted control** (Plan.md §30): no runner/orchestrator any more — M2's `claude()`, M5's LLM steps and
+> M6's prompt constants are gone; one Claude Code session per run does the reasoning, env/ holds its skill,
+> subagents and hooks, and `app/` keeps only deterministic commands (validate, voice, task, accept, final, …).
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 
@@ -1347,4 +1350,56 @@ video, `t2s new --tts polly|google`): Polly receives SSML (`<break>`) and return
 SSML with a `<mark>` per word and returns timepoints (v1beta1). Both fall back to plain text for voices that reject
 SSML (then no word timings). Kokoro was removed. Gaps: fixed lists rather than a pronunciation lexicon / `<phoneme>`;
 "context-aware" relies on the planner marking symbols; not yet validated by listening on real runs.
+
+---
+
+## 30. Claude Code-Native Execution Architecture [BUILT · v0.5]
+Requirement: Claude Code is the execution environment — no per-stage API/`claude -p` calls, no prompts in application
+code, native features (CLAUDE.md, skills, subagents, hooks, slash commands), OS-enforced isolation per run, an
+environment defined once and provisioned per run, progressive context, persistent state and resume.
+This supersedes the runner/orchestrator design of §5, §9–§12 and the per-stage prompt layout of §29.1: the stages now
+run inside one Claude Code session per run.
+
+### 30.1 Inverted control
+| Before (v0.2–0.4) | Now (v0.5) |
+|---|---|
+| Python orchestrator spawns `claude -p` per stage and per clip | one interactive Claude Code session per run does all reasoning |
+| ~110 KB of prompts as Python strings | `env/skills/t2s-produce/references/*.md` + `env/agents/*.md`, loaded per step |
+| LLM result cache, limit waits, per-call log rows in Python | Claude Code's own prompt cache, retries and transcripts; hooks log tool calls |
+| `t2s outline / clips / build` | the session writes outline.json, plan.json; subagents write clip code and math.json |
+| — | `t2s validate / task / accept / hook / report / open` (deterministic) |
+Kept unchanged: tools/, `./check`, speech + Polly/Google, harness, assembly, media checks, schemas, state.json,
+feedback.jsonl, approvals.
+
+### 30.2 Environment as code (`env/`)
+The CDK analogy, implemented with Claude Code's own declarative formats rather than a separate IaC tool: a plugin
+(`.claude-plugin/plugin.json`) carrying the skills, the two subagents and the hooks; `settings.json` (session sandbox
+and permissions); `workspace/CLAUDE.md` (per-run instructions). `t2s new` provisions a run from it (brief,
+CLAUDE.md, environment report after preflight); `t2s open` launches `claude --plugin-dir env --settings
+env/settings.json --add-dir env --add-dir schemas` in the run folder. Changing the environment is a reviewed commit
+under `env/`; every run gets the same environment.
+
+### 30.3 Isolation layers
+1. **Run jail** (`t2s open`, bubblewrap): `/` and the repo read-only; the run folder, `~/.claude` and `~/.cache`
+   writable; private tmpfs `$HOME` with PATH tool folders and voice credentials re-mounted read-only. A run cannot
+   change another run or shared code. Tested in `tests/test_env.py`.
+2. **Session sandbox** (`env/settings.json`): Claude Code's bubblewrap sandbox for every Bash command — no network
+   (except `t2s voice`, excluded so it can reach Polly/Google), secrets unreadable, fails closed; permission deny
+   rules on the same secrets for the Read tool.
+3. **Clip jail**: `t2s accept` re-runs every gate on LLM-written clip code and `t2s final` renders it in a
+   network-less bwrap jail with only the clip/scene folder writable.
+Limit: the clip-builder subagent shares the session's write access (the whole run folder); a clip is only
+installed by `t2s accept`, so a wrong write cannot reach `clips/` without passing every gate.
+
+### 30.4 Context and recovery
+`CLAUDE.md` (≈ 1 KB) and the skill body load every session; references are read at the step that needs them; the
+clip-builder subagent gets a fresh context per clip with `TASK.md`, the standards, three always-on cards and the
+clip's own cards; the math-reviewer reads only plans. The SessionStart hook injects `t2s status` (approvals, clip
+states, next steps), so a resumed session continues without re-reading files. State that matters is in files
+(state.json, feedback.jsonl, plan files, clip keys); `t2s status` derives the next step from them.
+
+### 30.5 Validation and observability
+PostToolUse hook: logs every tool call to `log.jsonl` and validates outline.json / plan.json / math.json right after
+they are written (exit 2 returns the errors to Claude). `t2s report`: token totals from the run's transcripts
+(recorded by the SessionStart hook), each model response counted once, subagents included.
 

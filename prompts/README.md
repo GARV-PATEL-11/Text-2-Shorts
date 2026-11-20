@@ -1,7 +1,7 @@
 # Prompt specifications
 
-The implemented prompts are code: `app/clips.py` (`CLIP_PLANNER_SYSTEM`, `MATH_VERIFIER_SYSTEM`,
-`CLIP_BUILDER_SYSTEM`) and `app/graph/prompts/` (brief refiner, the three outline approaches, outline critic).
+The implemented instructions live in the Claude Code environment: `env/skills/t2s-produce/` (workflow +
+references) and `env/agents/` (clip-builder, math-reviewer).
 This folder keeps the two specified stages that are NOT built:
 
 | File | Stage | Why not built |

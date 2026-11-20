@@ -36,7 +36,7 @@ cp .env.example .env                                 # optional: T2S_PARALLEL, T
 uv run python tools/preflight.py                     # exit 0 = ready (t2s new runs it too)
 ```
 `app/sandbox.json` is the agents' sandbox (no network, writes only in the clip folder, secrets unreadable, fails
-closed). The Manim API index is built on first `t2s build` into `.cache/`.
+closed). The Manim API index is built on the first `t2s task` into `.cache/`.
 
 ## 6. Verify the installation (no LLM calls, ~2 min)
 ```bash
@@ -46,8 +46,11 @@ node tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm 
 CI runs the same suite on every push (`.github/workflows/ci.yml`).
 
 ## 7. Operating
-Open Claude Code in the repo and ask "/make-short a 2-minute video about the Pythagorean theorem". The skill
-(`.claude/skills/make-short/`) drives `t2s` step by step and asks you at the four checkpoints.
+`uv run t2s new "<topic>" …` provisions `runs/<id>/` (or ask "/make-short <topic>" in a repo session), then
+`uv run t2s open runs/<id>` starts the run's own Claude Code session inside its bubblewrap jail, with the `env/`
+plugin (workflow skill, clip-builder and math-reviewer subagents, hooks) and `env/settings.json` (sandbox,
+permissions). The jail needs bubblewrap with unprivileged user namespaces (the same requirement as Claude Code's
+sandbox); `t2s open RUN -- sh` opens a shell in the same jail for debugging.
 
 ## 8. Docker
 Not shipped. The agents depend on bubblewrap, which inside Docker needs unprivileged user namespaces; a container

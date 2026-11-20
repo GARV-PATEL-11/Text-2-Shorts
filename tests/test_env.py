@@ -118,3 +118,12 @@ def test_hooks_config_only_calls_real_commands():
     skill = (ENV / "skills" / "t2s-produce" / "SKILL.md").read_text()
     for ref in re.findall(r"references/([\w-]+\.md)", skill):
         assert (REFS / ref).exists(), ref
+
+
+def test_docs_have_no_stale_commands():
+    root = ENV.parent
+    docs = [root / "README.md", root / "docs" / "DEPLOYMENT.md", root / ".env.example",
+            *root.glob(".claude/skills/*/SKILL.md"), *ENV.glob("skills/*/SKILL.md")]
+    stale = re.compile(r"t2s (clips|build|outline)\b|claude -p|app/graph/prompts|CLIP_BUILDER_SYSTEM|STAGES")
+    hits = [f"{d.relative_to(root)}: {m[0]}" for d in docs for m in stale.finditer(d.read_text())]
+    assert not hits, hits
