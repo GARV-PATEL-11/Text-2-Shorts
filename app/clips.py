@@ -28,6 +28,9 @@ from pydantic import BaseModel, ValidationError
 
 from app import pipeline as P
 from app import speech
+from app.graph.models.classic_linear_narrative import ClassicLinearNarrativeOutline
+from app.graph.models.conceptual_zoom import ConceptualZoomOutline
+from app.graph.models.problem_solution_arc import ProblemSolutionArcOutline
 from schemas.models import ScenePlan
 
 MANIM = "0.20.1"  # pinned in pyproject.toml
@@ -460,6 +463,169 @@ def build_clip(run, plan, c, mm, audio: dict, fb, math_notes, font) -> ClipResul
     return result
 
 
+# ── deterministic stage commands for a Claude Code session: validate · task · accept · next steps ──────────────
+
+OUTLINE_MODELS = {"zoom": ConceptualZoomOutline, "arc": ProblemSolutionArcOutline, "linear": ClassicLinearNarrativeOutline}
+AGENT_FILE = P.ROOT / "env" / "agents" / "clip-builder.md"
+
+
+def _errors(exc: ValidationError) -> list[str]:
+    return [f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()]
+
+
+def validate_outline(run: Path) -> list[str]:
+    """outline.json against the brief's approach schema, plus the length rule (±20% of the requested minutes)."""
+    brief = P.read_json(run / "brief.json")
+    try:
+        outline = OUTLINE_MODELS[brief.get("approach", "zoom")].model_validate_json((run / "outline.json").read_text())
+    except FileNotFoundError:
+        return ["outline.json does not exist"]
+    except ValidationError as exc:
+        return _errors(exc)
+    total, target = sum(s.duration_seconds for s in outline.outline), brief["minutes"] * 60
+    return [] if abs(total - target) <= 0.2 * target else [
+        f"scenes total {total}s but the target is {target:.0f}s (±20%): rescale duration_seconds, drop or merge scenes"]
+
+
+def validate_plan(run: Path, sid: str) -> list[str]:
+    """scenes/sNN/plan.json: ScenePlan contracts, empty scene boundaries, symbol colours consistent with earlier scenes."""
+    try:
+        plan = ScenePlan.model_validate_json((run / "scenes" / sid / "plan.json").read_text())
+    except FileNotFoundError:
+        return [f"scenes/{sid}/plan.json does not exist"]
+    except ValidationError as exc:
+        return _errors(exc)
+    errors = [] if plan.scene_id == sid else [f"scene_id is {plan.scene_id}, expected {sid}"]
+    errors += scene_end_problems(plan)
+    for earlier in (p for p in scene_plans(run) if p.scene_id < sid):
+        errors += [f"`{sym}` is {col} here but {earlier.color_roles[sym]} in {earlier.scene_id}: one colour per symbol"
+                   for sym, col in plan.color_roles.items() if earlier.color_roles.get(sym, col) != col]
+    return errors
+
+
+def validate_math(run: Path) -> list[str]:
+    try:
+        report = MathReport.model_validate_json((run / "math.json").read_text())
+    except FileNotFoundError:
+        return ["math.json does not exist"]
+    except ValidationError as exc:
+        return _errors(exc)
+    known = {c.clip_id for p in scene_plans(run) for c in p.clips}
+    return [f"unknown clip {f.clip_id}" for f in report.findings if f.clip_id not in known]
+
+
+def find_clip(run: Path, clip_id: str):
+    plan = ScenePlan.model_validate_json((run / "scenes" / clip_id[:3] / "plan.json").read_text())
+    return plan, next(c for c in plan.clips if c.clip_id == clip_id)
+
+
+def clip_key(run: Path, plan: ScenePlan, c) -> str:
+    """Everything a clip's code depends on; the previous clip's installed code makes changes cascade in order."""
+    sd = run / "scenes" / plan.scene_id
+    prev = sd / "clips" / f"clip_{c.index - 1:02d}.py"
+    return sha(c.model_dump(), P.read_json(sd / "audio" / "index.json").get(c.clip_id), plan.color_roles,
+               feedback_for(run, plan.scene_id, c.clip_id), prev.read_text() if c.index > 1 and prev.exists() else "",
+               P.read_json(run / "brief.json").get("font"), AGENT_FILE.read_text() if AGENT_FILE.exists() else "")
+
+
+def prepare_clip(run: Path, clip_id: str) -> Path:
+    """Set up scenes/sNN/work/clip_MM/ for the clip-builder: TASK.md/.json, API_CARDS.md, ./check, earlier clips."""
+    plan, c = find_clip(run, clip_id)
+    sd, mm = run / "scenes" / plan.scene_id, f"clip_{c.index:02d}"
+    st = load_state(run)["clips"]
+    missing = [x.clip_id for x in plan.clips[: c.index - 1] if st.get(x.clip_id, {}).get("status") != "READY"]
+    if missing:
+        sys.exit(f"build {missing[0]} first: {clip_id} starts from its exit state")
+    audio = P.read_json(sd / "audio" / "index.json")[clip_id]
+    brief = P.read_json(run / "brief.json")
+    math = P.read_json(run / "math.json")["findings"] if (run / "math.json").exists() else []
+    math_notes = [f"{f['kind']}: \"{f['quote']}\" → {f['fix']}" for f in math if f["clip_id"] == clip_id]
+    ensure_api_index()
+    w = sd / "work" / mm
+    w.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(w / "scene", ignore_errors=True)
+    shutil.rmtree(w / "checks", ignore_errors=True)
+    (w / "scene" / "clips").mkdir(parents=True)
+    (sd / "clips").mkdir(exist_ok=True)
+    for earlier in plan.clips[: c.index - 1]:  # snapshot of the approved clips before this one
+        shutil.copy(sd / "clips" / f"clip_{earlier.index:02d}.py", w / "scene" / "clips")
+    if (sd / "clips" / f"{mm}.py").exists() and not (w / f"{mm}.py").exists():
+        shutil.copy(sd / "clips" / f"{mm}.py", w)  # a rebuild starts from the approved version
+    task = {"clip": mm, "clip_id": clip_id, "scene_id": plan.scene_id, "class": "Scene" + plan.scene_id[1:],
+            "seconds": round(LEAD_IN + audio["seconds"] + HOLD, 2), "entry": c.entry.persistent_objects,
+            "exit": c.exit.persistent_objects, "api_index": str(API_INDEX), "background": STYLE["background"]}
+    P.write_json(w / "TASK.json", task)
+    times = audio.get("beat_times") or [None] * len(c.beats)  # word timings → when the voice says each phrase
+    beats = "\n".join(f"  {i}. {'' if at is None else f'@ {LEAD_IN + at:.1f}s  '}{b}"
+                      for i, (b, at) in enumerate(zip(c.beats, times), 1))
+    (w / "TASK.md").write_text(
+        f"CLIP {clip_id}  (scene {plan.scene_id}, clip {c.index} of {len(plan.clips)})   FILE: {mm}.py   "
+        f"NARRATION_SECONDS: {audio['seconds']}   CLIP_SECONDS: {task['seconds']} (voice from {LEAD_IN}s, hold {HOLD}s)\n"
+        f"OBJECTIVE: {c.objective}\nNARRATION (exact):\n  {c.narration}\nVISUAL INTENT: {c.visual_intent}\n"
+        f"BEATS:\n{beats}\nON-SCREEN MATH (exact LaTeX): {json.dumps(c.on_screen_math)}\n"
+        f"ENTRY (already on screen, in self.reg): {json.dumps(c.entry.model_dump())}\n"
+        f"EXIT (must be in self.reg and on screen at the end): {json.dumps(c.exit.model_dump())}\n"
+        f"SYMBOL COLORS: {json.dumps(plan.color_roles)}   FONT: {brief.get('font') or 'Manim default'}\n"
+        f"MATH NOTES (verified): {'; '.join(math_notes) or 'none'}\n"
+        f"HUMAN_FEEDBACK:\n{feedback_text(feedback_for(run, plan.scene_id, clip_id))}\n"
+        f"PREVIOUS ATTEMPT: {mm + '.py exists — start from it' if (w / f'{mm}.py').exists() else 'none'}\n")
+    topics = [x for x in dict.fromkeys(c.manim_topics) if x not in ALWAYS_TOPICS]
+    cards = subprocess.run([P.PYTHON, str(TOOLS / "doc_cards.py"), "--index", str(API_INDEX), "--topics",
+                            ",".join(topics), "--topics-dir", str(TOPICS_DIR)], capture_output=True, text=True)
+    (w / "API_CARDS.md").write_text(cards.stdout if topics else "No extra topic cards for this clip. "
+                                    "Check any other name with ./check doc Name.\n")
+    (w / "check").write_text(f'#!/bin/sh\nexec "{P.PYTHON}" "{P.ROOT / "app" / "check.py"}" "$@"\n')
+    (w / "check").chmod(0o755)
+    return w
+
+
+def accept_clip(run: Path, clip_id: str) -> dict:
+    """Re-run every gate on the clip in a jail (it is LLM-written code); install it only if all pass."""
+    plan, c = find_clip(run, clip_id)
+    sd, mm = run / "scenes" / plan.scene_id, f"clip_{c.index:02d}"
+    w = sd / "work" / mm
+    ok = (w / f"{mm}.py").exists() and subprocess.run(
+        P.BWRAP + ["--bind", str(w), str(w), P.PYTHON, str(P.ROOT / "app" / "check.py"), "all"],
+        cwd=w, capture_output=True).returncode == 0
+    findings = [f"{gate.stem}: {f['code']}" for gate in sorted((w / "checks").glob("*.json"))
+                for f in P.read_json(gate).get("findings", []) if f.get("severity") == "ERROR"]
+    if ok:
+        shutil.copy(w / f"{mm}.py", sd / "clips" / f"{mm}.py")
+    result = {"status": "READY" if ok else "FAILED", "open_findings": findings,
+              "key": clip_key(run, plan, c) if ok else None, "at": datetime.now().isoformat(timespec="seconds")}
+    update_state(run, lambda s: s["clips"].__setitem__(clip_id, result))
+    return result
+
+
+def next_steps(run: Path) -> list[str]:
+    """What is left to do, in order — the resume point after any interruption."""
+    st, steps = load_state(run), []
+    if (run / "brief.json").exists() and P.read_json(run / "brief.json").get("approach"):
+        steps += [f"outline: {e}" for e in validate_outline(run)]
+        if "outline" not in st["approved"]:
+            steps.append("CP1: approve the outline (t2s approve <run> outline)")
+    plans = scene_plans(run)
+    for p in plans:
+        steps += [f"{p.scene_id} plan: {e}" for e in validate_plan(run, p.scene_id)]
+    if plans and "plan" not in st["approved"]:
+        steps.append("CP2: math review + approve the clip plan (t2s approve <run> plan)")
+    for p in plans:
+        idx = run / "scenes" / p.scene_id / "audio" / "index.json"
+        if not idx.exists() or set(P.read_json(idx)) != {c.clip_id for c in p.clips}:
+            steps.append(f"{p.scene_id}: narration audio missing (t2s voice <run>)")
+            continue
+        stale = next((c.clip_id for c in p.clips if st["clips"].get(c.clip_id, {}).get("key") != clip_key(run, p, c)), None)
+        if stale:
+            steps.append(f"build {stale} (t2s task → clip-builder → t2s accept), then the rest of {p.scene_id}")
+        elif f"scene:{p.scene_id}" not in st["approved"]:
+            steps.append(f"CP3: preview and approve {p.scene_id}")
+    if plans and not (run / "final.mp4").exists():
+        steps.append("t2s final <run>")
+    elif plans and "final" not in st["approved"]:
+        steps.append("CP4: approve the final video")
+    return steps
+
+
 # ── final: full-quality render per scene (sections → one file per clip), assembly, media checks ─────────────────
 
 def cmd_final(a) -> None:
@@ -573,7 +739,25 @@ def cmd_status(a) -> None:
         for c in p.clips:
             s = st["clips"].get(c.clip_id, {})
             print(f"| {c.clip_id} | {s.get('status', 'not built')} | {s.get('notes', '')[:100]} |")
-    print(f"spend so far: ${P.run_cost(run):.2f}")
+    print("next:" if (steps := next_steps(run)) else "next: nothing — the video is done.")
+    print("\n".join(f"  - {s}" for s in steps))
+
+
+def cmd_validate(a) -> None:
+    run = Path(a.run)
+    if a.what == "plan":
+        sids = [a.scene] if a.scene else [p.parent.name for p in sorted((run / "scenes").glob("s[0-9][0-9]/plan.json"))]
+        errors = [f"{s}: {e}" for s in sids for e in validate_plan(run, s)]
+    else:
+        errors = validate_outline(run) if a.what == "outline" else validate_math(run)
+    print("\n".join(errors) or f"{a.what}: OK")
+    sys.exit(1 if errors else 0)
+
+
+def cmd_accept(a) -> None:
+    r = accept_clip(Path(a.run), a.clip)
+    print(f"{a.clip}: {r['status']}" + (f" — {', '.join(r['open_findings'])}" if r["open_findings"] else ""))
+    sys.exit(0 if r["status"] == "READY" else 1)
 
 
 def register(sub) -> None:
@@ -596,6 +780,13 @@ def register(sub) -> None:
     add("build", cmd_build, scenes=True, clips=True, feedback=True, force=True)
     add("final", cmd_final, force=True)
     add("status", cmd_status)
+    p = add("validate", cmd_validate)
+    p.add_argument("what", choices=["outline", "plan", "math"])
+    p.add_argument("--scene", help="sNN (plan only; default: every scene plan)")
+    p = add("task", lambda a: print(prepare_clip(Path(a.run), a.clip)))
+    p.add_argument("clip", help="sNNcMM")
+    p = add("accept", cmd_accept)
+    p.add_argument("clip", help="sNNcMM")
     p = add("approve", cmd_approve, force=True)
     p.add_argument("target", help="outline | plan | sNN | final")
     p = add("feedback", cmd_feedback)
