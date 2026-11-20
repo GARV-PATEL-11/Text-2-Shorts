@@ -68,3 +68,15 @@ def test_plan_refine_keeps_progress_on_failure_and_resumes(tmp_path, monkeypatch
     review = json.loads((d / "plan_review.json").read_text())
     assert review["score"] == 9 and review["history"][0]["version"] == "plan.v2.md"
     assert sorted(p.name for p in d.glob("plan.v*.md")) == ["plan.v1.md", "plan.v2.md"]
+
+
+def test_budget_stop_blocks_calls_once_spent(tmp_path, monkeypatch):
+    import json, pytest
+    from app import pipeline
+
+    (tmp_path / "log.jsonl").write_text(json.dumps({"cost_usd": 2.5}) + "\n" + json.dumps({"status": "started"}) + "\n")
+    assert pipeline.run_cost(tmp_path) == 2.5
+    monkeypatch.setenv("T2S_BUDGET_USD", "2")
+    monkeypatch.setattr(pipeline.subprocess, "run", lambda *a, **k: pytest.fail("claude must not be called"))
+    with pytest.raises(RuntimeError, match="budget"):
+        pipeline.claude(tmp_path, "refine", "u", "s")

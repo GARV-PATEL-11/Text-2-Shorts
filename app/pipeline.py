@@ -14,6 +14,7 @@ Each step reads/writes JSON + media under runs/<id>/ and prints a short summary 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -134,6 +135,8 @@ debugging) are your knowledge; this is your workflow:
    b. Look at it: ffmpeg -y -loglevel error -i media/videos/scene/480p15/{class_name}.mp4 -vf fps=1/3 frames/f_%02d.png
       then Read the PNGs.
       Fix overlapping elements, text cut off at frame edges, unreadable text, empty frames. Re-render.
+   c. Layout check (catches overlaps between sampled frames): {probe_cmd}
+      Fix every ERROR (OVERLAP, OUT_OF_FRAME) and re-render; WARN lines are advisory.
       At most 2 visual passes.
 6. Finish with status READY only if the last render succeeded and passed checks; otherwise FAILED
    with notes saying what is still wrong. Never run anything except python/manim/ffmpeg/ffprobe/ls/mkdir.
@@ -201,6 +204,10 @@ def claude(
     else:
         cmd += ["--system-prompt-file", str(sys_file), "--tools", ""]
 
+    budget = float(os.environ.get("T2S_BUDGET_USD") or 0)
+    # ponytail: checked before each call, so parallel calls in flight can overshoot by a few calls' cost
+    if budget and run_cost(run) >= budget:
+        raise RuntimeError(f"{tag}: run budget ${budget:.2f} reached (${run_cost(run):.2f} spent) — raise T2S_BUDGET_USD")
     env: dict = {}
     for attempt in (1, 2):
         t0 = time.monotonic()
@@ -229,6 +236,11 @@ def claude(
         if out is not None:
             return out
     raise RuntimeError(f"{tag} failed twice: {str(env.get('result') or env.get('subtype'))[:300]}")
+
+
+def run_cost(run: Path) -> float:
+    log = run / "log.jsonl"
+    return sum((json.loads(l).get("cost_usd") or 0) for l in log.read_text().splitlines()) if log.exists() else 0.0
 
 
 def probe_seconds(path: Path) -> float:
@@ -278,7 +290,10 @@ def parallel(fn, items):
 # ── Steps ─────────────────────────────────────────────────────────────────────
 
 def cmd_new(a) -> None:
-    slug = re.sub(r"[^a-z0-9]+", "-", a.requirement.lower())[:40].strip("-")
+    pf = subprocess.run([PYTHON, str(ROOT / "tools" / "preflight.py")], capture_output=True, text=True)
+    if pf.returncode:  # fail before any paid call: missing LaTeX/ffmpeg/bwrap/… would only surface at render
+        sys.exit(f"Preflight failed: {json.loads(pf.stdout)['problems']}")
+    slug =re.sub(r"[^a-z0-9]+", "-", a.requirement.lower())[:40].strip("-")
     run = ROOT / "runs" / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
     run.mkdir(parents=True)
     refined = claude(run, "refine", a.requirement, REQ_MODIFIER_SYSTEM)
@@ -333,6 +348,11 @@ def cmd_outline(a) -> None:
 
 KOKORO_DIR = Path(os.environ.get("KOKORO_DIR", Path.home() / ".cache" / "kokoro"))
 KOKORO_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
+# ponytail: pinned from the copies downloaded 2026-11-19 (trust on first use); re-pin if upstream re-releases v1.0
+KOKORO_SHA256 = {
+    "kokoro-v1.0.onnx": "7d5df8ecf7d4b1878015a32686053fd0eebe2bc377234608764cc0ef3636a6c5",
+    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
+}
 
 
 def kokoro_tts(voice: str):
@@ -340,11 +360,16 @@ def kokoro_tts(voice: str):
     import urllib.request
     from kokoro_onnx import Kokoro
 
-    for f in ("kokoro-v1.0.onnx", "voices-v1.0.bin"):
+    for f, sha in KOKORO_SHA256.items():
         if not (KOKORO_DIR / f).exists():
             KOKORO_DIR.mkdir(parents=True, exist_ok=True)
             print(f"downloading {f} → {KOKORO_DIR}")
             urllib.request.urlretrieve(KOKORO_URL + f, KOKORO_DIR / f)
+            with open(KOKORO_DIR / f, "rb") as fh:
+                got = hashlib.file_digest(fh, "sha256").hexdigest()
+            if got != sha:
+                (KOKORO_DIR / f).unlink()
+                sys.exit(f"{f}: sha256 {got} != pinned {sha} — download deleted")
     kokoro = Kokoro(str(KOKORO_DIR / "kokoro-v1.0.onnx"), str(KOKORO_DIR / "voices-v1.0.bin"))
 
     def synth(text: str) -> bytes:
@@ -476,8 +501,9 @@ def cmd_render(a) -> None:
         name = f"Scene{sid:03d}"
         (d / "frames").mkdir(exist_ok=True)
         render_cmd = f'"{PYTHON}" -m manim render scene.py {name} -ql --media_dir media --disable_caching'
+        probe_cmd = f'"{PYTHON}" "{ROOT / "tools" / "layout_probe.py"}" scene.py {name}'
         system = "\n\n".join([CODE_GEN_SYSTEM, _DEBUG_IDENTITY_AND_PROTOCOL,
-                              SCENE_AGENT_PROTOCOL.format(class_name=name, render_cmd=render_cmd,
+                              SCENE_AGENT_PROTOCOL.format(class_name=name, render_cmd=render_cmd, probe_cmd=probe_cmd,
                                                           target=narr[sid]["audio_seconds"])])
         user = build_code_user_prompt((d / "plan.md").read_text()) + feedback_block(a.feedback)
 
@@ -534,7 +560,7 @@ def cmd_assemble(a) -> None:
     final = run / "final.mp4"
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
                     "-i", str(run / "concat.txt"), "-c", "copy", str(final)], check=True)
-    cost = sum((json.loads(l).get("cost_usd") or 0) for l in (run / "log.jsonl").read_text().splitlines())
+    cost = run_cost(run)
     print(f"{final}\nduration: {probe_seconds(final):.1f}s · scenes: {len(parts)}"
           f"{f' · skipped (not rendered): {skipped}' if skipped else ''} · Claude cost: ${cost:.2f}")
 
