@@ -239,3 +239,4 @@ media_probe/
 *.zip
 # Local-only Claude Code settings
 .claude/settings.local.json
+.superpowers/

@@ -32,7 +32,7 @@ from schemas.models import ScenePlan
 
 MANIM = "0.20.1"  # pinned in pyproject.toml
 TOOLS = P.ROOT / "tools"
-TOPICS_DIR = P.ROOT / ".claude" / "skills" / "manim-ce-0-20-1-reference" / "topics"
+TOPICS_DIR = P.ROOT / "env" / "skills" / "manim-ce-0-20-1-reference" / "topics"
 API_INDEX = P.ROOT / ".cache" / f"manim_api_{MANIM}.json"
 ALWAYS_TOPICS = ["clip-structure", "timing-and-sync", "positioning-layout"]
 WPM = {"slow": 130, "medium": 150, "fast": 170}

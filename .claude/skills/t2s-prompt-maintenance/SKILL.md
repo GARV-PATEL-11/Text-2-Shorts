@@ -1,6 +1,6 @@
 ---
 name: t2s-prompt-maintenance
-description: Safely change any LLM prompt, topic card, schema or model/effort setting in the Text-to-Shorts project. Use when editing the prompts in app/clips.py or app/graph/prompts/, the topic cards in .claude/skills/manim-ce-0-20-1-reference/topics, schemas/models.py or STAGES in app/pipeline.py, or when someone asks to reduce cost or improve output quality of a stage.
+description: Safely change any LLM prompt, topic card, schema or model/effort setting in the Text-to-Shorts project. Use when editing the prompts in app/clips.py or app/graph/prompts/, the topic cards in env/skills/manim-ce-0-20-1-reference/topics, schemas/models.py or STAGES in app/pipeline.py, or when someone asks to reduce cost or improve output quality of a stage.
 ---
 
 # Prompt / contract maintenance

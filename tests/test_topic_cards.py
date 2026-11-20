@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import ROOT, run
 
-TOPICS = ROOT / ".claude/skills/manim-ce-0-20-1-reference/topics"
+TOPICS = ROOT / "env/skills/manim-ce-0-20-1-reference/topics"
 EXAMPLES = [(p.stem, m.group(1)) for p in sorted(TOPICS.glob("*.md"))
             for m in re.finditer(r"```python\n(.*?)```", p.read_text(), re.S)]
 

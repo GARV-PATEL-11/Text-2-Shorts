@@ -14,7 +14,7 @@ Output is stable for stable inputs, so it is cacheable and prompt-cache friendly
 Usage:
   python tools/doc_cards.py --index cache/manim_api/0.20.1/index.json \
       --names MathTex,TransformMatchingTex,SurroundingRectangle --topics mathtex-indexing,timing-and-sync \
-      --topics-dir .claude/skills/manim-ce-0-20-1-reference/topics [--from-spec spec.json] [--max-methods 14]
+      --topics-dir env/skills/manim-ce-0-20-1-reference/topics [--from-spec spec.json] [--max-methods 14]
 Status: IMPLEMENTED in this package.
 """
 from __future__ import annotations
