@@ -32,7 +32,7 @@ prompt + generated API/topic cards instead. This is deliberate: runtime context 
 - **Purpose:** let a human operate the generator conversationally and safely: one command at a time, show checkpoint
   tables, collect clip-scoped feedback, never generate content in the chat.
 - **Capabilities:** maps user intents to `t2s new/plan/build/final/feedback/approve/status/explain`; recovery rules
-  (FAILED clips, budget stops); current-CLI fallback section for today's `python -m app.pipeline`.
+  (FAILED clips); current-CLI fallback section for today's `python -m app.pipeline`.
 - **Dependencies:** the `t2s` CLI (Phase 2+), Claude Code ≥ 2.1.275.
 - **Implementation approach:** SKILL.md only (no scripts) — the CLI owns all logic, so the skill cannot drift from it.
   Evaluate with skill-creator's eval loop on 5 scripted conversations (new run, outline revise, clip visual revise,

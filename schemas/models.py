@@ -124,7 +124,6 @@ class VideoProject(Strict):
     brief: Brief
     environment: EnvironmentReport
     created_at: datetime = Field(default_factory=now)
-    budget_usd: float = Field(15.0, gt=0, description="hard stop for the whole run (PROVISIONAL default)")
 
 
 # ── Planning ────────────────────────────────────────────────────────────────────

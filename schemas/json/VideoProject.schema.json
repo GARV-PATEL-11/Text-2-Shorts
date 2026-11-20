@@ -168,13 +168,6 @@
       "format": "date-time",
       "title": "Created At",
       "type": "string"
-    },
-    "budget_usd": {
-      "default": 15.0,
-      "description": "hard stop for the whole run (PROVISIONAL default)",
-      "exclusiveMinimum": 0,
-      "title": "Budget Usd",
-      "type": "number"
     }
   },
   "required": [

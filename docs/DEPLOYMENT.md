@@ -22,7 +22,7 @@ python -c "import manim; print(manim.__version__)"   # must print 0.20.1
 ## 3. Claude Code CLI
 Install per https://code.claude.com/docs (native installer), then `claude --version` ≥ **2.1.275** (needed for the
 system-prompt cache boundary; ≥ 2.1.259 for `--permission-prompts`, ≥ 2.1.248 for `--restricted`).
-Auth: `claude auth login --console` (API billing, recommended for budgets) or `claude setup-token` (subscription).
+Auth: `claude auth login --console` (API billing) or `claude setup-token` (subscription).
 Check: `claude auth status` → `authMethod`.
 
 ## 4. Configuration

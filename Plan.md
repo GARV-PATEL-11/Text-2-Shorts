@@ -163,7 +163,7 @@ Each entry: purpose · internals · I/O · dependencies · interactions · statu
 `runs/<id>/.prompts/<stage>[_NNN].md` (argv limit); structured output via `--json-schema` from Pydantic; non-agent
 calls use `--system-prompt-file` + `--tools ""` + `--safe-mode` + `--no-session-persistence`; agent calls use
 `--append-system-prompt-file`, `--restricted`, `--tools Read,Write,Edit,Bash`, sandbox settings, `--permission-mode
-acceptEdits`, `--permission-prompts none`, `--max-budget-usd 3`. Retries once; appends a JSON line per attempt to
+acceptEdits`, `--permission-prompts none`. Retries once; appends a JSON line per attempt to
 `log.jsonl` (stage, model, effort, ok, cost, duration, cache read/write tokens, error). Raises after two failures.
 *All flags verified to exist in the current CLI reference* (`--restricted` needs ≥ 2.1.248, `--permission-prompts`
 ≥ 2.1.259). *Limitations:* no error classification (auth errors, rate limits, timeouts, schema failures all retried
@@ -363,7 +363,7 @@ critics/refactor are conditional; final checks run before (not after) the human 
 | FR-11 | Regenerate only artifacts invalidated by a change; explain why (`t2s explain`) | 11 | planner [BUILT-HERE] |
 | FR-12 | Clip-level A/V assembly, loudness normalisation, final media checks | 12 | assembly [BUILT-HERE] |
 | FR-13 | Resume any interrupted run from the ledger | 2 | [PROPOSED] |
-| FR-14 | Per-run cost/time/quality report; budget hard stop | 13 | report [BUILT-HERE] |
+| FR-14 | Per-run cost/time/quality report | 13 | report [BUILT-HERE] |
 | FR-15 | 16:9 and 9:16 output | 8 | harness [BUILT-HERE] |
 | FR-16 | Optional topic research with sources (off by default) | 14+ | [PROPOSED] |
 
@@ -712,7 +712,6 @@ flowchart TD
     T1 -->|no| PAUSE
     K -->|"SCHEMA_INVALID"| SV["retry once with validation errors appended"] --> SV2{ok?}
     SV2 -->|no| FAILSTEP["FAILED(step) → checkpoint shows error"]
-    K -->|"BUDGET_EXCEEDED"| STOP["stop; report spend; ask operator"]
     K -->|"GATE_FAILED (clip)"| GB{"clip sessions < 3?"} -->|yes| ESC["next session, escalated effort/model"]
     GB -->|no| CF["clip FAILED → CP3 (simplify / fallback / accept)"]
     K -->|"RENDER_INFRA (latex/dvisvgm/ffmpeg missing)"| FATAL
@@ -877,7 +876,7 @@ Code sandbox (no network, writes only in cwd + Manim/font caches; `failIfUnavail
 | CLARITY, STYLE (reviewer WARN) | review | none; shown at CP3 | human |
 
 ### 16.4 Retry strategy
-Within a session: the agent loops gates (no fixed render cap; bounded by `--max-budget-usd` and the 2400 s timeout).
+Within a session: the agent loops gates (no fixed render cap; bounded by the 2400 s timeout).
 Across sessions per clip: session 1 sonnet/high; session 2 sonnet/xhigh starting from the previous file + findings;
 session 3 opus/high; then FAILED → CP3 with options: simplify (feedback), static fallback (title card + narration),
 accept partial. Never a fourth automatic session.
@@ -965,8 +964,6 @@ cache-write, 30k uncached input and 8k output tokens ≈ $0.03 + $0.05 + $0.06 +
 from `cost_report.py` on Phase 0 runs; **all cost targets are [PROVISIONAL] until then.**
 Tracked per call: stage, clip, prompt_id, model, effort, attempt, ok, cost, input/output/cache tokens, artifact
 cache hit, duration. Reported per run: total, per stage, per clip, first-attempt gate success, cache-read ratio.
-Budget: `T2S_BUDGET_USD` hard stop at run level (checked before every call using the running total);
-`--max-budget-usd` per agent session (soft, per Claude Code docs).
 
 ---
 
@@ -1060,7 +1057,7 @@ artifacts (contact sheets, draft MP4s, markdown tables). A local review web page
 | Rate limit / overloaded / 5xx | envelope/stderr classification | backoff 10 s, 40 s, 120 s; then pause (resumable) | `PAUSED` |
 | Timeout | subprocess timeout | 1 retry, then pause | log + status |
 | Invalid structured output | Pydantic `ValidationError` | 1 retry with errors appended; then FAILED(step) | checkpoint shows error |
-| Claude Code agent failure (budget/turn limits, crash) | envelope subtype; missing files | next escalation session (≤ 3) | clip attempts in status |
+| Claude Code agent failure (turn limits, crash) | envelope subtype; missing files | next escalation session (≤ 3) | clip attempts in status |
 | Manim compile/runtime error | render gate traceback | targeted agent repair | `checks/render.json` |
 | LaTeX failure | render stderr (LaTeX log) | fix string; plan-originated → note to math verifier | finding `LATEX_ERROR` |
 | Missing dependency (latex, dvisvgm, ffmpeg, bwrap, socat) | preflight | refuse to start rendering | preflight report |
@@ -1132,12 +1129,12 @@ regression isolates code-generation quality.
   attempt, ok, error_class, cost_usd, input_tokens, output_tokens, cache_read, cache_write, artifact_cache_hit,
   duration_ms, input_hashes, output_hash`. Deterministic steps log the same row with `kind: deterministic`.
 - **Events** (ledger transitions): `step_started/finished/failed`, `checkpoint_opened/approved/revised`,
-  `artifact_versioned`, `artifact_invalidated(reason)`, `budget_warning(80%)`, `budget_stop`.
+  `artifact_versioned`, `artifact_invalidated(reason)`.
 - **Reports:** `t2s report` → per stage/clip cost, tokens, cache ratios, sessions per clip, gate findings histogram
   (most frequent codes → candidates for new validator rules or topic cards), wall time.
 - **Prompts:** every call's exact system/user text saved under `.prompts/<stage>/<clip>.<attempt>.md` (today: one file
   per stage, overwritten).
-- **Status:** `t2s status` renders the ledger: phase, per-clip state, open feedback, spend vs budget.
+- **Status:** `t2s status` renders the ledger: phase, per-clip state, open feedback, spend.
 
 ---
 
@@ -1150,7 +1147,6 @@ regression isolates code-generation quality.
 | Static escape attempts in code | validator FORBIDDEN_IMPORT/FORBIDDEN_CALL (os, subprocess, socket, open, exec, eval…) before any execution | [BUILT-HERE] |
 | Final render of approved code | bwrap jail: read-only host, no network, `--die-with-parent`, writable scene dir + ~/.cache only | [EXISTS] |
 | Unattended permission prompts | `--permission-prompts none` (denials, never hangs) | [EXISTS] |
-| Runaway spend | run budget hard stop + per-session `--max-budget-usd` (soft) | [PROPOSED]/[EXISTS] |
 | Supply chain | pinned Manim; Kokoro model SHA-256 pin; vendored skills recorded with commit ids; community skills reviewed before use | [PROPOSED] |
 | Prompt injection via topic text | topic text only reaches planning roles without tools; the agent's TASK.md derives from validated structured plans | [PROPOSED] |
 | Repository-provided config | project `.claude/settings.json` is not trusted for sandbox relaxations; runner passes `--settings config/sandbox.json` + `--safe-mode` for non-agent calls | [EXISTS]/[PROPOSED] |
@@ -1177,9 +1173,9 @@ Critical path: P1 → P2 → P5 → P6 → P7/P8 → P12 → P13. Phases 3–4 r
 | 11 | Token optimisation & caching | Artifact cache + prompt-cache layout | cache token logging | runner cache lookup | `cache/store.py`, boundary marker, `--exclude-dynamic-system-prompt-sections` | 2, 4 | cache + metrics | Unchanged re-run: ≥ 80% artifact hits, 0 LLM calls for unchanged clips; prompt cache read ratio ≥ 70% [PROVISIONAL] | Hidden inputs missing from keys → stale reuse (test every input class) |
 | 12 | Audio & video assembly | Per-clip TTS + assembly + loudness | Kokoro/Polly | per-clip synthesis, speech marks | `audio/*`, `assembly/*` [BUILT-HERE core] | 5, 8 | `t2s final` | TC-10 passes; −16 LUFS ±1; no narration cut | Kokoro phrase timing estimates |
 | 13 | Testing & QA | Full suite + golden regression | — | — | contract/prompt replay/golden tests, CI | all | CI green; regression report vs baseline | Cost per clip and first-session success measured vs P1 baseline; targets set from data | Live-run cost of goldens |
-| 14 | Production readiness | Hardening & ops | — | sandbox config | budget stop, sandbox fail-closed, Kokoro SHA pin, Docker image, runbook | 13 | release v0.2 | Security table §24 all [EXISTS]; fresh-machine install < 30 min with docs | Docker + bwrap nesting |
+| 14 | Production readiness | Hardening & ops | — | sandbox config | sandbox fail-closed, Kokoro SHA pin, Docker image, runbook | 13 | release v0.2 | Security table §24 all [EXISTS]; fresh-machine install < 30 min with docs | Docker + bwrap nesting |
 
-**Critical vs optional.** Critical for v1: 1, 2, 5, 6, 7, 8, 10, 12 and the budget stop from 14. Important but can trail:
+**Critical vs optional.** Critical for v1: 1, 2, 5, 6, 7, 8, 10, 12. Important but can trail:
 3, 9 (reviewer can start as CP3-only human review), 11 (artifact cache first, prompt-cache tuning later), 13 goldens.
 Optional/future: research agent, music/SFX, review web UI, parallel clips.
 
@@ -1195,10 +1191,10 @@ muxed scene MP4, with CP1–CP3 in chat — proves contracts, audio-first timing
 |---|---|---|---|
 | R1 | Removing the Director DSL lowers visual richness | M / M | Beats + topic cards + reviewer; A/B on golden set in P9; DSL ideas folded into cards; keep DSL code in git |
 | R2 | Clip planner produces impossible contracts | M / M | Pydantic validation at plan time; CONTRACT_* routed as plan defects |
-| R3 | Builder agent loops expensively | M / H | gates before render; ≤ 3 sessions; run budget; findings histogram drives tool/card fixes |
+| R3 | Builder agent loops expensively | M / H | gates before render; ≤ 3 sessions; findings histogram drives tool/card fixes |
 | R4 | Probe false positives (e.g. intentional overlap, partial cropping) | M / L | WARN-level overrides via plan field `allow_overlap: [names]` [PROPOSED]; zoom rule already built |
 | R5 | Claude Code CLI flag/behaviour changes | M / H | preflight version checks; pin CLI version; runner integration test with fake CLI |
-| R6 | Subscription usage limits vs API billing | M / M | stays sequential; budget/usage visible; decision Q2 |
+| R6 | Subscription usage limits vs API billing | M / M | stays sequential; usage visible; decision Q2 |
 | R7 | Kokoro gives no word timings → coarse sync | H / L | phrase-level beats are enough; Polly speech marks when precise sync matters |
 | R8 | Section renders of long scenes slow down final renders | L / M | per-clip cached renders; scenes are 30–90 s |
 | R9 | Runtime Python 3.14 (`.pyc` evidence) vs tests on 3.12; `audioop` removed in 3.13 (pydub warns) | M / M | run the suite on 3.14 in P1; pin Python in pyproject |
@@ -1213,12 +1209,11 @@ requirement); file-level clip isolation over shared helpers; no vector search (e
 | # | Question | Default assumed here | Decide by |
 |---|---|---|---|
 | Q1 | Is Claude Code only the operator/agent runtime, or should production runs move to the API/Agent SDK? | Keep CLI runner; SDK backend later | P3 |
-| Q2 | Auth/billing: API key vs subscription token for unattended runs | API key for budgets & reporting accuracy | P1 |
+| Q2 | Auth/billing: API key vs subscription token for unattended runs | API key for reporting accuracy | P1 |
 | Q3 | Default aspect: product name says "Shorts" (9:16) but target length is 4–8 min (typical 16:9) | 16:9 default, 9:16 supported | P5 |
 | Q4 | TTS default for production: Kokoro vs Polly (speech marks) | Kokoro for drafts, Polly for final if precise sync wanted | P12 |
 | Q5 | Is web research needed for the target topics? | Off | P5 |
 | Q6 | Which CP3 approvals may auto-approve? | none in v1 | P10 |
-| Q7 | Budget per run and per clip | $15 / $1.5 [PROVISIONAL] | P1 (from baseline) |
 | Q8 | Captions (SRT) in v1? | not in v1; text is available per clip so cheap to add | P12 |
 | Q9 | Python version to support (3.12 vs 3.14) | both, CI on both | P1 |
 | Q10 | Where do review artifacts go for non-technical reviewers? | local files + chat | P10 |

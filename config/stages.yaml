@@ -1,4 +1,4 @@
-# stages.yaml — model, effort, retry and budget per stage (PROPOSED; replaces the STAGES dict in pipeline.py).
+# stages.yaml — model, effort and retry per stage (PROPOSED; replaces the STAGES dict in pipeline.py).
 # Aliases resolve to the current model of that tier in Claude Code (`--model sonnet` etc.).
 # Effort levels available depend on the model (low|medium|high|xhigh|max).
 # All values are PROVISIONAL starting points — tune from log.jsonl measurements (Plan.md §23).
@@ -13,7 +13,7 @@ stages:
   math_verify:     {model: sonnet, effort: high,   kind: llm,   cacheable: true, scope: video, escalate_model: opus}
   tts:             {kind: deterministic, cacheable: true, scope: clip}
   clip_build:      {model: sonnet, effort: high,   kind: agent, scope: clip, timeout_s: 2400,
-                    max_budget_usd: 1.5, retry: {model: sonnet, effort: xhigh}, final_retry: {model: opus, effort: high}}
+                    retry: {model: sonnet, effort: xhigh}, final_retry: {model: opus, effort: high}}
   clip_review:     {model: sonnet, effort: medium, kind: llm,   scope: clip, only_if: "gates passed and code changed",
                     max_frames: 8, frame_width_px: 640}
   final_render:    {kind: deterministic, sandbox: bwrap, quality: h}

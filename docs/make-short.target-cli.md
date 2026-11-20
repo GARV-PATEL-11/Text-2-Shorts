@@ -36,11 +36,10 @@ same flow onto today's `python -m app.pipeline` commands so the skill is usable 
 8. **CP4 final (mandatory).** Approve → `t2s approve final`; deliver `runs/<id>/delivery/final.mp4` + cost report.
 
 ## Status and recovery
-- `t2s status` — phase, clip states, open feedback, spend vs budget. Resume after any interruption by running the
+- `t2s status` — phase, clip states, open feedback, spend. Resume after any interruption by running the
   step it names; completed and cached work is reused automatically.
 - A clip FAILED twice → show its open finding codes and ask the user whether to simplify the clip (feedback with
   scope visual) or accept a fallback (static frame + narration). Do not loop.
-- Budget stop → report spend and the cheapest next step; never raise the budget without the user.
 
 ## Current CLI (before the clip-level refactor)
 `python -m app.pipeline new "<topic>" --approach zoom --minutes 2 --voice af_heart` → `outline <run> [--feedback]`

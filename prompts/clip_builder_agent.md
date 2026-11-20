@@ -1,7 +1,7 @@
 # clip_builder_agent@1 — Clip Builder (PROPOSED; sandboxed Claude Code agent, one clip per session)
 
 Replaces the current per-SCENE render agent. Same execution mechanism (`claude -p` with `--restricted`,
-`--tools Read,Write,Edit,Bash`, Bash sandbox, `--permission-prompts none`, `--max-budget-usd`), but:
+`--tools Read,Write,Edit,Bash`, Bash sandbox, `--permission-prompts none`), but:
 - scope is ONE clip file: cwd = `scenes/sNN/clips_work/clip_MM/`, the only writable source is `clip_MM.py`;
 - the ~25.7k-token appended prompt (codegen + debug + 3 catalogs) shrinks to ~0.5k static instructions (measured, chars/4) + the always-on topic cards
   (clip-structure, timing-and-sync, positioning-layout ≈ 1.1k) + ~0.5–1.5k of API cards for exactly the names/topics this clip needs;

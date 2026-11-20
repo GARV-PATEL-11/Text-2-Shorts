@@ -13,7 +13,7 @@ Behavioural facts in Plan.md §14.2 were verified by executing code against `man
 
 ## Claude Code
 - CLI reference (flags used by the runner: `--restricted`, `--permission-prompts`, `--safe-mode`, `--json-schema`,
-  `--max-budget-usd`, `--append-system-prompt-file`, `--exclude-dynamic-system-prompt-sections`,
+  `--append-system-prompt-file`, `--exclude-dynamic-system-prompt-sections`,
   `__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__`, `--effort` levels) — https://code.claude.com/docs/en/cli-reference
   (fetched in its Portuguese rendering: https://code.claude.com/docs/pt/cli-reference)
 - Settings / sandboxing (`sandbox.enabled`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`, `failIfUnavailable`,

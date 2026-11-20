@@ -55,7 +55,7 @@ load_dotenv()
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable  # the venv interpreter — manim is installed here
 SANDBOX_SETTINGS = Path(__file__).with_name("sandbox.json")
-FINAL_QUALITY = os.environ.get("T2S_QUALITY", "-qh")
+FPS = int(os.environ.get("T2S_FPS", 60))  # final render is always 2560x1440 (-qp, 16:9); 60–120 fps
 MAX_PARALLEL = int(os.environ.get("T2S_PARALLEL", 4))  # scenes at a time (user's call: 4)
 CACHE_WARMUP_S = 20  # ponytail: fixed delay, not a signal that the cache is written; tune if logs show misses
 CRITIC_ROUNDS = 3  # critic passes; the last one always scores the final plan
@@ -125,7 +125,7 @@ debugging) are your knowledge; this is your workflow:
 
 1. Read plan.md (the scene DSL) and narration.txt (the voiceover this scene must play under).
 2. Write scene.py containing exactly one Scene subclass named {class_name}. If scene.py already exists,
-   start from it (a previous attempt) and apply any human feedback given in the task.
+   start from it (a previous attempt) and apply any human feedback given in the task.{font_rule}
 3. Render:  {render_cmd}
 4. On failure, read the error, apply the RENDER DEBUG protocol, fix scene.py, re-render. At most 6 renders.
 5. On success (the draft video is media/videos/scene/480p15/{class_name}.mp4; run these commands verbatim):
@@ -200,14 +200,10 @@ def claude(
                 "--tools", "Read,Write,Edit,Bash",
                 "--allowedTools", "Bash(ffmpeg:*)", "Bash(ffprobe:*)", "Bash(python3:*)",
                 "--settings", str(SANDBOX_SETTINGS),
-                "--permission-mode", "acceptEdits", "--permission-prompts", "none", "--max-budget-usd", "3"]
+                "--permission-mode", "acceptEdits", "--permission-prompts", "none"]
     else:
         cmd += ["--system-prompt-file", str(sys_file), "--tools", ""]
 
-    budget = float(os.environ.get("T2S_BUDGET_USD") or 0)
-    # ponytail: checked before each call, so parallel calls in flight can overshoot by a few calls' cost
-    if budget and run_cost(run) >= budget:
-        raise RuntimeError(f"{tag}: run budget ${budget:.2f} reached (${run_cost(run):.2f} spent) — raise T2S_BUDGET_USD")
     env: dict = {}
     for attempt in (1, 2):
         t0 = time.monotonic()
@@ -293,13 +289,16 @@ def cmd_new(a) -> None:
     pf = subprocess.run([PYTHON, str(ROOT / "tools" / "preflight.py")], capture_output=True, text=True)
     if pf.returncode:  # fail before any paid call: missing LaTeX/ffmpeg/bwrap/… would only surface at render
         sys.exit(f"Preflight failed: {json.loads(pf.stdout)['problems']}")
+    families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True).stdout
+    if a.font and a.font.lower() not in {f.strip().lower() for line in families.splitlines() for f in line.split(",")}:
+        sys.exit(f"Font not installed: {a.font!r} — pick one from `fc-list : family`")
     slug =re.sub(r"[^a-z0-9]+", "-", a.requirement.lower())[:40].strip("-")
     run = ROOT / "runs" / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
     run.mkdir(parents=True)
     refined = claude(run, "refine", a.requirement, REQ_MODIFIER_SYSTEM)
     write_json(run / "brief.json", {
         "requirement": a.requirement, "approach": a.approach, "minutes": a.minutes, "pace": a.pace,
-        "audience": a.audience, "notes": a.notes, "voice": a.voice, "engine": a.engine, "refined": refined.strip(),
+        "audience": a.audience, "notes": a.notes, "voice": a.voice, "engine": a.engine, "font": a.font, "refined": refined.strip(),
         })
     print(run.relative_to(ROOT))
     print(refined.strip())
@@ -492,6 +491,12 @@ def cmd_render(a) -> None:
     missing = [b for b in ("bwrap", "socat") if not shutil.which(b)]
     if missing:  # without these Claude Code silently runs Bash unsandboxed — refuse instead
         sys.exit(f"Sandbox dependencies missing: {missing}. Run: sudo apt install bubblewrap socat")
+    if not 60 <= FPS <= 120:
+        sys.exit(f"T2S_FPS={FPS}: must be 60–120")
+    font = read_json(run / "brief.json").get("font")
+    font_rule = (f'\n   Font: the first lines of construct() are Text.set_default(font="{font}") and '
+                 f'MarkupText.set_default(font="{font}"); never pass another font=. MathTex keeps LaTeX fonts.'
+                 if font else "")
     narr = {s["scene_id"]: s for s in read_json(run / "narration.json")["scenes"]}
     for p in (CACHE / "manim", CACHE / "fontconfig"):
         p.mkdir(parents=True, exist_ok=True)  # sandbox allowWrite ignores paths that don't exist yet
@@ -504,6 +509,7 @@ def cmd_render(a) -> None:
         probe_cmd = f'"{PYTHON}" "{ROOT / "tools" / "layout_probe.py"}" scene.py {name}'
         system = "\n\n".join([CODE_GEN_SYSTEM, _DEBUG_IDENTITY_AND_PROTOCOL,
                               SCENE_AGENT_PROTOCOL.format(class_name=name, render_cmd=render_cmd, probe_cmd=probe_cmd,
+                                                          font_rule=font_rule,
                                                           target=narr[sid]["audio_seconds"])])
         user = build_code_user_prompt((d / "plan.md").read_text()) + feedback_block(a.feedback)
 
@@ -520,7 +526,7 @@ def cmd_render(a) -> None:
             # Final-quality render of the approved code, jailed (no network, writes to scene dir + ~/.cache).
             shutil.rmtree(d / "media_final", ignore_errors=True)
             p = subprocess.run(BWRAP + ["--bind", str(d), str(d), PYTHON, "-m", "manim", "render", "scene.py", name,
-                                        FINAL_QUALITY, "--media_dir", "media_final", "--disable_caching"],
+                                        "-qp", "--fps", str(FPS), "--media_dir", "media_final", "--disable_caching"],
                                cwd=d, capture_output=True, text=True, timeout=3600)
             mp4s = sorted((d / "media_final").rglob(f"{name}.mp4")) or sorted((d / "media").rglob(f"{name}.mp4"))
             if p.returncode != 0:
@@ -578,6 +584,7 @@ def main() -> None:
     p.add_argument("--notes", default="")
     p.add_argument("--engine", default=os.environ.get("TTS_ENGINE", "kokoro"),
                    help="kokoro (local, free) or a Polly engine: neural | generative | standard")
+    p.add_argument("--font", help="font family for all Text (any name from `fc-list : family`); default: Manim's")
     p.add_argument("--voice", help="Kokoro: af_heart, am_michael, … · Polly: Matthew, Joanna, …")
     p.set_defaults(fn=cmd_new)
 

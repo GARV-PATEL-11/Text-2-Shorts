@@ -21,10 +21,11 @@ Ask in one AskUserQuestion call (skip a question only if the user already answer
 - **Audience / level**: e.g. curious beginners · students with high-school math · practitioners.
 - **Length**: 1 · 2 · 3 · 5 minutes.
 - **Voice** (Kokoro, local, default): af_heart (female, best) · af_bella (female) · am_michael (male) · bm_george (British male). Polly alternatives: Matthew/Joanna with `--engine neural`, Ruth/Stephen with `--engine generative`.
+- **Font** for on-screen text (optional; MathTex keeps LaTeX fonts): offer a few installed families, e.g. Roboto · Noto Sans · DejaVu Sans · Latin Modern Roman. The full list is `fc-list : family`. Skip the flag for Manim's default.
 
 Then:
 ```
-uv run python -m app.pipeline new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --voice <v> [--engine neural|generative] [--notes "<anything else they said>"]
+uv run python -m app.pipeline new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --voice <v> [--font "<family>"] [--engine neural|generative] [--notes "<anything else they said>"]
 ```
 First output line is the run folder (`runs/<id>`); use it for every later step.
 

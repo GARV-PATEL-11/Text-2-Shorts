@@ -8,27 +8,27 @@ Status tags as in Plan.md. Signatures are Python 3.12, Pydantic v2 types from `a
 **Responsibility:** load `.env` and `config/stages.yaml` once; expose typed settings.
 ```python
 class StageCfg(BaseModel): model: str | None; effort: str | None; kind: Literal["llm","agent","deterministic"]
-    timeout_s: int = 1800; max_attempts: int = 2; max_budget_usd: float | None = None
+    timeout_s: int = 1800; max_attempts: int = 2
     retry: dict | None = None; final_retry: dict | None = None
-def load_settings(root: Path) -> Settings      # Settings: stages: dict[str, StageCfg], budget_usd, manim_pin, api_index, aspect, tts...
+def load_settings(root: Path) -> Settings      # Settings: stages: dict[str, StageCfg], manim_pin, api_index, aspect, tts...
 ```
-Env overrides: `T2S_MODEL` (all LLM stages), `T2S_BUDGET_USD`, `T2S_ASPECT`. **Tests:** yaml parse; override precedence.
+Env overrides: `T2S_MODEL` (all LLM stages), `T2S_FPS`. **Tests:** yaml parse; override precedence.
 
 ## M2 `app/llm/runner.py` [PROPOSED — extracted from `pipeline.claude()` EXISTS]
 **Responsibility:** the only place that launches `claude -p`; classification, retries, logging, artifact cache.
 ```python
 class LLMError(Exception): error_class: Literal["AUTH","CLI","RATE_LIMIT","OVERLOADED","TIMEOUT","SCHEMA_INVALID",
-                                               "BUDGET","AGENT_LIMIT","UNKNOWN"]
+                                               "AGENT_LIMIT","UNKNOWN"]
 @dataclass class CallSpec: stage: str; prompt_id: str; system_static: str; system_dynamic: str = ""; user: str = ""
     schema: type[BaseModel] | None = None; scene_id: str | None = None; clip_id: str | None = None
     agent: bool = False; cwd: Path | None = None; input_hashes: dict[str, str] = {}
 def run(spec: CallSpec, *, ledger: Ledger, cache: Store, settings: Settings) -> tuple[BaseModel | str, GenerationMetadata]
 ```
-Behaviour: (1) budget check (ledger running total + estimate) → `BUDGET`; (2) cache lookup by `GenerationMetadata.cache_key()`
+Behaviour: (1–2) cache lookup by `GenerationMetadata.cache_key()`
 → return on hit (log `artifact_cache_hit`); (3) write system file = `system_static` + `\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n`
 + `system_dynamic` (non-agent) or append file = `system_static` (agent, plus `--exclude-dynamic-system-prompt-sections`);
 (4) flags exactly as today (`--safe-mode --no-session-persistence --tools ""` / agent set with `--restricted`, sandbox
-settings, `--permission-prompts none`, `--max-budget-usd`); (5) parse envelope; classify errors from `is_error`,
+settings, `--permission-prompts none`); (5) parse envelope; classify errors from `is_error`,
 `subtype`, stderr text; (6) policy per Plan.md §21 (backoff 10/40/120 s for RATE_LIMIT/OVERLOADED; 1 retry TIMEOUT;
 1 retry SCHEMA_INVALID with the validation error appended to `user`); (7) log row (Plan.md §23); (8) save prompts to
 `.prompts/<stage>/<clip or scene or run>.<attempt>.md`; (9) store result in cache. Concurrency: process-wide lock

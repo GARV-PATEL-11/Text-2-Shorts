@@ -8,7 +8,6 @@ flowchart TD
     T1 -->|no| PAUSE
     K -->|"SCHEMA_INVALID"| SV["retry once with validation errors appended"] --> SV2{ok?}
     SV2 -->|no| FAILSTEP["FAILED(step) → checkpoint shows error"]
-    K -->|"BUDGET_EXCEEDED"| STOP["stop; report spend; ask operator"]
     K -->|"GATE_FAILED (clip)"| GB{"clip sessions < 3?"} -->|yes| ESC["next session, escalated effort/model"]
     GB -->|no| CF["clip FAILED → CP3 (simplify / fallback / accept)"]
     K -->|"RENDER_INFRA (latex/dvisvgm/ffmpeg missing)"| FATAL

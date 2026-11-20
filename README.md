@@ -14,10 +14,10 @@ uv run python -m app.pipeline render   runs/<id> [--scenes N --feedback "…"]
 uv run python -m app.pipeline assemble runs/<id>          # → runs/<id>/final.mp4
 ```
 - Model/effort per stage: `STAGES` in `app/pipeline.py`. Env vars: `.env.example`
-  (`T2S_PARALLEL`, default 4 scenes at a time; `T2S_BUDGET_USD`, which stops new Claude calls once a run has
-  spent that much; `T2S_MODEL`; `T2S_QUALITY`).
+  (`T2S_PARALLEL`, default 4 scenes at a time; `T2S_MODEL`; `T2S_FPS`, 60–120, default 60).
+- Output is always 2560×1440 (16:9, 1440p). `new --font "<family>"` sets the font for all on-screen text.
 - Wired-in safeguards:
-  - `new` runs `tools/preflight.py` first, so a machine missing LaTeX or ffmpeg fails before any paid call.
+  - `new` runs `tools/preflight.py` first, so a machine missing LaTeX or ffmpeg fails before any Claude call.
   - Render agents run `tools/layout_probe.py` and must fix every OVERLAP or OUT_OF_FRAME error before finishing.
   - The Kokoro model is checked against pinned SHA-256 hashes when it downloads.
 - Each run's `log.jsonl` has a `started` line and a result line (cost, duration, error) per Claude call.
