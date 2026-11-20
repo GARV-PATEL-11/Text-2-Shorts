@@ -3,7 +3,7 @@ flowchart TB
         CC["Claude Code session<br/>skill: make-short"]
     end
     subgraph L1["Application (Python, sequential)"]
-        CLI["t2s CLI"] --> ORCH["Orchestrator<br/>steps · checkpoints"]
+        CLI["text-2-shorts CLI"] --> ORCH["Orchestrator<br/>steps · checkpoints"]
         ORCH <--> LED[("Run ledger<br/>state.json · versions/ · feedback.jsonl")]
         ORCH <--> DG["Dependency graph<br/>invalidation planner"]
         ORCH <--> CACHE[("Content-addressed cache<br/>.cache/llm · tts · render · checks")]

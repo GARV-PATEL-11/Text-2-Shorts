@@ -10,9 +10,9 @@ ManimCE, and hand-written lists drift. Patterns come from topic cards whose exam
 
 ## Does X exist / how do I call X
 Commands run from the repo root (inside a run session, the tools are also behind `./check doc Name` in a clip folder):
-1. Index (once per Manim version; `t2s task` builds it automatically):
-   `uv run python tools/build_manim_api_index.py --out ~/.cache/t2s/manim_api_0.20.1.json`
-2. Cards: `uv run python tools/doc_cards.py --index ~/.cache/t2s/manim_api_0.20.1.json --names Axes,Axes.plot,MathTex`
+1. Index (once per Manim version; `text-2-shorts task` builds it automatically):
+   `uv run python tools/build_manim_api_index.py --out ~/.cache/text-2-shorts/manim_api_0.20.1.json`
+2. Cards: `uv run python tools/doc_cards.py --index ~/.cache/text-2-shorts/manim_api_0.20.1.json --names Axes,Axes.plot,MathTex`
    Classes, functions, constants and `Class.method` (inherited methods included) are resolved; a name listed under
    "NOT IN Manim" does not exist in this version — pick an alternative.
 3. Patterns: read only the card you need from `topics/` (each < 1k tokens): `clip-structure` (this project's clip
@@ -30,8 +30,8 @@ If neither the cards nor a topic answer it, inspect the installed package direct
 - One clip with its exact entry state: `tools/scene_harness.py render <scene_dir> --scene-id sNN --target clip_02`
 
 ## Changing the pinned version
-Bump `manim==` in `pyproject.toml` and `MANIM` in `app/clips.py`; rebuild the index; run
+Bump `manim==` in `pyproject.toml` and `MANIM_VERSION` in `app/run_steps.py`; rebuild the index; run
 `uv run pytest -q tests/test_topic_cards.py tests/test_api_index.py`; read the release notes for the versions in
 between ([Manim releases](https://github.com/ManimCommunity/manim/releases)); update `topics/removed-apis.md` and the
 REMOVED table in `tools/validate_manim_code.py`. Every clip's key changes with the clip-builder instructions, not with
-the version — rebuild clips deliberately (`t2s status` per run).
+the version — rebuild clips deliberately (`text-2-shorts status` per run).

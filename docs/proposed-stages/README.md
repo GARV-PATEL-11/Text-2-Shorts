@@ -1,7 +1,7 @@
 # Prompt specifications
 
-The implemented instructions live in the Claude Code environment: `env/skills/t2s-produce/` (workflow +
-references) and `env/agents/` (clip-builder, math-reviewer).
+The implemented instructions live in the Claude Code environment: `run-environment/skills/text-2-shorts-produce/` (workflow +
+references) and `run-environment/agents/` (clip-builder, math-reviewer).
 This folder keeps the two specified stages that are NOT built:
 
 | File | Stage | Why not built |

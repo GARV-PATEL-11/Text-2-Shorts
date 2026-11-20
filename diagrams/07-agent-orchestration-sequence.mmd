@@ -6,7 +6,7 @@ sequenceDiagram
     participant LLM as claude -p (roles)
     participant A as Clip builder (sandboxed agent)
     participant D as Deterministic tools
-    Op->>O: t2s new "topic"
+    Op->>O: text-2-shorts new "topic"
     O->>D: preflight
     O->>LLM: refine → outline → outline review
     O->>L: outline v1, review

@@ -1,17 +1,19 @@
-# Plan.md — Text-to-Shorts: Claude-Code-backed, Manim-based explainer video generator
+# Architecture plan — Text-to-Shorts: Claude-Code-backed, Manim-based explainer video generator
 
 > **Implementation status (v0.2.0).** Built, smallest form that meets each spec:
 > M2 runner → `pipeline.claude()` (LLM result cache, rate/usage-limit waits, start/end log rows) ·
-> M3 ledger → `state.json` + `feedback.jsonl` + versioned `plan.json` (`app/clips.py`) ·
+> M3 ledger → `state.json` + `feedback.jsonl` + versioned `plan.json` (`app/run_steps.py`) ·
 > M4 invalidation → content-hash keys (a clip's key includes the previous clip's code, so changes cascade in order) ·
-> M5 steps + checkpoints → `t2s clips | voice | build | final | approve | feedback | status` ·
-> M6 prompts → constants in `app/clips.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
-> M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
-> M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
-> v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see Plan.md §29.
-> **v0.5 inverted control** (Plan.md §30): no runner/orchestrator any more — M2's `claude()`, M5's LLM steps and
-> M6's prompt constants are gone; one Claude Code session per run does the reasoning, env/ holds its skill,
+> M5 steps + checkpoints → `text-2-shorts clips | voice | build | final | approve | feedback | status` ·
+> M6 prompts → constants in `app/run_steps.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
+> M8 → `app/clip_gates.py` (`./check`) + jailed re-check · M9 → `text-2-shorts voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
+> M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `text-2-shorts` · M14 → preflight in `text-2-shorts new`.
+> v0.3–0.4 added M15 speech (Polly/Google, SSML, word timings) and M16 video standards — see §29.
+> **v0.5 inverted control** (§30): no runner/orchestrator any more — M2's `claude()`, M5's LLM steps and
+> M6's prompt constants are gone; one Claude Code session per run does the reasoning, run-environment/ holds its skill,
 > subagents and hooks, and `app/` keeps only deterministic commands (validate, voice, task, accept, final, …).
+> **v0.6 naming** (`docs/naming-conventions.md`): `app/pipeline.py` → `app/cli.py`, `app/clips.py` → `app/run_steps.py`, `app/check.py` → `app/clip_gates.py`, `app/speech.py` → `app/narration.py` (now also the
+> Polly/Google synthesizers), `app/graph/models/` → `app/outline_models/`, `env/` → `run-environment/`, `Plan.md` → `docs/architecture-plan.md`. Historical tables below keep the names of their time.
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 
@@ -239,7 +241,7 @@ feedback via `--feedback` at outline/plan/render, scene-granular, not stored, no
 | 5 | Refactor prompts demand JSON for a tagged-text plan; pipeline appends a contradicting note | `REFACTOR_SYSTEM`, `cmd_plan.keep_format` |
 | 6 | Class naming rule conflict codegen vs agent protocol; codegen asks for summary/assumption sections the agent mode forbids | `visual_code_gen_prompt.py` §OUTPUT FORMAT vs `SCENE_AGENT_PROTOCOL` |
 | 7 | ~5.8k tokens static output spec placed after dynamic input (uncacheable) | `_build_user_prompt` |
-| 8 | Prompt payload sizes (catalogs 14.9k tok; Director sys 16.8k; agent appended 25.7k) | `reference/audit-evidence/prompt_sizes.md` |
+| 8 | Prompt payload sizes (catalogs 14.9k tok; Director sys 16.8k; agent appended 25.7k) | `reference/audit-evidence/prompt-sizes.md` |
 | 9 | Outline edits regenerate all narration/TTS and do not invalidate plans/code | `cmd_outline`, `cmd_tts`, no dependency tracking |
 | 10 | Final render failure → draft used, status stays READY | `cmd_render` |
 | 11 | No `dvisvgm` check; MathTex fails without it | audit environment render failure |
@@ -285,7 +287,7 @@ flowchart TB
         CC["Claude Code session<br/>skill: make-short"]
     end
     subgraph L1["Application (Python, sequential)"]
-        CLI["t2s CLI"] --> ORCH["Orchestrator<br/>steps · checkpoints"]
+        CLI["text-2-shorts CLI"] --> ORCH["Orchestrator<br/>steps · checkpoints"]
         ORCH <--> LED[("Run ledger<br/>state.json · versions/ · feedback.jsonl")]
         ORCH <--> DG["Dependency graph<br/>invalidation planner"]
         ORCH <--> CACHE[("Content-addressed cache<br/>.cache/llm · tts · render · checks")]
@@ -329,7 +331,7 @@ orchestrator, sandboxed, one clip each). Durable state lives only in the ledger 
 ### 5.3 Proposed end-to-end pipeline
 ```mermaid
 flowchart TD
-    A["t2s new: preflight + refine"] --> B["outline (existing approach prompts)"]
+    A["text-2-shorts new: preflight + refine"] --> B["outline (existing approach prompts)"]
     B --> C{"deterministic outline checks"}
     C -->|fail| B
     C -->|pass| D["outline review ×1<br/>(+1 refactor only on ERROR)"]
@@ -375,7 +377,7 @@ critics/refactor are conditional; final checks run before (not after) the human 
 | FR-08 | Render single-clip drafts with exact entry state; final per-scene renders yield per-clip MP4s | 8 | [BUILT-HERE] harness |
 | FR-09 | Conditional multimodal clip review | 9 | [PROPOSED] |
 | FR-10 | Four checkpoints; approve/revise/reject at video, scene, clip level; feedback persisted | 10 | [PROPOSED] |
-| FR-11 | Regenerate only artifacts invalidated by a change; explain why (`t2s explain`) | 11 | planner [BUILT-HERE] |
+| FR-11 | Regenerate only artifacts invalidated by a change; explain why (`text-2-shorts explain`) | 11 | planner [BUILT-HERE] |
 | FR-12 | Clip-level A/V assembly, loudness normalisation, final media checks | 12 | assembly [BUILT-HERE] |
 | FR-13 | Resume any interrupted run from the ledger | 2 | [PROPOSED] |
 | FR-14 | Per-run cost/time/quality report | 13 | report [BUILT-HERE] |
@@ -489,7 +491,7 @@ sequenceDiagram
     participant LLM as claude -p (roles)
     participant A as Clip builder (sandboxed agent)
     participant D as Deterministic tools
-    Op->>O: t2s new "topic"
+    Op->>O: text-2-shorts new "topic"
     O->>D: preflight
     O->>LLM: refine → outline → outline review
     O->>L: outline v1, review
@@ -545,7 +547,7 @@ Tools: none (`--tools ""`) except the clip builder. Failures follow §21.
 
 | Role | Purpose / scope | Inputs (only these) | Output | Model / effort | Runs when | Validation | Retry / failure | Token notes |
 |---|---|---|---|---|---|---|---|---|
-| Refiner [EXISTS] | Turn raw text into a precise brief | requirement | text | haiku / low | `t2s new` | non-empty | 2 attempts → fail run | ~0.5k sys |
+| Refiner [EXISTS] | Turn raw text into a precise brief | requirement | text | haiku / low | `text-2-shorts new` | non-empty | 2 attempts → fail run | ~0.5k sys |
 | Outline writer [EXISTS] | Scenes with talking points, visual plan, durations | refined brief, minutes, pace, audience, notes | approach outline schema | sonnet / high | after refine; outline feedback | schema + det. checks | schema retry once; det. fail → 1 retry with errors | ~7k static sys (cache) |
 | Outline reviewer | Find accuracy/order/density defects | outline JSON, audience, topic | `CriticResult(outline)` | sonnet / medium | once per outline version | defects need field path | invalid → retry once; then skip (human still reviews) | small |
 | Clip planner | One scene → clips (narration, beats, math, contracts, topics) | video meta, style, scene, other-scene one-liners, prev scene exit, scoped feedback | `ScenePlan` | sonnet / high | per scene after CP1; on plan-scoped feedback | Pydantic (ids, contracts), word budget ±10%, ≤ 30 s/clip | retry once with errors; then CP2 shows failure | ~0.54k static sys (measured); ~1–2k dynamic |
@@ -562,7 +564,7 @@ Concrete I/O examples: `prompts/clip_planner.md` (ScenePlan example), `prompts/c
 ## 11. Internal Prompt Engineering
 
 ### 11.1 Audit of existing prompts
-Sizes measured by importing the modules (`reference/audit-evidence/prompt_sizes.md`; tokens ≈ chars/4).
+Sizes measured by importing the modules (`reference/audit-evidence/prompt-sizes.md`; tokens ≈ chars/4).
 
 | Prompt (stage) | Structure today | Problems found | Decision |
 |---|---|---|---|
@@ -608,17 +610,17 @@ run and across runs → cache reads instead of writes (verify with `cache_read`/
 
 | Command | Steps (in order) | Writes | Gate to proceed |
 |---|---|---|---|
-| `t2s new "<topic>" [opts]` | preflight → create run + ledger → refine → outline → det. checks (≤1 retry) → outline review (→ refactor on ERROR) | `brief.json`, `environment_report.json`, `outline.v1.json`, `reviews/outline.json` | CP1 |
-| `t2s feedback outline --text` | store HumanFeedback → outline refactor with feedback only → det. checks → review | `outline.v(n+1)`, invalidates `video_plan:all` | CP1 |
-| `t2s approve outline` | approval state; freeze outline version | ledger | — |
-| `t2s plan [--scene sNN]` | for each (target) scene: clip planner → validate → (retry) ; then math verifier for changed clips | `plan/sNN.vN.json`, `plan/math_review.json` | CP2 |
-| `t2s feedback clip sNNcMM --scope … --text` | store → map scope to graph node → mark stale set | `feedback.jsonl`, ledger | — |
-| `t2s approve plan` | freeze plan versions → TTS all clips (cached) → write audio seconds | `scenes/sNN/audio/*.mp3`, ledger | — |
-| `t2s build --scene sNN [--clip sNNcMM]` | for each stale/missing clip in order: cards → agent → independent check → reviewer (conditional) → update ledger; then compose + draft scene preview + contact sheets | `clips/clip_MM.py` (approved copy), `clips_work/…`, `review/` | CP3 per scene |
-| `t2s explain sNNcMM` | print rebuild set + reasons (invalidation planner) | — | — |
-| `t2s final` | for each approved scene: bwrap final render (sections) → mux per clip → concat → loudnorm → media checks | `scenes/sNN/media_final/…`, `delivery/` | CP4 |
-| `t2s status` / `t2s resume` | read ledger; run the earliest incomplete step | — | — |
-| `t2s report` | `cost_report.py` + quality metrics | `reports/run.json` | — |
+| `text-2-shorts new "<topic>" [opts]` | preflight → create run + ledger → refine → outline → det. checks (≤1 retry) → outline review (→ refactor on ERROR) | `brief.json`, `environment_report.json`, `outline.v1.json`, `reviews/outline.json` | CP1 |
+| `text-2-shorts feedback outline --text` | store HumanFeedback → outline refactor with feedback only → det. checks → review | `outline.v(n+1)`, invalidates `video_plan:all` | CP1 |
+| `text-2-shorts approve outline` | approval state; freeze outline version | ledger | — |
+| `text-2-shorts plan [--scene sNN]` | for each (target) scene: clip planner → validate → (retry) ; then math verifier for changed clips | `plan/sNN.vN.json`, `plan/math_review.json` | CP2 |
+| `text-2-shorts feedback clip sNNcMM --scope … --text` | store → map scope to graph node → mark stale set | `feedback.jsonl`, ledger | — |
+| `text-2-shorts approve plan` | freeze plan versions → TTS all clips (cached) → write audio seconds | `scenes/sNN/audio/*.mp3`, ledger | — |
+| `text-2-shorts build --scene sNN [--clip sNNcMM]` | for each stale/missing clip in order: cards → agent → independent check → reviewer (conditional) → update ledger; then compose + draft scene preview + contact sheets | `clips/clip_MM.py` (approved copy), `clips_work/…`, `review/` | CP3 per scene |
+| `text-2-shorts explain sNNcMM` | print rebuild set + reasons (invalidation planner) | — | — |
+| `text-2-shorts final` | for each approved scene: bwrap final render (sections) → mux per clip → concat → loudnorm → media checks | `scenes/sNN/media_final/…`, `delivery/` | CP4 |
+| `text-2-shorts status` / `text-2-shorts resume` | read ledger; run the earliest incomplete step | — | — |
+| `text-2-shorts report` | `cost_report.py` + quality metrics | `reports/run.json` | — |
 
 ---
 
@@ -733,7 +735,7 @@ flowchart TD
     K -->|"ARTIFACT_CORRUPT (hash mismatch / unreadable)"| INV["invalidate artifact → rebuild via graph"]
 ```
 *Purpose:* every error class has one policy; nothing is retried blindly or forever, and every terminal state is
-visible in `t2s status`.
+visible in `text-2-shorts status`.
 
 ### 13.5 Caching and context reuse
 ```mermaid
@@ -829,9 +831,9 @@ Optional (config): auto-approve CP3 clips with zero WARN findings; auto-approve 
 - `ApprovalState`: draft → pending_review → approved | revision_requested | rejected; any approved artifact becomes
   **stale** when an upstream input hash changes (computed, never hand-set).
 - Feedback: append-only `runs/<id>/feedback.jsonl` of `HumanFeedback` (target kind/id/version, action, scope, text);
-  `resolved_by_version` set when a new version addressing it is produced. Unresolved feedback is shown in `t2s status`.
+  `resolved_by_version` set when a new version addressing it is produced. Unresolved feedback is shown in `text-2-shorts status`.
 - Versions: every artifact write goes to `versions/<kind>/<id>.v<N>.<ext>`; the working path is a copy of the current
-  version; `state.json` records version, content hash and input hashes. Rollback = `t2s rollback <id> --to vN`
+  version; `state.json` records version, content hash and input hashes. Rollback = `text-2-shorts rollback <id> --to vN`
   (re-points current version; dependents become stale).
 - Conflicting feedback (e.g. two notes on the same clip that contradict): the newer one wins only if it targets the
   current version; otherwise both are shown at the checkpoint and the builder is not run until one is withdrawn.
@@ -957,7 +959,7 @@ across calls (prompt cache); no summarisation calls anywhere (state is structure
 ### 18.3 Selective regeneration
 Implemented by the ledger + `invalidation.rebuild_plan(changed, unchanged_outputs)`; the "unchanged outputs" set
 (e.g. a plan edit that leaves the exit contract byte-identical) stops propagation, so neighbours are not rebuilt.
-`t2s explain` prints the set before anything runs.
+`text-2-shorts explain` prints the set before anything runs.
 
 ### 18.4 Model selection
 Haiku/low: refine. Sonnet/medium: outline review, clip review. Sonnet/high: outline, clip planning, math verification,
@@ -1033,7 +1035,7 @@ Representative `ClipState` row in `state.json`:
 Preserves `app/graph/models` and the outline prompts in place; moves the rest out of the 549-line `pipeline.py`.
 ```
 app/
-  cli.py                       NEW   `t2s` commands (§12); thin argparse layer
+  cli.py                       NEW   `text-2-shorts` commands (§12); thin argparse layer
   config.py                    NEW   .env + config/stages.yaml loader
   pipeline.py                  KEPT  legacy commands until parity (Phase 6), then removed
   graph/models/*.py            KEPT  outline schemas (unchanged)
@@ -1054,7 +1056,7 @@ app/
   observability/{log,cost}.py  NEW   structured log rows, cost_report
 config/                        stages.yaml, sandbox.json, manim.*.cfg, .env.example
 .claude/skills/make-short/     operator skill (reconstructed)
-.claude/skills/manim-ce-0-20-1-reference/, t2s-clip-debugging/, t2s-prompt-maintenance/
+.claude/skills/manim-ce-0-20-1-reference/, text-2-shorts-clip-debugging/, text-2-shorts-prompt-maintenance/
 tests/                         unit, contract, fixtures, golden/
 runs/<id>/                     state.json, brief.json, environment_report.json, outline*.json, plan/, scenes/,
                                feedback.jsonl, versions/, delivery/, log.jsonl, .prompts/
@@ -1081,7 +1083,7 @@ artifacts (contact sheets, draft MP4s, markdown tables). A local review web page
 | Corrupted intermediate artifact | hash mismatch / unreadable on load | invalidate + rebuild through graph | `ARTIFACT_CORRUPT` |
 | Cache inconsistency (entry points to missing file) | load-time check | drop entry, treat as miss | log WARN |
 | Human feedback conflict | two open feedback items on same target/version | hold the target; show both at checkpoint | status |
-| Interrupted session (Ctrl-C, crash, reboot) | ledger shows step `running` with no live PID | `t2s resume` re-runs that step (idempotent writes: temp file + atomic rename) | status |
+| Interrupted session (Ctrl-C, crash, reboot) | ledger shows step `running` with no live PID | `text-2-shorts resume` re-runs that step (idempotent writes: temp file + atomic rename) | status |
 | Final render failure | non-zero exit / missing sections | FAILED(final_render) — **never** fall back to drafts silently (fixes §3.3 #10) | status + report |
 | Agent claims READY but checks fail | orchestrator `./check all` | record FAILED (`CLAIM_MISMATCH`) | status |
 Principle: an error is either retried under a stated policy, or it stops the affected unit with a visible status.
@@ -1103,7 +1105,7 @@ No code path converts an exception into success; every terminal state is in `sta
 | Mathematical correctness | math_lint on fixtures (LaTeX compiles; sympy spot checks); verifier evals on seeded errors | `tests/math/` | [PROPOSED] |
 | Scene continuity | contract mismatch fixtures (planner + validator); section continuity test | partly [BUILT-HERE] | |
 | Audio sync | muxed clip ≥ narration; Σ clips = final ±0.2 s | `test_assemble_clips.py` | [BUILT-HERE] |
-| Full-video integration | `t2s` end-to-end on 2 golden topics with `T2S_MODEL=haiku` (cheap smoke) and with default models (nightly/manual) | `tests/golden/` | [PROPOSED] |
+| Full-video integration | `text-2-shorts` end-to-end on 2 golden topics with `T2S_MODEL=haiku` (cheap smoke) and with default models (nightly/manual) | `tests/golden/` | [PROPOSED] |
 | Cache invalidation | changing each input class changes exactly the expected keys | `tests/test_cache.py` | [PROPOSED] |
 | Selective regeneration | graph rebuild sets per feedback scope | `test_invalidation.py` | [BUILT-HERE] |
 | HITL workflow | scripted approve/revise sequences against a fake runner; ledger states | `tests/test_checkpoints.py` | [PROPOSED] |
@@ -1145,11 +1147,11 @@ regression isolates code-generation quality.
   duration_ms, input_hashes, output_hash`. Deterministic steps log the same row with `kind: deterministic`.
 - **Events** (ledger transitions): `step_started/finished/failed`, `checkpoint_opened/approved/revised`,
   `artifact_versioned`, `artifact_invalidated(reason)`.
-- **Reports:** `t2s report` → per stage/clip cost, tokens, cache ratios, sessions per clip, gate findings histogram
+- **Reports:** `text-2-shorts report` → per stage/clip cost, tokens, cache ratios, sessions per clip, gate findings histogram
   (most frequent codes → candidates for new validator rules or topic cards), wall time.
 - **Prompts:** every call's exact system/user text saved under `.prompts/<stage>/<clip>.<attempt>.md` (today: one file
   per stage, overwritten).
-- **Status:** `t2s status` renders the ledger: phase, per-clip state, open feedback, spend.
+- **Status:** `text-2-shorts status` renders the ledger: phase, per-clip state, open feedback, spend.
 
 ---
 
@@ -1176,17 +1178,17 @@ Critical path: P1 → P2 → P5 → P6 → P7/P8 → P12 → P13. Phases 3–4 r
 | # | Phase | Objective | Reuse | Modify | New | Depends | Deliverables | Acceptance criteria | Risks |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | Existing app audit & baseline | Measure before changing | `log.jsonl`, current CLI | — | `cost_report.py` [BUILT-HERE], 3 golden runs | — | `reports/baseline.json` (cost, time, sessions per scene, failures) | Baseline for G1–G3 recorded; audit findings §3.3 confirmed on a live run | Live runs cost money — use 2-min videos |
-| 2 | Product & data model finalisation | Contracts + ledger | outline schemas | `pipeline.claude()` → `llm/runner.py` (behaviour-preserving) | `contracts/models.py` [BUILT-HERE], `orchestrator/ledger.py`, `config.py`, `stages.yaml`, `t2s status/resume` | 1 | ledger with atomic writes, versions/, resume | Interrupt any step and resume without redoing finished steps; legacy commands still work | Ledger/legacy dual state — legacy writes mirrored into ledger |
+| 2 | Product & data model finalisation | Contracts + ledger | outline schemas | `pipeline.claude()` → `llm/runner.py` (behaviour-preserving) | `contracts/models.py` [BUILT-HERE], `orchestrator/ledger.py`, `config.py`, `stages.yaml`, `text-2-shorts status/resume` | 1 | ledger with atomic writes, versions/, resume | Interrupt any step and resume without redoing finished steps; legacy commands still work | Ledger/legacy dual state — legacy writes mirrored into ledger |
 | 3 | Agent architecture refinement | Freeze roles and boundaries (§9) | — | runner: error classes, backoff | — | 2 | ADR file; runner tests with fake CLI | Each error class follows §21 in tests | — |
 | 4 | Prompt engineering | New/fixed prompts as code | outline prompts | patches (`existing_prompt_fixes.md`) | `llm/prompts/*.py` (static/dynamic split) | 2 | prompts + replay tests | Static prefixes byte-stable; schemas agree with prompts; catalog audit clean | Prompt quality only provable on live runs → P13 |
-| 5 | Video & scene planning | Outline review + clip planner + math verifier | outline stage | `cmd_outline` → steps; deterministic outline checks | `outline_review`, `clip_planner`, `math_verifier`; CP1/CP2 | 2, 4 | `t2s new/plan/approve`, plan tables, math sheet | G1–G3 produce valid ScenePlans first try ≥ 2/3 scenes [PROVISIONAL]; contract violations impossible to approve | Planner over/under-splits clips — tune with examples |
-| 6 | Clip-level planning & generation | Clip builder agent per clip | render agent invocation, sandbox | cwd per clip; TASK.md/API_CARDS.md generation | `render/check.py` (`./check`), builder prompt, CP3 previews | 5, 7 | `t2s build --scene` | One golden scene builds clip-by-clip; agent cannot write outside its clip; READY re-checked | Agent sandbox edge cases (ffmpeg approvals already seen) |
+| 5 | Video & scene planning | Outline review + clip planner + math verifier | outline stage | `cmd_outline` → steps; deterministic outline checks | `outline_review`, `clip_planner`, `math_verifier`; CP1/CP2 | 2, 4 | `text-2-shorts new/plan/approve`, plan tables, math sheet | G1–G3 produce valid ScenePlans first try ≥ 2/3 scenes [PROVISIONAL]; contract violations impossible to approve | Planner over/under-splits clips — tune with examples |
+| 6 | Clip-level planning & generation | Clip builder agent per clip | render agent invocation, sandbox | cwd per clip; TASK.md/API_CARDS.md generation | `render/check.py` (`./check`), builder prompt, CP3 previews | 5, 7 | `text-2-shorts build --scene` | One golden scene builds clip-by-clip; agent cannot write outside its clip; READY re-checked | Agent sandbox edge cases (ffmpeg approvals already seen) |
 | 7 | Manim documentation integration | Index + cards + topics in the loop | — | — | `manim_docs/*` [BUILT-HERE tools], topic cards [BUILT-HERE] | 2 | cards per clip in TASK | Cards ≤ 1.5k tokens/clip; 0 REMOVED_API at render time on golden set | Missing topics → add cards from findings histogram |
 | 8 | Code generation & execution | Gates + harness + final render | bwrap jail | final render via sections; no silent fallback | `render/*` [BUILT-HERE tools], media checks | 6, 7 | single-clip draft, final per-scene with sections | TC-01…TC-05 pass in CI; final failure surfaces as FAILED | Section render time for long scenes |
 | 9 | Critic & refactoring loops | Conditional reviewer + routing | — | — | `clip_reviewer`, repair router (§16.3), contact sheets | 8 | review records, routed repairs | Reviewer runs only on changed code; single vs split critic A/B done | Vision judgement variance |
-| 10 | Human-in-the-loop workflows | Approvals, feedback, rollback | `--feedback` idea | — | `checkpoints.py`, `feedback.jsonl`, `t2s feedback/approve/rollback/explain`, make-short skill | 2, 5, 6 | all four CPs | Scripted HITL tests pass; feedback scopes map per §15.3 | UX in chat — keep tables short |
+| 10 | Human-in-the-loop workflows | Approvals, feedback, rollback | `--feedback` idea | — | `checkpoints.py`, `feedback.jsonl`, `text-2-shorts feedback/approve/rollback/explain`, make-short skill | 2, 5, 6 | all four CPs | Scripted HITL tests pass; feedback scopes map per §15.3 | UX in chat — keep tables short |
 | 11 | Token optimisation & caching | Artifact cache + prompt-cache layout | cache token logging | runner cache lookup | `cache/store.py`, boundary marker, `--exclude-dynamic-system-prompt-sections` | 2, 4 | cache + metrics | Unchanged re-run: ≥ 80% artifact hits, 0 LLM calls for unchanged clips; prompt cache read ratio ≥ 70% [PROVISIONAL] | Hidden inputs missing from keys → stale reuse (test every input class) |
-| 12 | Audio & video assembly | Per-clip TTS + assembly + loudness | Kokoro/Polly | per-clip synthesis, speech marks | `audio/*`, `assembly/*` [BUILT-HERE core] | 5, 8 | `t2s final` | TC-10 passes; −16 LUFS ±1; no narration cut | Kokoro phrase timing estimates |
+| 12 | Audio & video assembly | Per-clip TTS + assembly + loudness | Kokoro/Polly | per-clip synthesis, speech marks | `audio/*`, `assembly/*` [BUILT-HERE core] | 5, 8 | `text-2-shorts final` | TC-10 passes; −16 LUFS ±1; no narration cut | Kokoro phrase timing estimates |
 | 13 | Testing & QA | Full suite + golden regression | — | — | contract/prompt replay/golden tests, CI | all | CI green; regression report vs baseline | Cost per clip and first-session success measured vs P1 baseline; targets set from data | Live-run cost of goldens |
 | 14 | Production readiness | Hardening & ops | — | sandbox config | sandbox fail-closed, Kokoro SHA pin, Docker image, runbook | 13 | release v0.2 | Security table §24 all [EXISTS]; fresh-machine install < 30 min with docs | Docker + bwrap nesting |
 
@@ -1194,7 +1196,7 @@ Critical path: P1 → P2 → P5 → P6 → P7/P8 → P12 → P13. Phases 3–4 r
 3, 9 (reviewer can start as CP3-only human review), 11 (artifact cache first, prompt-cache tuning later), 13 goldens.
 Optional/future: research agent, music/SFX, review web UI, parallel clips.
 
-**Suggested first vertical slice (end of P8):** G1 "Pythagorean theorem", 1 scene × 3 clips, from `t2s new` to a
+**Suggested first vertical slice (end of P8):** G1 "Pythagorean theorem", 1 scene × 3 clips, from `text-2-shorts new` to a
 muxed scene MP4, with CP1–CP3 in chat — proves contracts, audio-first timing, gates, sections and assembly together.
 
 ---
@@ -1214,7 +1216,7 @@ muxed scene MP4, with CP1–CP3 in chat — proves contracts, audio-first timing
 | R8 | Section renders of long scenes slow down final renders | L / M | per-clip cached renders; scenes are 30–90 s |
 | R9 | Runtime Python 3.14 (`.pyc` evidence) vs tests on 3.12; `audioop` removed in 3.13 (pydub warns) | M / M | run the suite on 3.14 in P1; pin Python in pyproject |
 | R10 | Topic cards incomplete for some topics | H / L | closed vocabulary grows from findings; each new card must have a rendering example |
-| R11 | Cache key misses a hidden input → stale reuse | L / H | key = all declared inputs; P11 tests per input class; `t2s rebuild --no-cache` escape hatch |
+| R11 | Cache key misses a hidden input → stale reuse | L / H | key = all declared inputs; P11 tests per input class; `text-2-shorts rebuild --no-cache` escape hatch |
 
 ### 26.2 Trade-offs taken
 Determinism over LLM breadth (more tools, fewer prompts); sequential over parallel (simplicity, rate limits,
@@ -1236,13 +1238,13 @@ requirement); file-level clip isolation over shared helpers; no vector search (e
 ---
 
 ## 27. Acceptance Criteria (system level, v1)
-1. `t2s new` → `t2s final` produces a playable MP4 for G1–G3 with all four checkpoints exercised and recorded.
+1. `text-2-shorts new` → `text-2-shorts final` produces a playable MP4 for G1–G3 with all four checkpoints exercised and recorded.
 2. No render starts on code with static ERROR findings; no clip is READY without orchestrator-verified checks.
 3. Single-clip visual feedback rebuilds exactly that clip (LLM calls only for it) plus scene/video assembly.
 4. Narration is never cut off; per-clip A/V difference within §17 bounds; final loudness −16 ± 1 LUFS.
 5. Every artifact in `runs/<id>/versions/` has provenance (inputs, prompt id, model, cost) and the run can be
    reconstructed from ledger + versions after deleting working files.
-6. Interrupting any step and running `t2s resume` completes the run without repeating finished steps.
+6. Interrupting any step and running `text-2-shorts resume` completes the run without repeating finished steps.
 7. CI: unit + contract + topic-card tests green on the pinned Manim; catalog audit reports no banned-but-existing or
    unexplained missing names.
 8. Measured cost per video minute and first-session gate success are reported against the Phase-1 baseline.
@@ -1310,7 +1312,7 @@ Identical non-agent calls are answered from `.cache/llm/` without a call. Measur
 agent with an identical system prompt read ~42k tokens from cache and wrote ~3.5k (first: ~42k written).
 Not used: `--exclude-dynamic-system-prompt-sections` (made no measurable difference).
 
-### 29.2 Universal standards (`VIDEO_STANDARDS`, `app/clips.py`)
+### 29.2 Universal standards (v0.5+: `run-environment/skills/text-2-shorts-produce/references/standards.md`)
 Frame 2560×1440, 0.5-unit safe margin, one background (set by the harness). Palette roles: text WHITE · focus YELLOW ·
 given BLUE · derived GREEN · warning RED · secondary GREY_B. Type scale 48/34/28/24 (never smaller); MathTex 44/34.
 Zones: top_center (title or running formula) · center (diagram) · left/right halves (comparison) · bottom_center
@@ -1341,12 +1343,12 @@ the last clip's final beat leads into the outline's `transition_to_next` and fad
 continues an idea, the next scene's first beat re-draws `PREVIOUS SCENE FINAL IMAGE` (same objects, colours, zones).
 Gap: scenes still cut (on an empty frame); an assembly crossfade is a candidate.
 
-### 29.6 Speech (`app/speech.py`, AWS Polly or Google Cloud TTS)
+### 29.6 Speech (`app/narration.py`, AWS Polly or Google Cloud TTS)
 Narration convention: math symbols in backticks (`` `a` ``, `` `M` ``, `` `v_1` ``, `` `θ` ``), `[pause]` for pauses.
 `speakable()` turns symbols into names (letters → "ay", "bee"…; Greek → "theta"; `r_1` → "ar 1"), a letter used in
 both cases anywhere in the video → "capital em" / "small em", math symbols → words (≈, ≠, ≤, ×, √, ², %…), units after
 numbers → words (km/h, m/s², °C, AU, Hz…), common abbreviations → words (e.g., i.e., etc.). Providers (chosen per
-video, `t2s new --tts polly|google`): Polly receives SSML (`<break>`) and returns word speech marks; Google receives
+video, `text-2-shorts new --tts polly|google`): Polly receives SSML (`<break>`) and returns word speech marks; Google receives
 SSML with a `<mark>` per word and returns timepoints (v1beta1). Both fall back to plain text for voices that reject
 SSML (then no word timings). Kokoro was removed. Gaps: fixed lists rather than a pronunciation lexicon / `<phoneme>`;
 "context-aware" relies on the planner marking symbols; not yet validated by listening on real runs.
@@ -1364,42 +1366,42 @@ run inside one Claude Code session per run.
 | Before (v0.2–0.4) | Now (v0.5) |
 |---|---|
 | Python orchestrator spawns `claude -p` per stage and per clip | one interactive Claude Code session per run does all reasoning |
-| ~110 KB of prompts as Python strings | `env/skills/t2s-produce/references/*.md` + `env/agents/*.md`, loaded per step |
+| ~110 KB of prompts as Python strings | `run-environment/skills/text-2-shorts-produce/references/*.md` + `run-environment/agents/*.md`, loaded per step |
 | LLM result cache, limit waits, per-call log rows in Python | Claude Code's own prompt cache, retries and transcripts; hooks log tool calls |
-| `t2s outline / clips / build` | the session writes outline.json, plan.json; subagents write clip code and math.json |
-| — | `t2s validate / task / accept / hook / report / open` (deterministic) |
+| `text-2-shorts outline / clips / build` | the session writes outline.json, plan.json; subagents write clip code and math.json |
+| — | `text-2-shorts validate / task / accept / hook / report / open` (deterministic) |
 Kept unchanged: tools/, `./check`, speech + Polly/Google, harness, assembly, media checks, schemas, state.json,
 feedback.jsonl, approvals.
 
-### 30.2 Environment as code (`env/`)
+### 30.2 Environment as code (`run-environment/`)
 The CDK analogy, implemented with Claude Code's own declarative formats rather than a separate IaC tool: a plugin
 (`.claude-plugin/plugin.json`) carrying the skills, the two subagents and the hooks; `settings.json` (session sandbox
-and permissions); `workspace/CLAUDE.md` (per-run instructions). `t2s new` provisions a run from it (brief,
-CLAUDE.md, environment report after preflight); `t2s open` launches `claude --plugin-dir env --settings
-env/settings.json --add-dir env --add-dir schemas` in the run folder. Changing the environment is a reviewed commit
-under `env/`; every run gets the same environment.
+and permissions); `workspace/CLAUDE.md` (per-run instructions). `text-2-shorts new` provisions a run from it (brief,
+CLAUDE.md, environment report after preflight); `text-2-shorts open` launches `claude --plugin-dir run-environment --settings
+run-environment/settings.json --add-dir run-environment --add-dir schemas` in the run folder. Changing the environment
+is a reviewed commit under `run-environment/`; every run gets the same environment.
 
 ### 30.3 Isolation layers
-1. **Run jail** (`t2s open`, bubblewrap): `/` and the repo read-only; the run folder, `~/.claude` and `~/.cache`
+1. **Run jail** (`text-2-shorts open`, bubblewrap): `/` and the repo read-only; the run folder, `~/.claude` and `~/.cache`
    writable; private tmpfs `$HOME` with PATH tool folders and voice credentials re-mounted read-only. A run cannot
-   change another run or shared code. Tested in `tests/test_env.py`.
-2. **Session sandbox** (`env/settings.json`): Claude Code's bubblewrap sandbox for every Bash command — no network
-   (except `t2s voice`, excluded so it can reach Polly/Google), secrets unreadable, fails closed; permission deny
+   change another run or shared code. Tested in `tests/test_run_environment.py`.
+2. **Session sandbox** (`run-environment/settings.json`): Claude Code's bubblewrap sandbox for every Bash command — no network
+   (except `text-2-shorts voice`, excluded so it can reach Polly/Google), secrets unreadable, fails closed; permission deny
    rules on the same secrets for the Read tool.
-3. **Clip jail**: `t2s accept` re-runs every gate on LLM-written clip code and `t2s final` renders it in a
+3. **Clip jail**: `text-2-shorts accept` re-runs every gate on LLM-written clip code and `text-2-shorts final` renders it in a
    network-less bwrap jail with only the clip/scene folder writable.
 Limit: the clip-builder subagent shares the session's write access (the whole run folder); a clip is only
-installed by `t2s accept`, so a wrong write cannot reach `clips/` without passing every gate.
+installed by `text-2-shorts accept`, so a wrong write cannot reach `clips/` without passing every gate.
 
 ### 30.4 Context and recovery
 `CLAUDE.md` (≈ 1 KB) and the skill body load every session; references are read at the step that needs them; the
 clip-builder subagent gets a fresh context per clip with `TASK.md`, the standards, three always-on cards and the
-clip's own cards; the math-reviewer reads only plans. The SessionStart hook injects `t2s status` (approvals, clip
+clip's own cards; the math-reviewer reads only plans. The SessionStart hook injects `text-2-shorts status` (approvals, clip
 states, next steps), so a resumed session continues without re-reading files. State that matters is in files
-(state.json, feedback.jsonl, plan files, clip keys); `t2s status` derives the next step from them.
+(state.json, feedback.jsonl, plan files, clip keys); `text-2-shorts status` derives the next step from them.
 
 ### 30.5 Validation and observability
 PostToolUse hook: logs every tool call to `log.jsonl` and validates outline.json / plan.json / math.json right after
-they are written (exit 2 returns the errors to Claude). `t2s report`: token totals from the run's transcripts
+they are written (exit 2 returns the errors to Claude). `text-2-shorts report`: token totals from the run's transcripts
 (recorded by the SessionStart hook), each model response counted once, subagents included.
 

@@ -1,5 +1,5 @@
 flowchart TD
-    A["t2s new: preflight + refine"] --> B["outline (existing approach prompts)"]
+    A["text-2-shorts new: preflight + refine"] --> B["outline (existing approach prompts)"]
     B --> C{"deterministic outline checks"}
     C -->|fail| B
     C -->|pass| D["outline review ×1<br/>(+1 refactor only on ERROR)"]

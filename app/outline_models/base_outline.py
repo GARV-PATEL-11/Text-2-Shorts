@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # ── Enums ─────────────────────────────────────────────────────────────────────
 
+
 class Pace(str, Enum):
     slow = "slow"
     medium = "medium"
@@ -36,6 +37,7 @@ class SegmentType(str, Enum):
 
 # ── Shared sub-schemas ────────────────────────────────────────────────────────
 
+
 class OutlineSegment(BaseModel):
     """One segment inside the outline array — common across all approaches."""
 
@@ -44,34 +46,40 @@ class OutlineSegment(BaseModel):
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
     scene_id: Annotated[int, Field(ge=1)] = Field(
-        ..., alias="id", description="1-indexed segment identifier.",
-        )
+        ...,
+        alias="id",
+        description="1-indexed segment identifier.",
+    )
     segment_type: SegmentType = Field(
-        ..., description="Allowed type from the shared SegmentType enum.",
-        )
+        ...,
+        description="Allowed type from the shared SegmentType enum.",
+    )
     title: str = Field(
-        ..., description="Display title for the segment.",
-        )
+        ...,
+        description="Display title for the segment.",
+    )
     duration_seconds: Annotated[int, Field(ge=1)] = Field(
-        ..., description="Wall-clock duration of the segment in seconds.",
-        )
+        ...,
+        description="Wall-clock duration of the segment in seconds.",
+    )
     talking_points: list[str] = Field(
-        ..., min_length=1, description="Ordered list of talking points.",
-        )
+        ...,
+        min_length=1,
+        description="Ordered list of talking points.",
+    )
     visual_plan: str = Field(
-        ..., min_length=1, description="A paragraph of the visual plan.",
-        )
+        ...,
+        min_length=1,
+        description="A paragraph of the visual plan.",
+    )
     narration_hint: str = Field(
         ...,
         description="Tone, pacing, or depth note for the narrator or editor.",
-        )
+    )
     transition_to_next: str | None = Field(
         default=None,
-        description=(
-            "Bridge sentence leading into the next segment; "
-            "null for the last segment."
-        ),
-        )
+        description=("Bridge sentence leading into the next segment; null for the last segment."),
+    )
 
 
 class BaseVideoMeta(BaseModel):
@@ -82,18 +90,24 @@ class BaseVideoMeta(BaseModel):
     title: str = Field(..., description="Video title.")
     topic: str = Field(..., description="Short topic name / slug.")
     total_duration_seconds: int = Field(
-        ..., ge=1, description="Total runtime of the video in seconds.",
-        )
+        ...,
+        ge=1,
+        description="Total runtime of the video in seconds.",
+    )
     pace: Pace = Field(
-        ..., description="Overall delivery pace: slow | medium | fast.",
-        )
+        ...,
+        description="Overall delivery pace: slow | medium | fast.",
+    )
     target_wpm: int = Field(
-        ..., ge=1, description="Target words-per-minute for narration.",
-        )
+        ...,
+        ge=1,
+        description="Target words-per-minute for narration.",
+    )
     approach_name: str = Field(
-        ..., description="Fixed identifier for this approach.",
-        )
+        ...,
+        description="Fixed identifier for this approach.",
+    )
     approach_style: str = Field(
         ...,
         description="One-line description of this outline's narrative arc and style.",
-        )
+    )

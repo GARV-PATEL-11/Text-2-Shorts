@@ -1,6 +1,6 @@
 ---
 name: clip-builder
-description: Use when one Text-2-Shorts clip must be written or repaired in a folder prepared by `t2s task` (scenes/sNN/work/clip_MM) — one clip per invocation, clips of a scene in order, scenes in parallel.
+description: Use when one Text-2-Shorts clip must be written or repaired in a folder prepared by `text-2-shorts task` (scenes/sNN/work/clip_MM) — one clip per invocation, clips of a scene in order, scenes in parallel.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
 ---
@@ -46,4 +46,4 @@ REPAIR DISCIPLINE
 
 READ FIRST (once): the standards file and the three always-on topic cards listed at the top of TASK.md.
 FINISH by replying with: READY or FAILED, the gate runs, and the open finding codes. The session then runs
-`t2s accept`, which re-checks your file in a jail and installs it only if every gate passes.
+`text-2-shorts accept`, which re-checks your file in a jail and installs it only if every gate passes.

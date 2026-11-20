@@ -1,5 +1,5 @@
 {
-  "name": "t2s-env",
-  "version": "0.5.0",
+  "name": "text-2-shorts-run-environment",
+  "version": "0.6.0",
   "description": "Text-2-Shorts execution environment: the skills, subagents and hooks a Claude Code session needs to produce a video inside an isolated run workspace."
 }

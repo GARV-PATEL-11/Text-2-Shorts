@@ -25,4 +25,4 @@ Narration convention (intended, not a problem): math symbols are written in back
 INPUT: every scenes/sNN/plan.json (narration + on_screen_math per clip) and the audience in brief.json.
 OUTPUT: write math.json = {"findings": [{"clip_id", "severity": "ERROR"|"WARN",
 "kind": "FALSE"|"UNSTATED"|"NOTATION"|"MISLEADING"|"SPOKEN", "quote", "why", "fix"}]}, then run
-`t2s validate <run> math` and fix the file until it passes. Report the counts of ERROR and WARN.
+`text-2-shorts validate <run> math` and fix the file until it passes. Report the counts of ERROR and WARN.

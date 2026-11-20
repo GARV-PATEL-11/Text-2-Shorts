@@ -9,7 +9,7 @@
 - Rendering text & formulas guide — https://docs.manim.community/en/stable/guides/using_text.html
 - Versioned docs build for tag v0.20.1 (Read the Docs) — https://app.readthedocs.org/projects/manimce/builds/31583943/
 - Source — https://github.com/ManimCommunity/manim
-Behavioural facts in Plan.md §14.2 were verified by executing code against `manim==0.20.1` (see tests/).
+Behavioural facts in docs/architecture-plan.md §14.2 were verified by executing code against `manim==0.20.1` (see tests/).
 
 ## Claude Code
 - CLI reference (flags used by the runner: `--restricted`, `--permission-prompts`, `--safe-mode`, `--json-schema`,
@@ -21,7 +21,7 @@ Behavioural facts in Plan.md §14.2 were verified by executing code against `man
 - Docs index — https://code.claude.com/docs/llms.txt
 
 ## Claude API (via vendored skill snapshot)
-- anthropics/skills `claude-api` skill: `shared/models.md` (pricing used in Plan.md §18.5), `shared/prompt-caching.md`
+- anthropics/skills `claude-api` skill: `shared/models.md` (pricing used in docs/architecture-plan.md §18.5), `shared/prompt-caching.md`
   (cache minimums, TTL economics). Verify live: https://docs.claude.com
 
 ## Skills
@@ -36,4 +36,4 @@ Behavioural facts in Plan.md §14.2 were verified by executing code against `man
 
 ## Inputs provided by the user
 - `app.zip` (audited; not redistributed in this package), `Instructions`, `Agentic_Mathematical_Video_Generation_Implementation_Plan (1).md`
-  (earlier generic blueprint; where this package deviates — LangGraph, 26 agents, parallel production — Plan.md §5.2 states why).
+  (earlier generic blueprint; where this package deviates — LangGraph, 26 agents, parallel production — docs/architecture-plan.md §5.2 states why).

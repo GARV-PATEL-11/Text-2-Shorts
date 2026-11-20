@@ -41,4 +41,4 @@ Inputs to gather first: the outline scene, one-line summaries of the other scene
 color_roles of earlier scenes' plan.json files), PREVIOUS SCENE FINAL IMAGE (the last clip's visual_intent and final
 beat of the previous scene), and feedback.jsonl rows for this scene or its clips.
 Output: write scenes/sNN/plan.json matching schemas/json/ScenePlan.schema.json, then run
-`t2s validate <run> plan --scene sNN` and fix every error it reports.
+`text-2-shorts validate <run> plan --scene sNN` and fix every error it reports.

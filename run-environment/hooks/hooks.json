@@ -1,6 +1,6 @@
 {
   "hooks": {
-    "SessionStart": [{"hooks": [{"type": "command", "command": "t2s hook"}]}],
-    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "t2s hook"}]}]
+    "SessionStart": [{"hooks": [{"type": "command", "command": "text-2-shorts hook"}]}],
+    "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "text-2-shorts hook"}]}]
   }
 }

@@ -1,7 +1,7 @@
 # tools/ — deterministic components
 
-Standalone CLIs, tested on Manim 0.20.1 (`uv run pytest -q`). The pipeline calls them: `app/check.py` (validator,
-probe, harness, doc cards), `t2s final` (harness, assembly), `t2s new` (preflight), `t2s task` (API index, doc cards).
+Standalone CLIs, tested on Manim 0.20.1 (`uv run pytest -q`). The pipeline calls them: `app/clip_gates.py` (validator,
+probe, harness, doc cards), `text-2-shorts final` (harness, assembly), `text-2-shorts new` (preflight), `text-2-shorts task` (API index, doc cards).
 
 | Tool | Purpose | Target module | Tests |
 |---|---|---|---|

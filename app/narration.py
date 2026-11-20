@@ -7,36 +7,109 @@ Everything else is plain-spoken English; this module is the safety net for what 
 units after numbers and common abbreviations are spoken by name, and a letter used in both cases in one video
 is always disambiguated ("capital M" vs "small m").
 """
+
 from __future__ import annotations
 
 import html
+import json
 import re
 
-LETTERS = dict(zip("abcdefghijklmnopqrstuvwxyz",
-                   "ay bee see dee ee ef gee aitch eye jay kay el em en oh pee cue ar ess tee you vee "
-                   "double-you ex why zee".split()))
-GREEK = {"α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "Δ": "capital delta", "ε": "epsilon",
-         "θ": "theta", "λ": "lambda", "μ": "mu", "π": "pi", "ρ": "rho", "σ": "sigma", "Σ": "capital sigma",
-         "τ": "tau", "φ": "phi", "ω": "omega", "Ω": "capital omega"}
-SYMBOLS = {"≈": " approximately ", "≠": " is not equal to ", "≤": " is less than or equal to ",
-           "≥": " is greater than or equal to ", "×": " times ", "÷": " divided by ", "±": " plus or minus ",
-           "√": " the square root of ", "∞": " infinity ", "→": " goes to ", "²": " squared", "³": " cubed",
-           "%": " percent", "=": " equals ", "<": " is less than ", ">": " is greater than ", "+": " plus ",
-           "−": " minus ", "∝": " is proportional to "}
-UNITS = {"km/h": "kilometers per hour", "m/s²": "meters per second squared", "m/s": "meters per second",
-         "km": "kilometers", "cm": "centimeters", "mm": "millimeters", "m": "meters", "kg": "kilograms",
-         "g": "grams", "ms": "milliseconds", "s": "seconds", "min": "minutes", "h": "hours", "Hz": "hertz",
-         "kHz": "kilohertz", "N": "newtons", "J": "joules", "W": "watts", "kW": "kilowatts", "V": "volts",
-         "A": "amperes", "°C": "degrees Celsius", "°F": "degrees Fahrenheit", "°": "degrees", "K": "kelvin",
-         "AU": "astronomical units", "ly": "light years", "L": "liters", "mL": "milliliters", "nm": "nanometers"}
-ABBREVIATIONS = {"e.g.": "for example", "i.e.": "that is", "etc.": "et cetera", "vs.": "versus", "approx.": "approximately",
-                 "AU": "A U", "Fig.": "figure", "Eq.": "equation", "No.": "number"}
+LETTERS = dict(
+    zip(
+        "abcdefghijklmnopqrstuvwxyz",
+        "ay bee see dee ee ef gee aitch eye jay kay el em en oh pee cue ar ess tee you vee "
+        "double-you ex why zee".split(),
+    )
+)
+GREEK = {
+    "α": "alpha",
+    "β": "beta",
+    "γ": "gamma",
+    "δ": "delta",
+    "Δ": "capital delta",
+    "ε": "epsilon",
+    "θ": "theta",
+    "λ": "lambda",
+    "μ": "mu",
+    "π": "pi",
+    "ρ": "rho",
+    "σ": "sigma",
+    "Σ": "capital sigma",
+    "τ": "tau",
+    "φ": "phi",
+    "ω": "omega",
+    "Ω": "capital omega",
+}
+SYMBOLS = {
+    "≈": " approximately ",
+    "≠": " is not equal to ",
+    "≤": " is less than or equal to ",
+    "≥": " is greater than or equal to ",
+    "×": " times ",
+    "÷": " divided by ",
+    "±": " plus or minus ",
+    "√": " the square root of ",
+    "∞": " infinity ",
+    "→": " goes to ",
+    "²": " squared",
+    "³": " cubed",
+    "%": " percent",
+    "=": " equals ",
+    "<": " is less than ",
+    ">": " is greater than ",
+    "+": " plus ",
+    "−": " minus ",
+    "∝": " is proportional to ",
+}
+UNITS = {
+    "km/h": "kilometers per hour",
+    "m/s²": "meters per second squared",
+    "m/s": "meters per second",
+    "km": "kilometers",
+    "cm": "centimeters",
+    "mm": "millimeters",
+    "m": "meters",
+    "kg": "kilograms",
+    "g": "grams",
+    "ms": "milliseconds",
+    "s": "seconds",
+    "min": "minutes",
+    "h": "hours",
+    "Hz": "hertz",
+    "kHz": "kilohertz",
+    "N": "newtons",
+    "J": "joules",
+    "W": "watts",
+    "kW": "kilowatts",
+    "V": "volts",
+    "A": "amperes",
+    "°C": "degrees Celsius",
+    "°F": "degrees Fahrenheit",
+    "°": "degrees",
+    "K": "kelvin",
+    "AU": "astronomical units",
+    "ly": "light years",
+    "L": "liters",
+    "mL": "milliliters",
+    "nm": "nanometers",
+}
+ABBREVIATIONS = {
+    "e.g.": "for example",
+    "i.e.": "that is",
+    "etc.": "et cetera",
+    "vs.": "versus",
+    "approx.": "approximately",
+    "AU": "A U",
+    "Fig.": "figure",
+    "Eq.": "equation",
+    "No.": "number",
+}
 PAUSE = "[pause]"
 
 
-def symbol_name(tok: str, both_cases: set[str]) -> str:
+def symbol_name(token: str, both_cases: set[str]) -> str:
     """`M` → "capital em" when m and M both occur in the video, else "em"; `r_1` → "ar one"; `θ` → "theta"."""
-    base, _, sub = tok.partition("_")
+    base, _, subscript = token.partition("_")
     if base in GREEK:
         name = GREEK[base]
     elif len(base) == 1 and base.lower() in LETTERS:
@@ -44,61 +117,148 @@ def symbol_name(tok: str, both_cases: set[str]) -> str:
         if base.lower() in both_cases:
             name = ("capital " if base.isupper() else "small ") + name
     else:
-        name = " ".join(LETTERS.get(ch.lower(), ch) for ch in base)  # `AB` → "ay bee"
-    return f"{name} {' '.join(LETTERS.get(ch, ch) if ch.isalpha() else ch for ch in sub)}".strip() if sub else name
+        name = " ".join(LETTERS.get(character.lower(), character) for character in base)  # `AB` → "ay bee"
+    return (
+        f"{name} {' '.join(LETTERS.get(part, part) if part.isalpha() else part for part in subscript)}".strip()
+        if subscript
+        else name
+    )
 
 
 def case_pairs(texts: list[str]) -> set[str]:
     """Letters used in backticks in BOTH cases anywhere in the video (e.g. M and m)."""
-    seen = {t.partition("_")[0] for text in texts for t in re.findall(r"`([^`]+)`", text)}
-    return {c.lower() for c in seen if len(c) == 1 and c.isalpha() and c.swapcase() in seen}
+    seen = {symbol.partition("_")[0] for text in texts for symbol in re.findall(r"`([^`]+)`", text)}
+    return {letter.lower() for letter in seen if len(letter) == 1 and letter.isalpha() and letter.swapcase() in seen}
 
 
 def speakable(text: str, both_cases: set[str] = frozenset()) -> str:
     """Plain text any TTS engine reads correctly; [pause] stays as a marker for to_ssml/to_plain."""
-    text = re.sub(r"`([^`]+)`", lambda m: symbol_name(m[1], both_cases), text)
-    for k, v in ABBREVIATIONS.items():
-        if k != "AU":
-            text = text.replace(k, v)
-    units = "|".join(re.escape(u) for u in sorted(UNITS, key=len, reverse=True))
-    text = re.sub(rf"(\d(?:[\d,.]*\d)?)\s?({units})(?![A-Za-z])", lambda m: f"{m[1]} {UNITS[m[2]]}", text)
+    text = re.sub(r"`([^`]+)`", lambda match: symbol_name(match[1], both_cases), text)
+    for written, spoken in ABBREVIATIONS.items():
+        if written != "AU":
+            text = text.replace(written, spoken)
+    units = "|".join(re.escape(unit) for unit in sorted(UNITS, key=len, reverse=True))
+    text = re.sub(rf"(\d(?:[\d,.]*\d)?)\s?({units})(?![A-Za-z])", lambda match: f"{match[1]} {UNITS[match[2]]}", text)
     text = re.sub(r"(\d)\s*-\s*(\d)", r"\1 minus \2", text)
-    for k, v in {**GREEK, **SYMBOLS}.items():
-        text = text.replace(k, v if k in SYMBOLS else f" {v} ")
+    for written, spoken in {**GREEK, **SYMBOLS}.items():
+        text = text.replace(written, spoken if written in SYMBOLS else f" {spoken} ")
     text = re.sub(r"\bAU\b", "A U", text)
     return re.sub(r"\s+", " ", re.sub(r"\s+([,.!?;:])", r"\1", text)).strip()
 
 
 def to_ssml(text: str, pause_ms: int = 600) -> str:
-    parts = [html.escape(p.strip(), quote=False) for p in text.split(PAUSE)]
-    return "<speak>" + f' <break time="{pause_ms}ms"/> '.join(p for p in parts if p) + "</speak>"
+    parts = [html.escape(part.strip(), quote=False) for part in text.split(PAUSE)]
+    return "<speak>" + f' <break time="{pause_ms}ms"/> '.join(part for part in parts if part) + "</speak>"
 
 
 def to_ssml_marked(text: str, pause_ms: int = 600) -> tuple[str, list[str]]:
     """SSML with <mark name="i"/> before every word (Google TTS returns a time per mark) + the word list."""
-    words, out = [], []
-    for k, part in enumerate(text.split(PAUSE)):
-        if k:
-            out.append(f'<break time="{pause_ms}ms"/>')
-        for w in part.split():
-            out.append(f'<mark name="{len(words)}"/>{html.escape(w, quote=False)}')
-            words.append(w)
-    return "<speak>" + " ".join(out) + "</speak>", words
+    words, ssml_parts = [], []
+    for part_index, part in enumerate(text.split(PAUSE)):
+        if part_index:
+            ssml_parts.append(f'<break time="{pause_ms}ms"/>')
+        for word in part.split():
+            ssml_parts.append(f'<mark name="{len(words)}"/>{html.escape(word, quote=False)}')
+            words.append(word)
+    return "<speak>" + " ".join(ssml_parts) + "</speak>", words
 
 
 def to_plain(text: str) -> str:
     return re.sub(r"\s+", " ", text.replace(PAUSE, " … ")).strip()
 
 
-def phrase_times(marks: list[tuple[str, float]], beats: list[str], both_cases: set[str] = frozenset()) -> list[float | None]:
+def phrase_times(
+    marks: list[tuple[str, float]], beats: list[str], both_cases: set[str] = frozenset()
+) -> list[float | None]:
     """Start time (s) of each beat's quoted narration phrase, from word marks [(word, start_s)], in order."""
-    norm = lambda s: re.sub(r"[^a-z0-9 ]", "", s.lower()).split()  # noqa: E731
-    words = [norm(w)[0] if norm(w) else "" for w, _ in marks]
-    out, i = [], 0
+    normalized_words = lambda text: re.sub(r"[^a-z0-9 ]", "", text.lower()).split()  # noqa: E731
+    words = [normalized_words(word)[0] if normalized_words(word) else "" for word, _ in marks]
+    beat_times, i = [], 0
     for beat in beats:
-        m = re.search(r"[\"“]([^\"”]+)[\"”]", beat)
-        phrase = norm(speakable(m[1], both_cases).replace(PAUSE, "")) if m else []
-        hit = next((j for j in range(i, len(words) - len(phrase) + 1) if phrase and words[j:j + len(phrase)] == phrase), None)
-        out.append(round(marks[hit][1], 2) if hit is not None else None)
-        i = hit + 1 if hit is not None else i
-    return out
+        quote_match = re.search(r"[\"“]([^\"”]+)[\"”]", beat)
+        phrase = normalized_words(speakable(quote_match[1], both_cases).replace(PAUSE, "")) if quote_match else []
+        match_start = next(
+            (j for j in range(i, len(words) - len(phrase) + 1) if phrase and words[j : j + len(phrase)] == phrase), None
+        )
+        beat_times.append(round(marks[match_start][1], 2) if match_start is not None else None)
+        i = match_start + 1 if match_start is not None else i
+    return beat_times
+
+
+# ── synthesis: the voice provider the user chose (AWS Polly or Google Cloud TTS) ──────────────────────────────
+
+
+def create_speech_synthesizer(brief: dict):
+    """The narration synthesiser the user chose for this video: AWS Polly or Google Cloud TTS."""
+    return (
+        create_google_synthesizer(brief["voice"])
+        if brief.get("tts") == "google"
+        else create_polly_synthesizer(brief["voice"], brief["engine"])
+    )
+
+
+def create_polly_synthesizer(voice: str, engine: str):
+    """AWS Polly with SSML (pauses) and word speech marks (beat timing). Falls back to plain text when an engine
+    rejects a tag, and to no marks when an engine has none."""
+    import boto3
+
+    polly_client = boto3.client("polly")
+
+    def synthesize_request(text: str, **request_options):
+        try:
+            return polly_client.synthesize_speech(
+                Text=to_ssml(text), TextType="ssml", VoiceId=voice, Engine=engine, **request_options
+            )
+        except polly_client.exceptions.InvalidSsmlException:
+            return polly_client.synthesize_speech(Text=to_plain(text), VoiceId=voice, Engine=engine, **request_options)
+
+    def synthesize_clip(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
+        # ponytail: one request per clip (clips are ≤ 30 s, far under Polly's 3000-char limit)
+        audio = synthesize_request(text, OutputFormat="mp3")["AudioStream"].read()
+        try:
+            speech_marks_json = (
+                synthesize_request(text, OutputFormat="json", SpeechMarkTypes=["word"])["AudioStream"].read().decode()
+            )
+            marks = [
+                (mark["value"], mark["time"] / 1000)
+                for mark in map(json.loads, speech_marks_json.splitlines())
+                if mark["type"] == "word"
+            ]
+        except Exception:  # noqa: BLE001 — speech marks are a timing aid, never a reason to fail the voice step
+            marks = None
+        return audio, marks
+
+    return synthesize_clip
+
+
+def create_google_synthesizer(voice: str):
+    """Google Cloud TTS (v1beta1 for timepoints): SSML with a <mark/> per word → word timings for beat sync.
+    Voices without SSML support (e.g. Chirp 3 HD) fall back to plain text without timings."""
+    from google.api_core.exceptions import InvalidArgument
+    from google.cloud import texttospeech_v1beta1 as texttospeech
+
+    client = texttospeech.TextToSpeechClient()
+    voice_selection = {"language_code": "-".join(voice.split("-")[:2]), "name": voice}
+    audio_config = {"audio_encoding": texttospeech.AudioEncoding.MP3}
+
+    def synthesize_clip(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
+        ssml, words = to_ssml_marked(text)
+        try:
+            response = client.synthesize_speech(
+                request={
+                    "input": {"ssml": ssml},
+                    "voice": voice_selection,
+                    "audio_config": audio_config,
+                    "enable_time_pointing": [texttospeech.SynthesizeSpeechRequest.TimepointType.SSML_MARK],
+                }
+            )
+        except InvalidArgument:
+            response = client.synthesize_speech(
+                request={"input": {"text": to_plain(text)}, "voice": voice_selection, "audio_config": audio_config}
+            )
+            return response.audio_content, None
+        return response.audio_content, [
+            (words[int(timepoint.mark_name)], timepoint.time_seconds) for timepoint in response.timepoints
+        ] or None
+
+    return synthesize_clip

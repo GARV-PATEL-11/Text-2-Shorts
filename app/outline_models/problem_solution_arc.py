@@ -11,31 +11,33 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.graph.models.base_models import BaseVideoMeta, OutlineSegment
+from app.outline_models.base_outline import BaseVideoMeta, OutlineSegment
 
 
 # ---------------------------------------------------------------------------
 # Meta
 # ---------------------------------------------------------------------------
 
+
 class ProblemSolutionArcMeta(BaseVideoMeta):
     title: str = Field(
         ...,
         description="Narrative-style video title phrased as a question or dramatic statement.",
-        )
+    )
     approach_name: str = Field(
         default="Problem-Solution Arc",
         description="Fixed identifier for this approach.",
-        )
+    )
     approach_style: str = Field(
         ...,
         description="One-line description of this outline's narrative arc and emotional journey.",
-        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Segment
 # ---------------------------------------------------------------------------
+
 
 class ProblemSolutionArcSegment(OutlineSegment):
     """
@@ -50,6 +52,7 @@ class ProblemSolutionArcSegment(OutlineSegment):
 # Root document
 # ---------------------------------------------------------------------------
 
+
 class ProblemSolutionArcOutline(BaseModel):
     """
     Full Problem-Solution Arc video outline document.
@@ -58,9 +61,9 @@ class ProblemSolutionArcOutline(BaseModel):
     meta: ProblemSolutionArcMeta = Field(
         ...,
         description="Video-level metadata for the Problem-Solution Arc approach.",
-        )
+    )
     outline: list[ProblemSolutionArcSegment] = Field(
         ...,
         min_length=1,
         description="Ordered list of segments; ids must be 1-indexed and sequential.",
-        )
+    )

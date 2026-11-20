@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.0 — 2026-11-20
+Naming standardisation; no behaviour change. Rules, vocabulary, full mapping and exceptions:
+`docs/naming-conventions.md`.
+- **Modules**: `app/pipeline.py` → `app/cli.py`, `app/clips.py` → `app/run_steps.py`, `app/check.py` →
+  `app/clip_gates.py`, `app/speech.py` → `app/narration.py` (the Polly/Google synthesizers moved there too),
+  `app/graph/models/` → `app/outline_models/`.
+- **Folders and docs**: `env/` → `run-environment/` (plugin `t2s-env` → `text-2-shorts-run-environment`), `prompts/` →
+  `docs/proposed-stages/`, `Plan.md` → `docs/architecture-plan.md`, every Markdown file in kebab-case.
+- **Identifiers**: descriptive names for module constants, functions and ~400 locals across `app/`, `tools/`,
+  `schemas/` and `tests/` (e.g. `LEAD_IN` → `VOICE_LEAD_IN_SECONDS`, `jail_cmd` → `build_jail_command`).
+- **`TASK.json`**: `clip`/`class`/`seconds` → `clip_name`/`scene_class_name`/`clip_seconds`.
+- **Tooling**: Ruff (format + lint, line length 120) as a dev dependency; Pyrefly search paths configured.
+- **The command is `text-2-shorts`** (was `t2s`), and the `t2s` prefix is gone everywhere: skills
+  `text-2-shorts-produce`, `text-2-shorts-clip-debugging`, `text-2-shorts-prompt-maintenance`; environment variables
+  `TEXT_2_SHORTS_FPS`, `_PARALLEL`, `_TTS` (and the internal `_BACKGROUND`, `_TARGET_CLIP`, `_STOP_AFTER`); API index
+  cache `~/.cache/text-2-shorts/`.
+- **Migration**: `uv sync` installs the `text-2-shorts` entry point and removes `t2s` (`uv run` does it
+  automatically). Rename `T2S_FPS`, `T2S_PARALLEL`, `T2S_TTS` in your `.env` to `TEXT_2_SHORTS_…` (old names are
+  ignored). Anything calling `python -m app.pipeline` uses `python -m app.cli`. A clip folder prepared by 0.5 needs
+  `text-2-shorts task <run> <clip>` again before `text-2-shorts accept`. Runs, state, feedback and logs are unchanged;
+  a run session started before the update must be reopened (`text-2-shorts open`) to load the renamed skills.
+
 ## 0.5.0 — 2026-11-20
 Claude Code-native execution (Plan.md §30).
 - **Inverted control**: no Python orchestrator and no `claude -p` per stage. One interactive Claude Code session per

@@ -15,7 +15,7 @@ the Claude Code sandbox uses the macOS system sandbox, final-render bwrap jail i
 ## 2. Python
 Python ≥ 3.12 (developed on 3.14).
 ```bash
-uv sync                                              # manim==0.20.1 pinned; installs the `t2s` command
+uv sync                                              # manim==0.20.1 pinned; installs the `text-2-shorts` command
 uv run python -c "import manim; print(manim.__version__)"   # must print 0.20.1
 ```
 
@@ -24,19 +24,19 @@ Install per https://code.claude.com/docs (native installer), then `claude --vers
 (≥ 2.1.259 for `--permission-prompts`, ≥ 2.1.248 for `--restricted`).
 Auth: `claude auth login --console` (API billing) or `claude setup-token` (subscription). Check: `claude auth status`.
 
-## 4. Voice provider credentials (one of them, chosen per video with `t2s new --tts polly|google`)
+## 4. Voice provider credentials (one of them, chosen per video with `text-2-shorts new --tts polly|google`)
 - **AWS Polly** (default): `aws configure` (or `AWS_PROFILE`); the identity needs `polly:SynthesizeSpeech`.
 - **Google Cloud TTS**: enable the Text-to-Speech API in your project, then
   `gcloud auth application-default login` (or `GOOGLE_APPLICATION_CREDENTIALS=/path/key.json`).
-`t2s new` checks the chosen provider's credentials before any Claude call.
+`text-2-shorts new` checks the chosen provider's credentials before any Claude call.
 
 ## 5. Configuration
 ```bash
-cp .env.example .env                                 # optional: T2S_PARALLEL, T2S_FPS, T2S_MODEL, TTS/voice
-uv run python tools/preflight.py                     # exit 0 = ready (t2s new runs it too)
+cp .env.example .env                                 # optional: TEXT_2_SHORTS_PARALLEL, TEXT_2_SHORTS_FPS, TTS/voice
+uv run python tools/preflight.py                     # exit 0 = ready (text-2-shorts new runs it too)
 ```
-`env/settings.json` is the run session's sandbox and permissions (no network except `t2s voice`, secrets
-unreadable, fails closed). The Manim API index is built on the first `t2s task` into `~/.cache/t2s/`.
+`run-environment/settings.json` is the run session's sandbox and permissions (no network except `text-2-shorts voice`, secrets
+unreadable, fails closed). The Manim API index is built on the first `text-2-shorts task` into `~/.cache/text-2-shorts/`.
 
 ## 6. Verify the installation (no LLM calls, ~2 min)
 ```bash
@@ -46,11 +46,11 @@ node tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm 
 CI runs the same suite on every push (`.github/workflows/ci.yml`).
 
 ## 7. Operating
-`uv run t2s new "<topic>" …` provisions `runs/<id>/` (or ask "/make-short <topic>" in a repo session), then
-`uv run t2s open runs/<id>` starts the run's own Claude Code session inside its bubblewrap jail, with the `env/`
-plugin (workflow skill, clip-builder and math-reviewer subagents, hooks) and `env/settings.json` (sandbox,
+`uv run text-2-shorts new "<topic>" …` provisions `runs/<id>/` (or ask "/make-short <topic>" in a repo session), then
+`uv run text-2-shorts open runs/<id>` starts the run's own Claude Code session inside its bubblewrap jail, with the `run-environment/`
+plugin (workflow skill, clip-builder and math-reviewer subagents, hooks) and `run-environment/settings.json` (sandbox,
 permissions). The jail needs bubblewrap with unprivileged user namespaces (the same requirement as Claude Code's
-sandbox); `t2s open RUN -- sh` opens a shell in the same jail for debugging.
+sandbox); `text-2-shorts open RUN -- sh` opens a shell in the same jail for debugging.
 
 ## 8. Docker
 Not shipped. The agents depend on bubblewrap, which inside Docker needs unprivileged user namespaces; a container

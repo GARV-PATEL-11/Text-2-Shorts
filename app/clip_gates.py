@@ -4,6 +4,7 @@ cwd = runs/<id>/scenes/sNN/work/clip_MM/ holding TASK.json, clip_MM.py and scene
     ./check static | probe | render | frames | all | doc Name1,Name2
 Each gate writes checks/<gate>.json and exits 0 (pass) or 1 (fail).
 """
+
 from __future__ import annotations
 
 import json
@@ -13,97 +14,169 @@ import subprocess
 import sys
 from pathlib import Path
 
-TOOLS = Path(__file__).resolve().parent.parent / "tools"
-PY = sys.executable
+TOOLS_DIRECTORY = Path(__file__).resolve().parent.parent / "tools"
+PYTHON_EXECUTABLE = sys.executable
 
 
-def save(gate: str, ok: bool, **data) -> bool:
+def save_gate_result(gate: str, passed: bool, **data) -> bool:
     Path("checks").mkdir(exist_ok=True)
-    Path(f"checks/{gate}.json").write_text(json.dumps({"ok": ok, **data}, indent=1))
-    print(json.dumps({"gate": gate, "ok": ok, **data}, indent=1)[:6000])
-    return ok
+    Path(f"checks/{gate}.json").write_text(json.dumps({"ok": passed, **data}, indent=1))
+    print(json.dumps({"gate": gate, "ok": passed, **data}, indent=1)[:6000])
+    return passed
 
 
-def run(*args, **kw) -> subprocess.CompletedProcess:
-    return subprocess.run([PY, *map(str, args)], capture_output=True, text=True, **kw)
+def run_tool(*args, **options) -> subprocess.CompletedProcess:
+    return subprocess.run([PYTHON_EXECUTABLE, *map(str, args)], capture_output=True, text=True, **options)
 
 
-def compose(t: dict) -> None:
-    clips = Path("scene/clips")
-    clips.mkdir(parents=True, exist_ok=True)
-    shutil.copy(f"{t['clip']}.py", clips / f"{t['clip']}.py")
-    p = run(TOOLS / "scene_harness.py", "compose", "scene", "--scene-id", t["scene_id"])
-    if p.returncode:
-        save("compose", False, error=(p.stderr or p.stdout)[-2000:])
+def compose_scene(task: dict) -> None:
+    clips_directory = Path("scene/clips")
+    clips_directory.mkdir(parents=True, exist_ok=True)
+    shutil.copy(f"{task['clip_name']}.py", clips_directory / f"{task['clip_name']}.py")
+    process = run_tool(TOOLS_DIRECTORY / "scene_harness.py", "compose", "scene", "--scene-id", task["scene_id"])
+    if process.returncode:
+        save_gate_result("compose", False, error=(process.stderr or process.stdout)[-2000:])
         raise SystemExit(1)
 
 
-def static(t: dict) -> bool:
-    p = run(TOOLS / "validate_manim_code.py", f"{t['clip']}.py", "--clip-file", "--index", t["api_index"],
-            "--entry", ",".join(t["entry"]), "--exit", ",".join(t["exit"]), "--json")
+def static(task: dict) -> bool:
+    process = run_tool(
+        TOOLS_DIRECTORY / "validate_manim_code.py",
+        f"{task['clip_name']}.py",
+        "--clip-file",
+        "--index",
+        task["api_index"],
+        "--entry",
+        ",".join(task["entry"]),
+        "--exit",
+        ",".join(task["exit"]),
+        "--json",
+    )
     try:
-        found = json.loads(p.stdout)
+        findings = json.loads(process.stdout)
     except json.JSONDecodeError:
-        return save("static", False, error=(p.stderr or p.stdout)[-3000:])
-    return save("static", not any(f["severity"] == "ERROR" for f in found), findings=found)
+        return save_gate_result("static", False, error=(process.stderr or process.stdout)[-3000:])
+    return save_gate_result(
+        "static", not any(finding["severity"] == "ERROR" for finding in findings), findings=findings
+    )
 
 
-def probe(t: dict) -> bool:
-    compose(t)
-    p = run(TOOLS / "layout_probe.py", "scene.py", t["class"], "--budget", f"{t['clip']}={t['seconds']}", "--json",
-            cwd="scene", env={**os.environ, "T2S_STOP_AFTER": t["clip"]})
+def probe(task: dict) -> bool:
+    compose_scene(task)
+    process = run_tool(
+        TOOLS_DIRECTORY / "layout_probe.py",
+        "scene.py",
+        task["scene_class_name"],
+        "--budget",
+        f"{task['clip_name']}={task['clip_seconds']}",
+        "--json",
+        cwd="scene",
+        env={**os.environ, "TEXT_2_SHORTS_STOP_AFTER": task["clip_name"]},
+    )
     try:
-        out = json.loads(p.stdout)
+        probe_report = json.loads(process.stdout)
     except json.JSONDecodeError:
-        return save("probe", False, error=p.stderr[-3000:])
-    span = next((c for c in out["clips"] if c["clip"] == t["clip"]), None)
-    mine = [f for f in out["findings"]  # earlier clips are already approved: judge only this clip's time window
-            if f.get("event") == t["clip"] or (span and span["start"] <= f["t"] <= span["end"])]
-    return save("probe", not any(f["severity"] == "ERROR" for f in mine), clip=span, findings=mine)
+        return save_gate_result("probe", False, error=process.stderr[-3000:])
+    clip_span = next((clip for clip in probe_report["clips"] if clip["clip"] == task["clip_name"]), None)
+    clip_findings = [
+        finding
+        for finding in probe_report[
+            "findings"
+        ]  # earlier clips are already approved: judge only this clip's time window
+        if finding.get("event") == task["clip_name"]
+        or (clip_span and clip_span["start"] <= finding["t"] <= clip_span["end"])
+    ]
+    return save_gate_result(
+        "probe",
+        not any(finding["severity"] == "ERROR" for finding in clip_findings),
+        clip=clip_span,
+        findings=clip_findings,
+    )
 
 
-def render(t: dict) -> bool:
-    compose(t)
-    p = run(TOOLS / "scene_harness.py", "render", "scene", "--scene-id", t["scene_id"], "--target", t["clip"],
-            "--quality", "l", env={**os.environ, "T2S_BACKGROUND": t.get("background", "")})
+def render(task: dict) -> bool:
+    compose_scene(task)
+    process = run_tool(
+        TOOLS_DIRECTORY / "scene_harness.py",
+        "render",
+        "scene",
+        "--scene-id",
+        task["scene_id"],
+        "--target",
+        task["clip_name"],
+        "--quality",
+        "l",
+        env={**os.environ, "TEXT_2_SHORTS_BACKGROUND": task.get("background", "")},
+    )
     try:
-        r = json.loads(p.stdout)
+        render_report = json.loads(process.stdout)
     except json.JSONDecodeError:
-        r = {"ok": False, "stderr_tail": (p.stderr or p.stdout)[-3000:]}
-    sec = next((s for s in r.get("sections", []) if s.get("name") == t["clip"]), None)
-    return save("render", bool(r.get("ok") and sec), video=sec and str(Path("scene") / sec["path"]),
-                duration=sec and sec["duration"], error=r.get("stderr_tail"))
+        render_report = {"ok": False, "stderr_tail": (process.stderr or process.stdout)[-3000:]}
+    section = next(
+        (candidate for candidate in render_report.get("sections", []) if candidate.get("name") == task["clip_name"]),
+        None,
+    )
+    return save_gate_result(
+        "render",
+        bool(render_report.get("ok") and section),
+        video=section and str(Path("scene") / section["path"]),
+        duration=section and section["duration"],
+        error=render_report.get("stderr_tail"),
+    )
 
 
-def frames(t: dict) -> bool:
-    r = json.loads(Path("checks/render.json").read_text()) if Path("checks/render.json").exists() else {}
-    if not r.get("ok") and not render(t):
-        return save("frames", False, error="render failed")
+def frames(task: dict) -> bool:
+    render_report = json.loads(Path("checks/render.json").read_text()) if Path("checks/render.json").exists() else {}
+    if not render_report.get("ok") and not render(task):
+        return save_gate_result("frames", False, error="render failed")
     video = json.loads(Path("checks/render.json").read_text())["video"]
     shutil.rmtree("frames", ignore_errors=True)
     Path("frames").mkdir()
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", video, "-vf", "fps=1/2", "frames/f_%02d.png"])
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-sseof", "-0.1", "-i", video, "-frames:v", "1",
-                    "-update", "1", "frames/f_last.png"])
-    return save("frames", True, frames=sorted(str(f) for f in Path("frames").glob("*.png")))
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-sseof",
+            "-0.1",
+            "-i",
+            video,
+            "-frames:v",
+            "1",
+            "-update",
+            "1",
+            "frames/f_last.png",
+        ]
+    )
+    return save_gate_result(
+        "frames", True, frames=sorted(str(frame_path) for frame_path in Path("frames").glob("*.png"))
+    )
 
 
 def main() -> None:
     gate = sys.argv[1] if len(sys.argv) > 1 else "all"
     if gate == "doc":
-        t = json.loads(Path("TASK.json").read_text())
-        p = run(TOOLS / "doc_cards.py", "--index", t["api_index"], "--names", sys.argv[2] if len(sys.argv) > 2 else "")
-        print(p.stdout or p.stderr)
+        task = json.loads(Path("TASK.json").read_text())
+        process = run_tool(
+            TOOLS_DIRECTORY / "doc_cards.py",
+            "--index",
+            task["api_index"],
+            "--names",
+            sys.argv[2] if len(sys.argv) > 2 else "",
+        )
+        print(process.stdout or process.stderr)
         return
-    t = json.loads(Path("TASK.json").read_text())
+    task = json.loads(Path("TASK.json").read_text())
     gates = {"static": static, "probe": probe, "render": render, "frames": frames}
     if gate == "all":
-        ok = static(t) and probe(t) and render(t)  # stop at the first failing gate
+        passed = static(task) and probe(task) and render(task)  # stop at the first failing gate
     elif gate in gates:
-        ok = gates[gate](t)
+        passed = gates[gate](task)
     else:
         raise SystemExit(f"unknown gate {gate!r}: static | probe | render | frames | all | doc Names")
-    sys.exit(0 if ok else 1)
+    sys.exit(0 if passed else 1)
 
 
 if __name__ == "__main__":

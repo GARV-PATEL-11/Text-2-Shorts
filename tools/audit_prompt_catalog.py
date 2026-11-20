@@ -8,8 +8,11 @@ Run it in CI whenever a prompt or the pinned Manim version changes.
 Usage: python tools/audit_prompt_catalog.py app/graph/prompts/*.py --index <index.json>
 Status: IMPLEMENTED in this package.
 """
+
 from __future__ import annotations
-import argparse, json, re
+import argparse
+import json
+import re
 from pathlib import Path
 
 CLASS_RE = re.compile(r"\b([A-Z][a-z]+(?:[A-Z][a-z0-9]*)+|[A-Z][a-z]{2,}(?=\())")
@@ -17,32 +20,42 @@ METHOD_RE = re.compile(r"\.([a-z_][a-z0-9_]{2,})\(")
 BAN_HINT = re.compile(r"BANNED|NEVER USE|DEPRECATED|REMOVED|never cite|must be|→ use|does not exist|RENAMED", re.I)
 IGNORE = {"Manim", "ManimCE", "ManimGL", "Python", "PascalCase", "LaTeX", "MathJax", "JSON", "OpenGL", "Scene"}
 
+
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("files", nargs="+"); ap.add_argument("--index", required=True)
-    a = ap.parse_args()
-    idx = json.loads(Path(a.index).read_text())["names"]
-    methods = set().union(*(set(v["methods"]) for v in idx.values() if v["kind"] == "class"))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("files", nargs="+")
+    parser.add_argument("--index", required=True)
+    arguments = parser.parse_args()
+    index = json.loads(Path(arguments.index).read_text())["names"]
+    methods = set().union(*(set(hits["methods"]) for hits in index.values() if hits["kind"] == "class"))
     report = {}
-    for f in a.files:
-        lines = Path(f).read_text().splitlines()
+    for path in arguments.files:
+        lines = Path(path).read_text().splitlines()
         missing, banned_but_exist = {}, {}
         for i, line in enumerate(lines, 1):
-            ctx = " ".join(lines[max(0, i - 4):i])
-            banned_ctx = bool(BAN_HINT.search(ctx))
+            context = " ".join(lines[max(0, i - 4) : i])
+            banned_ctx = bool(BAN_HINT.search(context))
             for name in set(CLASS_RE.findall(line)) - IGNORE:
-                if name not in idx:
+                if name not in index:
                     missing.setdefault(name, []).append((i, banned_ctx))
-                elif banned_ctx and re.search(r"BANNED|NEVER USE", ctx):
+                elif banned_ctx and re.search(r"BANNED|NEVER USE", context):
                     banned_but_exist.setdefault(name, []).append(i)
-            for m in set(METHOD_RE.findall(line)):
-                if m not in methods and not m.startswith("_"):
-                    missing.setdefault("." + m + "()", []).append((i, banned_ctx))
-        report[f] = {
-            "not_in_api_and_not_marked_banned": {k: [l for l, b in v] for k, v in missing.items() if not any(b for _, b in v)},
-            "not_in_api_but_marked_banned_ok": sorted(k for k, v in missing.items() if any(b for _, b in v)),
+            for method_name in set(METHOD_RE.findall(line)):
+                if method_name not in methods and not method_name.startswith("_"):
+                    missing.setdefault("." + method_name + "()", []).append((i, banned_ctx))
+        report[path] = {
+            "not_in_api_and_not_marked_banned": {
+                missing_name: [line_number for line_number, banned in hits]
+                for missing_name, hits in missing.items()
+                if not any(banned for _, banned in hits)
+            },
+            "not_in_api_but_marked_banned_ok": sorted(
+                missing_name for missing_name, hits in missing.items() if any(banned for _, banned in hits)
+            ),
             "banned_in_prompt_but_exists_in_api": banned_but_exist,
         }
     print(json.dumps(report, indent=1))
+
 
 if __name__ == "__main__":
     main()
