@@ -1,15 +1,17 @@
-"""Clip-level pipeline (Plan.md §5, §8, §12): outline scene → clips → voice per clip → one agent per clip → final.
+"""Deterministic clip-level steps that the run's Claude Code session calls (no LLM calls here).
 
-Run layout (scene ids sNN, clip ids sNNcMM):
-  runs/<id>/state.json              approvals + per-clip build state (the ledger)
-  runs/<id>/feedback.jsonl          human feedback, scoped to outline | plan | sNN | sNNcMM
-  runs/<id>/math.json               math verifier findings
-  runs/<id>/scenes/sNN/plan.json    ScenePlan (plan.vN.json = earlier versions)
+The session writes outline.json, scenes/sNN/plan.json, math.json (math-reviewer subagent) and clip code
+(clip-builder subagent); these commands validate them, synthesise narration, prepare and accept clips, render the
+final video, and keep the ledger:
+  runs/<id>/state.json              approvals, per-clip build state, session transcripts (for `t2s report`)
+  runs/<id>/feedback.jsonl          human feedback, scoped to outline | sNN | sNNcMM
+  runs/<id>/log.jsonl               one row per tool call (PostToolUse hook)
+  runs/<id>/scenes/sNN/plan.json    ScenePlan
   runs/<id>/scenes/sNN/audio/       clip_MM.mp3 + index.json (spoken text hash → seconds, beat start times)
-  runs/<id>/scenes/sNN/clips/       approved clip_MM.py files (the harness composes scene.py from them)
-  runs/<id>/scenes/sNN/work/clip_MM agent sandbox: TASK.md/.json, API_CARDS.md, ./check, its own scene copy
-Every stage skips work whose inputs are unchanged (content hashes), so re-running after feedback redoes only the
-affected clips and the clips after them in that scene.
+  runs/<id>/scenes/sNN/clips/       accepted clip_MM.py files (the harness composes scene.py from them)
+  runs/<id>/scenes/sNN/work/clip_MM clip-builder folder: TASK.md/.json, API_CARDS.md, ./check, its own scene copy
+A clip's key hashes everything it depends on (plan, audio, colours, feedback, the previous clip's code, the
+clip-builder prompt), so `t2s status` lists exactly what a change made stale.
 """
 from __future__ import annotations
 
@@ -426,17 +428,82 @@ def cmd_approve(a) -> None:
     print(f"approved {target}")
 
 
-def cmd_status(a) -> None:
-    run = Path(a.run)
+def status_text(run: Path) -> str:
     st = load_state(run)
-    print(f"approved: {', '.join(st['approved']) or 'nothing yet'}")
-    print("| clip | status | notes |\n|---|---|---|")
-    for p in scene_plans(run):
-        for c in p.clips:
-            s = st["clips"].get(c.clip_id, {})
-            print(f"| {c.clip_id} | {s.get('status', 'not built')} | {s.get('notes', '')[:100]} |")
-    print("next:" if (steps := next_steps(run)) else "next: nothing — the video is done.")
-    print("\n".join(f"  - {s}" for s in steps))
+    lines = [f"approved: {', '.join(st['approved']) or 'nothing yet'}"]
+    clips = [(c.clip_id, st["clips"].get(c.clip_id, {})) for p in scene_plans(run) for c in p.clips]
+    if clips:
+        lines += ["| clip | status | open findings |", "|---|---|---|"]
+        lines += [f"| {cid} | {s.get('status', 'not built')} | {', '.join(s.get('open_findings', []))[:100]} |"
+                  for cid, s in clips]
+    steps = next_steps(run)
+    lines += (["next:"] + [f"  - {s}" for s in steps]) if steps else ["next: nothing — the video is done."]
+    return "\n".join(lines)
+
+
+def cmd_status(a) -> None:
+    print(status_text(Path(a.run)))
+
+
+def session_tokens(run: Path) -> dict:
+    """Token totals from this run's Claude Code transcripts (recorded by the SessionStart hook), subagents included.
+    Streaming writes one transcript line per content block with the same message id — count each message once."""
+    tot, seen = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "messages": 0}, set()
+    for t in load_state(run).get("sessions", []):
+        p = Path(t)
+        for f in ([p] + sorted(p.with_suffix("").glob("**/*.jsonl"))) if p.exists() else []:
+            for line in f.read_text().splitlines():
+                try:
+                    d = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                m = d.get("message") or {}
+                u = m.get("usage")
+                if d.get("type") != "assistant" or not u or m.get("id") in seen:
+                    continue
+                seen.add(m.get("id"))
+                tot["input"] += u.get("input_tokens", 0)
+                tot["output"] += u.get("output_tokens", 0)
+                tot["cache_read"] += u.get("cache_read_input_tokens", 0)
+                tot["cache_write"] += u.get("cache_creation_input_tokens", 0)
+                tot["messages"] += 1
+    return tot
+
+
+def cmd_report(a) -> None:
+    t = session_tokens(Path(a.run))
+    total_in = t["input"] + t["cache_read"] + t["cache_write"]
+    cached = f", {100 * t['cache_read'] // total_in}% read from cache" if total_in else ""
+    print(f"Claude Code sessions: {t['messages']} model responses · input {total_in} tokens (net {t['input']}, "
+          f"cache read {t['cache_read']}, cache write {t['cache_write']}{cached}) · output {t['output']} tokens")
+
+
+def cmd_hook(a) -> None:
+    """Claude Code hooks (env/hooks/hooks.json): SessionStart → record transcript + print status into context;
+    PostToolUse → log the tool call; validate outline/plan/math files right after they are written (exit 2 feeds the
+    errors back to Claude)."""
+    ev = json.load(sys.stdin)
+    run = Path(ev.get("cwd") or ".")
+    if not (run / "brief.json").exists():
+        return  # not a run workspace
+    if ev.get("hook_event_name") == "SessionStart":
+        tp = ev.get("transcript_path")
+        if tp:
+            update_state(run, lambda s: s.setdefault("sessions", []).count(tp) or s["sessions"].append(tp))
+        print(f"Text-2-Shorts run {run.name}\n{status_text(run)}")
+    elif ev.get("hook_event_name") == "PostToolUse":
+        ti = ev.get("tool_input") or {}
+        detail = ti.get("file_path") or ti.get("command") or ti.get("description") or ""
+        with _lock, (run / "log.jsonl").open("a") as fh:
+            fh.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "event": "tool",
+                                 "tool": ev.get("tool_name"), "detail": str(detail)[:300]}) + "\n")
+        f = Path(ti.get("file_path") or "")
+        errors = (validate_outline(run) if f.name == "outline.json" else
+                  validate_plan(run, f.parent.name) if f.name == "plan.json" and f.parent.parent.name == "scenes" else
+                  validate_math(run) if f.name == "math.json" else [])
+        if errors:
+            print(f"{f.name} is invalid — fix it:\n" + "\n".join(errors), file=sys.stderr)
+            sys.exit(2)
 
 
 def cmd_validate(a) -> None:
@@ -474,6 +541,8 @@ def register(sub) -> None:
     add("voice", cmd_voice)
     add("final", cmd_final, force=True)
     add("status", cmd_status)
+    add("report", cmd_report)
+    sub.add_parser("hook", help="Claude Code hook entry point (reads the hook JSON on stdin)").set_defaults(fn=cmd_hook)
     p = add("validate", cmd_validate)
     p.add_argument("what", choices=["outline", "plan", "math"])
     p.add_argument("--scene", help="sNN (plan only; default: every scene plan)")
