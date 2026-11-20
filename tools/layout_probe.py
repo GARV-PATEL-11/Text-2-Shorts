@@ -113,6 +113,7 @@ def main():
 
     # Scene.wait() is implemented as play(Wait(...)) in Manim CE, so patching play() covers both.
     Scene.play = play
+    sys.path.insert(0, str(Path(a.file).resolve().parent))  # like `manim render`: the scene's folder is importable
     spec = importlib.util.spec_from_file_location("clip_under_test", a.file)
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     cls = getattr(mod, a.cls)

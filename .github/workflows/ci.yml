@@ -1,0 +1,12 @@
+# Deterministic test suite — no LLM calls.
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg texlive-latex-base texlive-latex-extra dvisvgm libpango1.0-dev pkg-config bubblewrap
+      - run: pip install uv
+      - run: uv sync
+      - run: uv run pytest -q

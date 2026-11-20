@@ -38,6 +38,8 @@ class {cls}({base}):
 
     def construct(self):
         self.reg = {{}}
+        if os.environ.get("T2S_BACKGROUND"):        # one background for every clip and scene of a video
+            self.camera.background_color = os.environ["T2S_BACKGROUND"]
         for name in self.CLIPS:
             self.next_section(name, skip_animations=bool(_TARGET) and name < _TARGET)
             getattr(self, name)()
@@ -84,7 +86,7 @@ PORTRAIT_RES = {"l": "480,854", "m": "720,1280", "h": "1080,1920", "k": "2160,38
 
 
 def render(scene_dir: Path, scene_id: str, target: str | None, quality: str, media: str = "media",
-           aspect: str = "16:9") -> dict:
+           aspect: str = "16:9", fps: int | None = None) -> dict:
     env = dict(os.environ)
     if target:
         env["T2S_TARGET_CLIP"] = target; env["T2S_STOP_AFTER"] = target
@@ -93,6 +95,8 @@ def render(scene_dir: Path, scene_id: str, target: str | None, quality: str, med
            "--media_dir", media, "--disable_caching"]
     if aspect == "9:16":
         cmd += ["-r", PORTRAIT_RES[quality]]
+    if fps:
+        cmd += ["--fps", str(fps)]
     p = subprocess.run(cmd, cwd=scene_dir, env=env, capture_output=True, text=True, timeout=3600)
     if p.returncode != 0:
         return {"ok": False, "returncode": p.returncode, "stderr_tail": p.stderr[-3000:]}
@@ -111,13 +115,15 @@ def main():
     ap.add_argument("--scene-id", required=True)
     ap.add_argument("--camera", action="store_true")
     ap.add_argument("--target")
-    ap.add_argument("--quality", default="l", choices=list("lmhk"))
+    ap.add_argument("--quality", default="l", choices=list("lmhpk"))
+    ap.add_argument("--fps", type=int)
+    ap.add_argument("--media", default="media")
     ap.add_argument("--aspect", default="16:9", choices=["16:9", "9:16"])
     a = ap.parse_args()
     if a.action == "compose":
         print(compose(a.scene_dir, a.scene_id, a.camera))
     else:
-        r = render(a.scene_dir, a.scene_id, a.target, a.quality, aspect=a.aspect)
+        r = render(a.scene_dir, a.scene_id, a.target, a.quality, media=a.media, aspect=a.aspect, fps=a.fps)
         print(json.dumps(r, indent=1))
         sys.exit(0 if r["ok"] else 1)
 

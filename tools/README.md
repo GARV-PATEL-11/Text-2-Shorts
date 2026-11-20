@@ -1,7 +1,7 @@
-# tools/ — implemented deterministic components [BUILT-HERE]
+# tools/ — deterministic components
 
-All tested on Manim 0.20.1 / Python 3.12 (`pytest -q tests` → 38 passed). They are standalone CLIs today and map
-1:1 onto modules in the target layout (Plan.md §20, docs/MODULE_SPECS.md).
+Standalone CLIs, tested on Manim 0.20.1 (`uv run pytest -q`). The pipeline calls them: `app/check.py` (validator,
+probe, harness, doc cards), `t2s final` (harness, assembly), `t2s new` (preflight), `t2s build` (API index).
 
 | Tool | Purpose | Target module | Tests |
 |---|---|---|---|
@@ -12,7 +12,6 @@ All tested on Manim 0.20.1 / Python 3.12 (`pytest -q tests` → 38 passed). They
 | `layout_probe.py` | Dry-run geometry & timing: OUT_OF_FRAME (camera-aware), OVERLAP (per text leaf), TINY_TEXT, per-clip duration vs narration | `render/probe.py` | `test_layout_probe.py` |
 | `scene_harness.py` | Compose scene from isolated clip files; render all clips or one target clip via Manim sections; 9:16 | `render/harness.py` | `test_scene_harness.py` |
 | `assemble_clips.py` | Per-clip A/V mux (pad shorter), concat, EBU R128 loudnorm, report | `assembly/assemble.py` | `test_assemble_clips.py` |
-| `invalidation.py` | Dependency graph + minimal rebuild plan | `orchestrator/graph.py` | `test_invalidation.py` |
 | `cost_report.py` | Cost/attempt/cache summary from `log.jsonl` (works on today's log format) | `observability/cost.py` | `test_cost_report.py` |
 | `audit_prompt_catalog.py` | Check names in prompt files against the API index (finds banned-but-existing and missing names) | CI | used for audit evidence |
 | `check_diagrams.mjs` | Parse `diagrams/*.mmd` with Mermaid 11 | CI (optional) | all 14 diagrams pass |

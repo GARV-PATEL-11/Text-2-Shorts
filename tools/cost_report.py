@@ -3,6 +3,7 @@
 
 Works on the log format the EXISTING app already writes (pipeline.claude():
 ts, stage, scene, model, effort, attempt, ok, cost_usd, duration_ms, cache_read, cache_write, error),
+on the current format (start/end rows; end rows add success, input/output/thinking tokens, api_ms, turns, …),
 and on the proposed format (adds clip, prompt_id, input_tokens, output_tokens, cache_hit).
 Phase 0 of the roadmap runs this on existing runs to get the baseline that every PROVISIONAL target
 in Plan.md is later replaced with.
@@ -18,8 +19,12 @@ from pathlib import Path
 
 def summarize(paths: list[Path]) -> dict:
     rows = [json.loads(l) for p in paths for l in p.read_text().splitlines() if l.strip()]
+    rows = [r for r in rows if r.get("event") != "start" and r.get("status") != "started"]  # start rows carry no result
+    for r in rows:
+        r.setdefault("ok", r.get("success"))  # pipeline now logs "success"; older logs used "ok"
     by = defaultdict(lambda: {"calls": 0, "failed": 0, "retries": 0, "cost_usd": 0.0, "ms": 0,
-                              "cache_read": 0, "cache_write": 0, "artifact_cache_hits": 0})
+                              "cache_read": 0, "cache_write": 0, "input_tokens": 0, "output_tokens": 0,
+                              "artifact_cache_hits": 0})
     for r in rows:
         s = by[r.get("stage", "?")]
         s["calls"] += 1
@@ -29,6 +34,8 @@ def summarize(paths: list[Path]) -> dict:
         s["ms"] += r.get("duration_ms") or 0
         s["cache_read"] += r.get("cache_read") or 0
         s["cache_write"] += r.get("cache_write") or 0
+        s["input_tokens"] += r.get("input_tokens") or 0
+        s["output_tokens"] += r.get("output_tokens") or 0
         s["artifact_cache_hits"] += 1 if r.get("cache_hit") else 0
     for s in by.values():
         tot = s["cache_read"] + s["cache_write"]
@@ -55,10 +62,11 @@ def main():
         print(json.dumps(r, indent=1)); return
     print(f"{r['runs']} run(s) · {r['calls']} calls · ${r['total_cost_usd']} · first-attempt success {r['first_attempt_success']}"
           f" · cost/render unit {r['cost_per_render_unit']}")
-    print(f"{'stage':18}{'calls':>6}{'fail':>5}{'retry':>6}{'cost $':>9}{'sec':>8}{'cache-read%':>12}")
+    print(f"{'stage':18}{'calls':>6}{'fail':>5}{'retry':>6}{'cost $':>9}{'sec':>8}{'in tok':>10}{'out tok':>9}{'cache rd':>10}{'cache wr':>10}{'read%':>7}")
     for k, s in r["stages"].items():
         cr = "-" if s["prompt_cache_read_ratio"] is None else f"{100 * s['prompt_cache_read_ratio']:.0f}%"
-        print(f"{k:18}{s['calls']:>6}{s['failed']:>5}{s['retries']:>6}{s['cost_usd']:>9.3f}{s['ms'] / 1000:>8.0f}{cr:>12}")
+        print(f"{k:18}{s['calls']:>6}{s['failed']:>5}{s['retries']:>6}{s['cost_usd']:>9.3f}{s['ms'] / 1000:>8.0f}"
+              f"{s['input_tokens']:>10}{s['output_tokens']:>9}{s['cache_read']:>10}{s['cache_write']:>10}{cr:>7}")
 
 
 if __name__ == "__main__":

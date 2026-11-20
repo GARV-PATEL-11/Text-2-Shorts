@@ -5,23 +5,18 @@ description: Diagnose and fix a failing or ugly clip in a Text-to-Shorts run (re
 
 # Debugging a clip
 
-Status: PROPOSED (commands refer to the target layout; tools are implemented in `tools/`).
-
 Work from evidence in the run directory, in this order — each step is cheaper than the next:
-1. `runs/<id>/state.json` → the clip's `last_error`, attempts, validation statuses.
-2. `scenes/sNN/clips_work/clip_MM/checks/*.json` → the exact deterministic findings (codes are stable, see
+1. `uv run t2s status runs/<id>` and `runs/<id>/state.json` → the clip's status, `notes` and `open_findings`.
+2. `scenes/sNN/work/clip_MM/checks/*.json` → the exact deterministic findings (codes are stable, see
    Plan.md §16.3 repair table). Most failures end here.
-3. Reproduce without any LLM:
+3. Reproduce without any LLM, from the clip's work folder (it holds TASK.json and its own scene copy):
    ```bash
-   python tools/validate_manim_code.py scenes/sNN/clips/clip_MM.py --index $T2S_API_INDEX --clip-file --entry … --exit …
-   python tools/scene_harness.py compose scenes/sNN --scene-id sNN
-   python tools/layout_probe.py scenes/sNN/scene.py SceneNN --budget clip_MM=<audio seconds>
-   python tools/scene_harness.py render scenes/sNN --scene-id sNN --target clip_MM
+   cd runs/<id>/scenes/sNN/work/clip_MM && ./check static && ./check probe && ./check render && ./check frames
    ```
-4. `log.jsonl` rows for the clip (stage `clip_build`, attempts, cost, cache_read/cache_write) and the saved prompt in
-   `.prompts/` to see exactly what the agent was told.
+4. `log.jsonl` end rows for the clip (stage `clip_build`/`clip_build_retry`: `outcome`, `notes`, `turns`,
+   `permission_denials`, cost) and `TASK.md` / `API_CARDS.md` in the work folder — exactly what the agent was told.
 
 Classify before fixing: is the finding (a) a tool false positive → fix the tool + add a test fixture;
 (b) a planning defect (impossible budget, contract asks for something the previous clip doesn't leave) → feedback on
-the clip plan, not the code; (c) a code defect → rebuild the clip. If the same code recurs across runs, add a
+the clip plan, not the code; (c) a code defect → `t2s build runs/<id> --clips sNNcMM --feedback "…"`. If the same code recurs across runs, add a
 topic-card example or a validator rule — that is cheaper than more prompt text.

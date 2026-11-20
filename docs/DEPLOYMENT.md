@@ -13,40 +13,36 @@ sudo apt-get install -y ffmpeg texlive-latex-base texlive-latex-extra texlive-fo
 the Claude Code sandbox uses the macOS system sandbox, final-render bwrap jail is Linux-only (use Docker or skip).
 
 ## 2. Python
-Python 3.12 (tested here) or 3.14 (the app's `.pyc` files show 3.14 — run the test suite on it in Phase 1).
+Python ≥ 3.12 (developed on 3.14).
 ```bash
-uv sync                                   # root pyproject.toml (manim==0.20.1 pinned; pytest in dev group)
-python -c "import manim; print(manim.__version__)"   # must print 0.20.1
+uv sync                                              # manim==0.20.1 pinned; installs the `t2s` command
+uv run python -c "import manim; print(manim.__version__)"   # must print 0.20.1
 ```
 
 ## 3. Claude Code CLI
-Install per https://code.claude.com/docs (native installer), then `claude --version` ≥ **2.1.275** (needed for the
-system-prompt cache boundary; ≥ 2.1.259 for `--permission-prompts`, ≥ 2.1.248 for `--restricted`).
-Auth: `claude auth login --console` (API billing) or `claude setup-token` (subscription).
-Check: `claude auth status` → `authMethod`.
+Install per https://code.claude.com/docs (native installer), then `claude --version` ≥ **2.1.275**
+(≥ 2.1.259 for `--permission-prompts`, ≥ 2.1.248 for `--restricted`).
+Auth: `claude auth login --console` (API billing) or `claude setup-token` (subscription). Check: `claude auth status`.
 
 ## 4. Configuration
 ```bash
-cp .env.example .env                   # current settings; config/.env.example lists PROPOSED target-CLI vars
-# app/sandbox.json is already the hardened version (failIfUnavailable + denyRead for secrets)
-cp config/stages.yaml config/stages.local.yaml   # optional overrides
-python tools/build_manim_api_index.py --out cache/manim_api/0.20.1/index.json
-python tools/preflight.py --out reports/environment_report.json   # exit 0 = ready
+cp .env.example .env                                 # optional: T2S_PARALLEL, T2S_FPS, T2S_MODEL, TTS/voice
+uv run python tools/preflight.py                     # exit 0 = ready (t2s new runs it too)
 ```
+`app/sandbox.json` is the agents' sandbox (no network, writes only in the clip folder, secrets unreadable, fails
+closed). The Manim API index is built on first `t2s build` into `.cache/`.
 
-## 5. Verify the installation (no LLM calls, ~1 min)
+## 5. Verify the installation (no LLM calls, ~2 min)
 ```bash
-pytest -q tests            # 38 tests: tools, contracts, topic cards, harness, assembly
+uv run pytest -q           # tools, contracts, topic cards, harness, assembly, and a fake-agent build → final run
 node tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm i mermaid@11 jsdom@24`)
 ```
+CI runs the same suite on every push (`.github/workflows/ci.yml`).
 
 ## 6. Operating
-Open Claude Code in the repo; install the operator skill (`.claude/skills/make-short/`), then ask
-"make a 2-minute video about the Pythagorean theorem". The skill drives `t2s` step by step (Plan.md §12).
+Open Claude Code in the repo and ask "/make-short a 2-minute video about the Pythagorean theorem". The skill
+(`.claude/skills/make-short/`) drives `t2s` step by step and asks you at the four checkpoints.
 
-## 7. Docker [PROPOSED, untested]
-`config/Dockerfile`. Bubblewrap inside Docker needs unprivileged user namespaces; otherwise treat the container as the
-isolation boundary and disable the inner bwrap jail via config.
-
-## 8. Environment variables
-See `config/.env.example` (all documented inline).
+## 7. Docker
+Not shipped. The agents depend on bubblewrap, which inside Docker needs unprivileged user namespaces; a container
+image only makes sense once the container itself is chosen as the isolation boundary.

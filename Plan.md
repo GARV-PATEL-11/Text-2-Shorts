@@ -1,5 +1,16 @@
 # Plan.md — Text-to-Shorts: Claude-Code-backed, Manim-based explainer video generator
 
+> **Implementation status (v0.2.0).** Built, smallest form that meets each spec:
+> M2 runner → `pipeline.claude()` (LLM result cache, rate/usage-limit waits, start/end log rows) ·
+> M3 ledger → `state.json` + `feedback.jsonl` + versioned `plan.json` (`app/clips.py`) ·
+> M4 invalidation → content-hash keys (a clip's key includes the previous clip's code, so changes cascade in order) ·
+> M5 steps + checkpoints → `t2s clips | voice | build | final | approve | feedback | status` ·
+> M6 prompts → constants in `app/clips.py` · M7 → `tools/doc_cards.py` + API index in `.cache/` ·
+> M8 → `app/check.py` (`./check`) + jailed re-check · M9 → `t2s voice` · M10 → `tools/assemble_clips.py` + `media_checks` ·
+> M11 → `.cache/llm/` · M12 → `log_row` + `tools/cost_report.py` · M13 → `t2s` · M14 → preflight in `t2s new`.
+> Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
+> `clip_reviewer` (human CP3), Docker. Sections below are the original design.
+
 **Document status:** v1.0 · 2026-11-19 · single reference for product, architecture and implementation.
 **Basis:** audit of `app.zip` (snapshot 2026-11-16/19), `Instructions`, the earlier
 `Agentic_Mathematical_Video_Generation_Implementation_Plan.md`, Manim CE **0.20.1** installed and exercised in the

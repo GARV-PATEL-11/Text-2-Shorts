@@ -1,32 +1,29 @@
-"""pipeline.py — Text-2-Shorts stages. Every LLM step is a `claude -p` subprocess.
+"""pipeline.py — the `t2s` CLI, the Claude runner (`claude()`: caching, retries, limit waits, logging) and the
+brief/outline/TTS stages. The clip-level stages (clips, voice, build, final, approve, feedback, status) are in
+app/clips.py. Driven by the /make-short skill, one step at a time:
 
-Driven by the /make-short skill (.claude/skills/make-short/SKILL.md), one step at a time:
-
-    uv run python -m app.pipeline new "<topic>" --approach zoom --minutes 2 --voice af_heart
-    uv run python -m app.pipeline outline  runs/<id> [--feedback "..."]
-    uv run python -m app.pipeline tts      runs/<id>
-    uv run python -m app.pipeline plan     runs/<id> [--scenes 2,3] [--feedback "..."]
-    uv run python -m app.pipeline render   runs/<id> [--scenes 2]   [--feedback "..."]
-    uv run python -m app.pipeline assemble runs/<id>
-
-Each step reads/writes JSON + media under runs/<id>/ and prints a short summary for the orchestrator.
+    t2s new "<topic>" --approach zoom --minutes 2 --voice af_heart [--font Roboto]
+    t2s outline  runs/<id> [--feedback "..."]        CP1 → t2s approve runs/<id> outline
+    t2s clips    runs/<id> [--scenes 2]              CP2 → t2s approve runs/<id> plan
+    t2s voice    runs/<id>
+    t2s build    runs/<id> [--clips s02c03 --feedback "..."]   CP3 → t2s approve runs/<id> s02
+    t2s final    runs/<id>                           CP4 → t2s approve runs/<id> final
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import math
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Literal
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
@@ -38,17 +35,9 @@ from app.graph.prompts.outline_critic_prompt import (
     OUTLINE_CRITIC_SYSTEM, OUTLINE_REFACTOR_SYSTEM, OutlineCritiqueResult,
     build_outline_critic_prompt, build_outline_refactor_prompt,
     )
-from app.graph.prompts.render_debug_prompt import _DEBUG_IDENTITY_AND_PROTOCOL
 from app.graph.prompts.script_gen_prompt import (
     CLASSIC_LINEAR_NARRATIVE_SYSTEM, CONCEPTUAL_ZOOM_SYSTEM, PROBLEM_TO_SOLUTION_ARC_SYSTEM, REQ_MODIFIER_SYSTEM,
     )
-from app.graph.prompts.visual_code_gen_prompt import SYSTEM_PROMPT as CODE_GEN_SYSTEM
-from app.graph.prompts.visual_code_gen_prompt import build_user_prompt as build_code_user_prompt
-from app.graph.prompts.visual_plan_critic_prompt import (
-    CRITIC_SYSTEM, REFACTOR_SYSTEM, CritiqueResult, build_critic_user_prompt, build_refactor_user_prompt,
-    )
-from app.graph.prompts.visual_plan_gen_prompt import SceneDirectorInput, generate_visual_plan_prompt
-
 
 load_dotenv()
 
@@ -58,7 +47,7 @@ SANDBOX_SETTINGS = Path(__file__).with_name("sandbox.json")
 FPS = int(os.environ.get("T2S_FPS", 60))  # final render is always 2560x1440 (-qp, 16:9); 60–120 fps
 MAX_PARALLEL = int(os.environ.get("T2S_PARALLEL", 4))  # scenes at a time (user's call: 4)
 CACHE_WARMUP_S = 20  # ponytail: fixed delay, not a signal that the cache is written; tune if logs show misses
-CRITIC_ROUNDS = 3  # critic passes; the last one always scores the final plan
+CRITIC_ROUNDS = 2  # outline critic passes
 
 # (model, effort) per stage. T2S_MODEL=<alias> forces one model everywhere (cheap smoke runs).
 STAGES: dict[str, tuple[str, str]] = {
@@ -66,12 +55,10 @@ STAGES: dict[str, tuple[str, str]] = {
     "outline": ("sonnet", "high"),
     "outline_critic": ("sonnet", "high"),
     "outline_refactor": ("sonnet", "medium"),
-    "narration": ("sonnet", "medium"),
-    "plan": ("sonnet", "high"),
-    "plan_critic": ("sonnet", "medium"),
-    "plan_refactor": ("sonnet", "medium"),
-    "scene": ("sonnet", "high"),
-    "scene_retry": ("sonnet", "xhigh"),
+    "clip_plan": ("sonnet", "high"),
+    "math_verify": ("sonnet", "high"),
+    "clip_build": ("sonnet", "high"),
+    "clip_build_retry": ("sonnet", "xhigh"),
     }
 
 APPROACHES: dict[str, tuple[str, type[BaseModel]]] = {
@@ -83,67 +70,12 @@ APPROACHES: dict[str, tuple[str, type[BaseModel]]] = {
 # bubblewrap jail for the final (unattended) render of LLM-written code: read-only host,
 # no network, writable scene dir + ~/.cache only. Mirrors app/sandbox.json.
 CACHE = Path.home() / ".cache"
+LLM_CACHE = ROOT / ".cache" / "llm"  # non-agent results keyed by sha256 of every input
 BWRAP = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--tmpfs", "/tmp",
          "--bind", str(CACHE), str(CACHE), "--unshare-net", "--die-with-parent"]
 
 
 # ── Schemas for new stages ────────────────────────────────────────────────────
-
-class SceneNarration(BaseModel):
-    scene_id: int
-    narration: str
-
-
-class Narration(BaseModel):
-    scenes: list[SceneNarration]
-
-
-class SceneResult(BaseModel):
-    status: Literal["READY", "FAILED"]
-    render_attempts: int = 0
-    notes: str = ""
-
-
-NARRATION_SYSTEM = """
-You write the spoken voiceover script for an educational explainer video, one entry per scene.
-Rules:
-- Word count per scene ≈ duration_seconds / 60 × meta.target_wpm. Never exceed it by more than 10%.
-- Cover that scene's talking_points in order; follow its narration_hint for tone and pacing.
-- End each scene (except the last) with a natural bridge into the next one (see transition_to_next).
-- Plain spoken English for a text-to-speech voice: no markdown, emojis, stage directions or brackets.
-  Write symbols as spoken ("x squared", "theta", "greater than").
-Return one entry per scene_id in the outline.
-""".strip()
-
-SCENE_AGENT_PROTOCOL = """
-════════════════════════════════════════════════════════════════
-OPERATING MODE — AUTONOMOUS SANDBOXED AGENT (overrides the OUTPUT FORMAT sections above)
-
-You are not answering in chat. You work in the current directory with Read/Write/Edit/Bash, sandboxed:
-no network, writes only inside this directory. The protocols above (code generation, then render
-debugging) are your knowledge; this is your workflow:
-
-1. Read plan.md (the scene DSL) and narration.txt (the voiceover this scene must play under).
-2. Write scene.py containing exactly one Scene subclass named {class_name}. If scene.py already exists,
-   start from it (a previous attempt) and apply any human feedback given in the task.{font_rule}
-3. Render:  {render_cmd}
-4. On failure, read the error, apply the RENDER DEBUG protocol, fix scene.py, re-render. At most 6 renders.
-5. On success (the draft video is media/videos/scene/480p15/{class_name}.mp4; run these commands verbatim):
-   a. Check duration: ffprobe -v error -show_entries format=duration -of csv=p=0 media/videos/scene/480p15/{class_name}.mp4
-      It must be at least {target:.1f}s (the narration length). If shorter, extend waits/animations
-      in narration-sync order; if more than 3s longer, tighten.
-   b. Look at it: ffmpeg -y -loglevel error -i media/videos/scene/480p15/{class_name}.mp4 -vf fps=1/3 frames/f_%02d.png
-      then Read the PNGs.
-      Fix overlapping elements, text cut off at frame edges, unreadable text, empty frames. Re-render.
-   c. Layout check (catches overlaps between sampled frames): {probe_cmd}
-      Fix every ERROR (OVERLAP, OUT_OF_FRAME) and re-render; WARN lines are advisory.
-      At most 2 visual passes.
-6. Finish with status READY only if the last render succeeded and passed checks; otherwise FAILED
-   with notes saying what is still wrong. Never run anything except python/manim/ffmpeg/ffprobe/ls/mkdir.
-""".strip()
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text())
@@ -151,16 +83,6 @@ def read_json(path: Path) -> dict:
 
 def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-
-
-def scene_dir(run: Path, scene_id: int) -> Path:
-    d = run / "scenes" / f"{scene_id:03d}"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
-
-
-def feedback_block(feedback: str | None) -> str:
-    return f"\n\n## HUMAN REVIEWER FEEDBACK (highest priority — apply it)\n{feedback}" if feedback else ""
 
 
 def parse_envelope(env: dict, schema: type[BaseModel] | None) -> BaseModel | str | None:
@@ -177,13 +99,14 @@ def parse_envelope(env: dict, schema: type[BaseModel] | None) -> BaseModel | str
 
 def claude(
         run: Path, stage: str, user: str, system: str, *,
-        schema: type[BaseModel] | None = None, scene: int | None = None,
+        schema: type[BaseModel] | None = None, scene: int | str | None = None,
         cwd: Path | None = None, agent: bool = False,
         ):
-    """One `claude -p` call. Retries once; raises RuntimeError if both attempts fail."""
+    """One `claude -p` call. Retries once; waits out rate/usage limits; non-agent results are cached by input hash.
+    Raises RuntimeError if both attempts fail."""
     model, effort = STAGES[stage]
     model = os.environ.get("T2S_MODEL", model)
-    tag = f"{stage}_{scene:03d}" if scene is not None else stage
+    tag = stage if scene is None else f"{stage}_{scene:03d}" if isinstance(scene, int) else f"{stage}_{scene}"
     prompts = run / ".prompts"
     prompts.mkdir(exist_ok=True)
     sys_file = prompts / f"{tag}.md"
@@ -204,12 +127,21 @@ def claude(
     else:
         cmd += ["--system-prompt-file", str(sys_file), "--tools", ""]
 
+    cached = None if agent else LLM_CACHE / (hashlib.sha256(json.dumps(
+        [model, effort, system, user, schema and schema.model_json_schema()]).encode()).hexdigest() + ".json")
+    if cached and cached.exists() and (out := parse_envelope(json.loads(cached.read_text()), schema)) is not None:
+        log_row(run, {"run": run.name, "event": "end", "stage": stage, "type": "llm", "scene": scene, "model": model,
+                      "effort": effort, "success": True, "cache_hit": True, "cost_usd": 0.0})
+        return out
     env: dict = {}
-    for attempt in (1, 2):
+    attempt = waits = 0
+    while attempt < 2:
+        attempt += 1
         t0 = time.monotonic()
-        with (run / "log.jsonl").open("a") as fh:  # a "started" line with no matching "ok" line = running or killed
-            fh.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "stage": stage, "scene": scene,
-                                 "model": model, "effort": effort, "attempt": attempt, "status": "started"}) + "\n")
+        base = {"run": run.name, "call_id": uuid.uuid4().hex[:8], "stage_no": list(STAGES).index(stage) + 1,
+                "stage": stage, "type": "agent" if agent else "llm", "scene": scene, "model": model,
+                "effort": effort, "attempt": attempt}
+        log_row(run, {**base, "event": "start"})  # a start row with no matching end row = running or killed
         try:
             p = subprocess.run(cmd, input=user, capture_output=True, text=True,
                                cwd=cwd or run, timeout=3600 if agent else 1800)
@@ -220,18 +152,57 @@ def claude(
         except subprocess.TimeoutExpired:
             env = {"is_error": True, "result": "timed out"}
         out = parse_envelope(env, schema)
-        with (run / "log.jsonl").open("a") as fh:
-            fh.write(json.dumps({
-                "ts": datetime.now().isoformat(timespec="seconds"), "stage": stage, "scene": scene,
-                "model": model, "effort": effort, "attempt": attempt, "ok": out is not None,
-                "cost_usd": env.get("total_cost_usd"), "duration_ms": round((time.monotonic() - t0) * 1000),
-                "cache_read": (env.get("usage") or {}).get("cache_read_input_tokens"),
-                "cache_write": (env.get("usage") or {}).get("cache_creation_input_tokens"),
-                "error": None if out is not None else str(env.get("result") or env.get("subtype"))[:300],
-                }) + "\n")
+        usage = env.get("usage") or {}
+        net_in, read, write = (usage.get(k) for k in
+                               ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+        log_row(run, {
+            **base, "event": "end", "success": out is not None,
+            "outcome": getattr(out, "status", None),             # agent verdict, e.g. READY / FAILED
+            "stop_reason": env.get("terminal_reason") or env.get("subtype"),
+            "input_tokens": net_in, "output_tokens": usage.get("output_tokens"),
+            "thinking_tokens": (usage.get("output_tokens_details") or {}).get("thinking_tokens"),
+            "cache_read": read, "cache_write": write,
+            "total_input_tokens": sum(x or 0 for x in (net_in, read, write)) if usage else None,
+            "cost_usd": env.get("total_cost_usd"),
+            "duration_ms": round((time.monotonic() - t0) * 1000), "api_ms": env.get("duration_api_ms"),
+            "ttft_ms": env.get("ttft_ms"), "turns": env.get("num_turns"),
+            "permission_denials": len(env.get("permission_denials") or []),
+            "model_id": next(iter(env.get("modelUsage") or {}), None), "session_id": env.get("session_id"),
+            "notes": (getattr(out, "notes", None) or None) and out.notes[:500],
+            "error": None if out is not None else str(env.get("result") or env.get("subtype"))[:300],
+            })
         if out is not None:
+            if cached:
+                cached.parent.mkdir(parents=True, exist_ok=True)
+                cached.write_text(json.dumps(env))
             return out
+        wait = transient_wait(str(env.get("result") or ""), waits)
+        if wait is not None and waits < 6:  # rate limit / overload / usage limit: wait, then retry the same attempt
+            waits += 1
+            attempt -= 1
+            print(f"{tag}: {str(env.get('result'))[:120]} — waiting {wait:.0f}s", file=sys.stderr)
+            time.sleep(wait)
     raise RuntimeError(f"{tag} failed twice: {str(env.get('result') or env.get('subtype'))[:300]}")
+
+
+def transient_wait(error: str, n: int, now: datetime | None = None) -> float | None:
+    """Seconds to wait before retrying a failed call, or None if the error is not transient."""
+    m = re.search(r"limit\W+resets (\d{1,2})(?::(\d\d))?\s*([ap]m)\s*\(([^)]+)\)", error, re.I)
+    if m:  # "You've hit your 5-hour limit · resets 1:30am (Asia/Kolkata)"
+        hour, minute, ampm, tz = int(m[1]) % 12 + (12 if m[3].lower() == "pm" else 0), int(m[2] or 0), m[3], m[4]
+        now = now or datetime.now(ZoneInfo(tz))
+        reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        reset += timedelta(days=1) if reset <= now else timedelta()
+        return min((reset - now).total_seconds() + 60, 6 * 3600)
+    if re.search(r"rate.?limit|overloaded|\b(429|529)\b", error, re.I):
+        return (10, 40, 120)[min(n, 2)]
+    return None
+
+
+def log_row(run: Path, row: dict) -> None:
+    """One JSON object per line in runs/<id>/log.jsonl (start/end rows per Claude call, paired by call_id)."""
+    with (run / "log.jsonl").open("a") as fh:
+        fh.write(json.dumps({"ts": datetime.now().isoformat(timespec="milliseconds"), **row}) + "\n")
 
 
 def run_cost(run: Path) -> float:
@@ -243,32 +214,6 @@ def probe_seconds(path: Path) -> float:
     out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
                          capture_output=True, text=True, check=True).stdout
     return float(out.strip())
-
-
-def map_outline(outline: dict) -> tuple[dict, list[dict]]:
-    """outline.json → (meta, scenes) where each scene is the dict the visual director needs."""
-    scenes = [{
-        "scene_id": seg.get("scene_id", i + 1),
-        "title": seg.get("title", ""),
-        "description": "\n".join(filter(None, [seg.get("visual_plan", ""), *seg.get("talking_points", [])])),
-        "duration_seconds": seg.get("duration_seconds", 30),
-        } for i, seg in enumerate(outline.get("outline", []))]
-    return outline.get("meta", {}), scenes
-
-
-def mux_args(clip: Path, audio: Path, out: Path, video_s: float, audio_s: float) -> list[str]:
-    """ffmpeg args: pad the shorter of video (freeze last frame) / audio (silence) to the longer."""
-    total = max(video_s, audio_s)
-    return ["ffmpeg", "-y", "-loglevel", "error", "-i", str(clip), "-i", str(audio),
-            "-filter_complex",
-            f"[0:v]tpad=stop_mode=clone:stop_duration={max(0.0, audio_s - video_s):.3f}[v];[1:a]apad[a]",
-            "-map", "[v]", "-map", "[a]", "-t", f"{total:.3f}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", str(out)]
-
-
-def selected(run: Path, scenes_arg: str | None) -> list[int]:
-    ids = [s["scene_id"] for s in read_json(run / "narration.json")["scenes"]]
-    return [int(x) for x in scenes_arg.split(",")] if scenes_arg else ids
 
 
 def parallel(fn, items):
@@ -330,19 +275,26 @@ def cmd_outline(a) -> None:
             if crit.approved:
                 break
             outline = _refactor_outline(run, outline, schema, crit, it)
+    target = brief["minutes"] * 60
+    for it in (1, 2):  # length is arithmetic, so check it here rather than trusting an LLM critic
+        total = sum(s.get("duration_seconds", 0) for s in outline["outline"])
+        if abs(total - target) <= 0.2 * target:
+            break
+        print(f"outline is {total}s for a {target:.0f}s target — revising length")
+        fix = OutlineCritiqueResult(approved=False, score=5, critique=f"Total duration {total}s; target {target:.0f}s.",
+                                    improvements=[f"Rescale to {target:.0f}s total (±10%): set duration_seconds so they "
+                                                  f"sum to about {target:.0f}; drop or merge the least essential scenes "
+                                                  f"rather than squeezing every scene; update total_duration_seconds."])
+        outline = _refactor_outline(run, outline, schema, fix, it)
     write_json(run / "outline.json", outline)
 
-    narration = claude(run, "narration", json.dumps(outline, indent=2), NARRATION_SYSTEM, schema=Narration)
-    write_json(run / "narration.json", narration.model_dump())
-
-    meta, scenes = map_outline(outline)
-    by_id = {s.scene_id: s.narration for s in narration.scenes}
-    print(f"\n# {meta.get('title')} — {meta.get('total_duration_seconds')}s, {len(scenes)} scenes\n")
-    print("| # | title | sec | words | narration |\n|---|---|---|---|---|")
-    for s in scenes:
-        text = by_id.get(s["scene_id"], "")
-        print(f"| {s['scene_id']} | {s['title']} | {s['duration_seconds']} | {len(text.split())} | {text[:90]}… |")
-    print(f"\nFull files: {run}/outline.json, {run}/narration.json")
+    meta = outline.get("meta", {})
+    total = sum(s.get("duration_seconds", 0) for s in outline["outline"])
+    print(f"\n# {meta.get('title')} — {total}s, {len(outline['outline'])} scenes\n")
+    print("| # | title | sec | talking points |\n|---|---|---|---|")
+    for i, s in enumerate(outline["outline"], 1):
+        print(f"| s{i:02d} | {s.get('title')} | {s.get('duration_seconds')} | {'; '.join(s.get('talking_points', []))[:110]} |")
+    print(f"\nFull outline: {run}/outline.json")
 
 
 KOKORO_DIR = Path(os.environ.get("KOKORO_DIR", Path.home() / ".cache" / "kokoro"))
@@ -398,181 +350,8 @@ def polly_tts(voice: str, engine: str):
     return synth
 
 
-def cmd_tts(a) -> None:
-    run = Path(a.run)
-    brief = read_json(run / "brief.json")
-    narration = read_json(run / "narration.json")
-    synth = (kokoro_tts(brief["voice"]) if brief["engine"] == "kokoro"
-             else polly_tts(brief["voice"], brief["engine"]))
-    for s in narration["scenes"]:
-        d = scene_dir(run, s["scene_id"])
-        (d / "narration.txt").write_text(s["narration"])
-        (d / "narration.mp3").write_bytes(synth(s["narration"]))
-        s["audio_seconds"] = round(probe_seconds(d / "narration.mp3"), 2)
-        print(f"scene {s['scene_id']}: {s['audio_seconds']}s")
-    write_json(run / "narration.json", narration)
-
-
-def cmd_plan(a) -> None:
-    run = Path(a.run)
-    meta, scenes = map_outline(read_json(run / "outline.json"))
-    narr = {s["scene_id"]: s for s in read_json(run / "narration.json")["scenes"]}
-    keep_format = ("\n\nNOTE: the current plan is XML-style tagged text, not JSON. Return the complete revised "
-                   "plan in exactly the same tagged format, and nothing else.")
-    targets = set(selected(run, a.scenes))
-
-    def one(scene: dict) -> str:
-        sid = scene["scene_id"]
-        d = scene_dir(run, sid)
-        seconds = math.ceil(narr[sid].get("audio_seconds") or scene["duration_seconds"])
-        scene_json = json.dumps({**scene, "duration_seconds": seconds, "narration_text": narr[sid]["narration"]},
-                                indent=2)
-        def snapshot(text: str) -> str:  # revision history: plan.v1.md, plan.v2.md, …
-            n = len(list(d.glob("plan.v*.md")))
-            if n and (d / f"plan.v{n}.md").read_text() == text:  # resuming: same text, same version
-                return f"plan.v{n}.md"
-            (d / f"plan.v{n + 1}.md").write_text(text)
-            return f"plan.v{n + 1}.md"
-
-        old_review = read_json(d / "plan_review.json") if (d / "plan_review.json").exists() else None
-        plan, history = None, []
-        try:
-            if a.feedback and (d / "plan.md").exists():
-                snapshot((d / "plan.md").read_text())
-                human = CritiqueResult(approved=False, score=5, critique="Human reviewer requested changes.",
-                                       improvements=[a.feedback])
-                plan = claude(run, "plan_refactor",
-                              build_refactor_user_prompt(scene_json, (d / "plan.md").read_text(), human, 1) + keep_format,
-                              REFACTOR_SYSTEM, scene=sid)
-                snapshot(plan)
-                review = {"score": None, "critique": "revised from human feedback"}
-            else:
-                if a.refine and (d / "plan.md").exists():  # critique the existing plan instead of regenerating
-                    plan = (d / "plan.md").read_text()
-                else:
-                    prompts = generate_visual_plan_prompt(SceneDirectorInput(
-                        video_metadata=json.dumps(meta, indent=2), target_scene_id=f"scene_{sid:03d}",
-                        target_scene=scene_json, target_duration=seconds))
-                    plan = claude(run, "plan", prompts["user"] + feedback_block(a.feedback), prompts["system"], scene=sid)
-                version = snapshot(plan)
-                # Always end on a critic pass, so the saved score belongs to the saved plan.
-                for it in range(1, a.rounds + 1):
-                    crit = claude(run, "plan_critic", build_critic_user_prompt(scene_json, plan, it),
-                                  CRITIC_SYSTEM, schema=CritiqueResult, scene=sid)
-                    history.append({"version": version, **crit.model_dump()})
-                    if crit.approved or crit.score >= 8 or it == a.rounds:
-                        break
-                    plan = claude(run, "plan_refactor",
-                                  build_refactor_user_prompt(scene_json, plan, crit, it) + keep_format,
-                                  REFACTOR_SYSTEM, scene=sid)
-                    version = snapshot(plan)
-                review = {"score": history[-1]["score"], "critique": history[-1]["critique"],
-                          "improvements": history[-1]["improvements"], "history": history,
-                          "previous_review": old_review}
-        except RuntimeError as exc:
-            if history:  # keep progress: plan.md = latest rewrite (unscored), so the next --refine resumes from it
-                (d / "plan.md").write_text(plan)
-                write_json(d / "plan_review.json", {"score": None, "critique": f"FAILED: {exc}",
-                                                    "history": history, "previous_review": old_review})
-            return f"| {sid} | {scene['title']} | FAILED | {exc} |"
-        (d / "plan.md").write_text(plan)
-        write_json(d / "plan_review.json", review)
-        trail = " → ".join(str(h["score"]) for h in review.get("history", []))
-        return f"| {sid} | {scene['title']} | {review.get('score')} ({trail}) | {review.get('critique')} |"
-
-    rows = parallel(one, [s for s in scenes if s["scene_id"] in targets])
-    print("| # | title | critic score | critic note |\n|---|---|---|---|")
-    print("\n".join(rows))
-    print(f"\nPlans: {run}/scenes/NNN/plan.md")
-
-
-def cmd_render(a) -> None:
-    run = Path(a.run)
-    missing = [b for b in ("bwrap", "socat") if not shutil.which(b)]
-    if missing:  # without these Claude Code silently runs Bash unsandboxed — refuse instead
-        sys.exit(f"Sandbox dependencies missing: {missing}. Run: sudo apt install bubblewrap socat")
-    if not 60 <= FPS <= 120:
-        sys.exit(f"T2S_FPS={FPS}: must be 60–120")
-    font = read_json(run / "brief.json").get("font")
-    font_rule = (f'\n   Font: the first lines of construct() are Text.set_default(font="{font}") and '
-                 f'MarkupText.set_default(font="{font}"); never pass another font=. MathTex keeps LaTeX fonts.'
-                 if font else "")
-    narr = {s["scene_id"]: s for s in read_json(run / "narration.json")["scenes"]}
-    for p in (CACHE / "manim", CACHE / "fontconfig"):
-        p.mkdir(parents=True, exist_ok=True)  # sandbox allowWrite ignores paths that don't exist yet
-
-    def one(sid: int) -> str:
-        d = scene_dir(run, sid)
-        name = f"Scene{sid:03d}"
-        (d / "frames").mkdir(exist_ok=True)
-        render_cmd = f'"{PYTHON}" -m manim render scene.py {name} -ql --media_dir media --disable_caching'
-        probe_cmd = f'"{PYTHON}" "{ROOT / "tools" / "layout_probe.py"}" scene.py {name}'
-        system = "\n\n".join([CODE_GEN_SYSTEM, _DEBUG_IDENTITY_AND_PROTOCOL,
-                              SCENE_AGENT_PROTOCOL.format(class_name=name, render_cmd=render_cmd, probe_cmd=probe_cmd,
-                                                          font_rule=font_rule,
-                                                          target=narr[sid]["audio_seconds"])])
-        user = build_code_user_prompt((d / "plan.md").read_text()) + feedback_block(a.feedback)
-
-        result = SceneResult(status="FAILED", notes="not run")
-        for stage in ("scene", "scene_retry"):
-            try:
-                result = claude(run, stage, user, system, schema=SceneResult, scene=sid, cwd=d, agent=True)
-            except RuntimeError as exc:
-                result = SceneResult(status="FAILED", notes=str(exc))
-            if result.status == "READY" and (d / "scene.py").exists():
-                break
-
-        if result.status == "READY":
-            # Final-quality render of the approved code, jailed (no network, writes to scene dir + ~/.cache).
-            shutil.rmtree(d / "media_final", ignore_errors=True)
-            p = subprocess.run(BWRAP + ["--bind", str(d), str(d), PYTHON, "-m", "manim", "render", "scene.py", name,
-                                        "-qp", "--fps", str(FPS), "--media_dir", "media_final", "--disable_caching"],
-                               cwd=d, capture_output=True, text=True, timeout=3600)
-            mp4s = sorted((d / "media_final").rglob(f"{name}.mp4")) or sorted((d / "media").rglob(f"{name}.mp4"))
-            if p.returncode != 0:
-                result.notes += f" | final render failed, using draft quality: {p.stderr[-300:]}"
-            if mp4s:
-                shutil.copy(mp4s[0], d / "clip.mp4")
-                # last frame = the scene's settled state (a mid-point grab often lands mid-animation)
-                subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-sseof", "-0.1", "-i", str(d / "clip.mp4"),
-                                "-frames:v", "1", "-update", "1", str(d / "thumb.png")], check=False)
-            else:
-                result = SceneResult(status="FAILED", render_attempts=result.render_attempts, notes="no mp4 produced")
-        if result.status == "FAILED":
-            (d / "clip.mp4").unlink(missing_ok=True)
-        write_json(d / "result.json", result.model_dump())
-        return f"| {sid} | {result.status} | {result.render_attempts} | {result.notes[:200]} |"
-
-    rows = parallel(one, selected(run, a.scenes))
-    print("| # | status | renders | notes |\n|---|---|---|---|")
-    print("\n".join(rows))
-
-
-def cmd_assemble(a) -> None:
-    run = Path(a.run)
-    parts, skipped = [], []
-    for s in read_json(run / "narration.json")["scenes"]:
-        d = scene_dir(run, s["scene_id"])
-        clip, audio = d / "clip.mp4", d / "narration.mp3"
-        if not clip.exists():
-            skipped.append(s["scene_id"])
-            continue
-        out = d / "part.mp4"
-        subprocess.run(mux_args(clip, audio, out, probe_seconds(clip), probe_seconds(audio)), check=True)
-        parts.append(out)
-    if not parts:
-        sys.exit("No rendered scenes to assemble.")
-    (run / "concat.txt").write_text("".join(f"file '{p.resolve()}'\n" for p in parts))
-    final = run / "final.mp4"
-    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
-                    "-i", str(run / "concat.txt"), "-c", "copy", str(final)], check=True)
-    cost = run_cost(run)
-    print(f"{final}\nduration: {probe_seconds(final):.1f}s · scenes: {len(parts)}"
-          f"{f' · skipped (not rendered): {skipped}' if skipped else ''} · Claude cost: ${cost:.2f}")
-
-
 def main() -> None:
-    ap = argparse.ArgumentParser(prog="python -m app.pipeline")
+    ap = argparse.ArgumentParser(prog="t2s")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p = sub.add_parser("new")
@@ -588,16 +367,13 @@ def main() -> None:
     p.add_argument("--voice", help="Kokoro: af_heart, am_michael, … · Polly: Matthew, Joanna, …")
     p.set_defaults(fn=cmd_new)
 
-    for name, fn in (("outline", cmd_outline), ("tts", cmd_tts), ("plan", cmd_plan),
-                     ("render", cmd_render), ("assemble", cmd_assemble)):
-        p = sub.add_parser(name)
-        p.add_argument("run")
-        p.add_argument("--scenes", help="comma-separated scene ids (plan/render only)")
-        p.add_argument("--feedback", help="human reviewer feedback to apply")
-        p.add_argument("--refine", action="store_true", help="plan: critique/refactor existing plan.md, don't regenerate")
-        p.add_argument("--rounds", type=int, default=CRITIC_ROUNDS, help="plan: max critic passes per scene")
-        p.set_defaults(fn=fn)
+    p = sub.add_parser("outline")
+    p.add_argument("run")
+    p.add_argument("--feedback", help="human reviewer feedback to apply to the current outline")
+    p.set_defaults(fn=cmd_outline)
 
+    from app import clips  # clip-level commands (imports pipeline, so register late)
+    clips.register(sub)
     a = ap.parse_args()
     if a.cmd == "new" and not a.voice:
         a.voice = (os.environ.get("KOKORO_VOICE", "af_heart") if a.engine == "kokoro"

@@ -1,80 +1,77 @@
 # Text-2-Shorts
 
-Turns a topic into a narrated **Manim** explainer video. Every LLM step runs as a sandboxed `claude -p`
-call driven by `app/pipeline.py`; the `/make-short` Claude Code skill operates it and asks you at each checkpoint.
+Turns a topic into a narrated **Manim** explainer video: 2560×1440 (16:9), 60–120 fps, with the font you choose.
+Every LLM step is a sandboxed `claude -p` call. The `/make-short` Claude Code skill operates the `t2s` CLI and asks
+you at four checkpoints.
 
-## Use it (current pipeline)
-In Claude Code, run `/make-short <topic>`. Or step by step:
+## Setup
 ```bash
-uv run python -m app.pipeline new "<topic>" --approach zoom --minutes 3 --audience "…" --voice af_heart
-uv run python -m app.pipeline outline  runs/<id>          # outline + narration (critic loop)
-uv run python -m app.pipeline tts      runs/<id>          # Kokoro (local) or AWS Polly
-uv run python -m app.pipeline plan     runs/<id> [--refine --rounds 4] [--scenes 2,4 --feedback "…"]
-uv run python -m app.pipeline render   runs/<id> [--scenes N --feedback "…"]
-uv run python -m app.pipeline assemble runs/<id>          # → runs/<id>/final.mp4
+sudo apt install ffmpeg texlive-latex-base texlive-latex-extra dvisvgm libpango1.0-dev pkg-config bubblewrap socat
+uv sync                       # Python deps (manim==0.20.1 pinned) + the `t2s` command
+claude --version              # Claude Code ≥ 2.1.275, logged in
+cp .env.example .env          # optional settings
+uv run pytest -q              # deterministic suite, no LLM calls
 ```
-- Model/effort per stage: `STAGES` in `app/pipeline.py`. Env vars: `.env.example`
-  (`T2S_PARALLEL`, default 4 scenes at a time; `T2S_MODEL`; `T2S_FPS`, 60–120, default 60).
-- Output is always 2560×1440 (16:9, 1440p). `new --font "<family>"` sets the font for all on-screen text.
-- Wired-in safeguards:
-  - `new` runs `tools/preflight.py` first, so a machine missing LaTeX or ffmpeg fails before any Claude call.
-  - Render agents run `tools/layout_probe.py` and must fix every OVERLAP or OUT_OF_FRAME error before finishing.
-  - The Kokoro model is checked against pinned SHA-256 hashes when it downloads.
-- Each run's `log.jsonl` has a `started` line and a result line (cost, duration, error) per Claude call.
-- Plan revisions: `scenes/NNN/plan.vN.md`. Critic history: `plan_review.json`.
+Details: `docs/DEPLOYMENT.md`.
 
-## Development package (merged in)
-This is a blueprint and tested building blocks for moving from scene-level to clip-level generation, with
-human-in-the-loop review and cost control. It was built by auditing this app against **Manim 0.20.1** and the
-Claude Code CLI. Its labels: **[EXISTS]** in the app · **[EXISTS-DEFECT]** verified defect ·
-**[BUILT-HERE]** implemented and tested · **[PROPOSED]** designed, not implemented · **[PROVISIONAL]** number not
-yet measured.
-
-| You are… | Read |
-|---|---|
-| Deciding whether to proceed | `Plan.md` §1 (summary), §3.3 (verified findings), §26 (risks/open questions) |
-| Implementing | `Plan.md` §25 (roadmap) → `docs/MODULE_SPECS.md` → `prompts/` → `schemas/models.py` → `tools/` |
-| An AI coding agent | `Plan.md` §20 (target layout), §25 (phase order + acceptance); run `uv run pytest -q` after every change |
-| Setting up a machine | `docs/DEPLOYMENT.md` |
-| Working on prompts/skills | `prompts/README.md`, `docs/SKILLS_ASSESSMENT.md` |
-
-```
-Plan.md                 full reference (28 sections, 14 Mermaid diagrams)
-docs/                   MODULE_SPECS.md (M1–M14), DEPLOYMENT.md, SKILLS_ASSESSMENT.md,
-                        make-short.target-cli.md (skill for the PROPOSED t2s CLI)
-diagrams/               the 14 diagrams as .mmd
-schemas/                models.py (Pydantic v2 contracts) + export_json_schemas.py → json/ (21 schemas)
-prompts/                [PROPOSED] outline_review, clip_planner, math_verifier, clip_builder_agent, clip_reviewer, …
-tools/                  [BUILT-HERE] API index, validator, layout probe, scene harness, assembly, invalidation,
-                        doc cards, preflight, prompt-catalog audit, cost report (see tools/README.md)
-tests/                  pipeline tests + 38 package tests + fixtures
-config/                 stages.yaml, manim.landscape/portrait.cfg, .env.example (target vars), Dockerfile, ci/ [PROPOSED]
-.claude/skills/         make-short (current, working) · manim-ce-0-20-1-reference · t2s-clip-debugging · t2s-prompt-maintenance
-reference/              SOURCES.md, existing-app inventory, audit evidence
-```
-`app/sandbox.json` uses the package's hardened settings (`failIfUnavailable`, `denyRead` for secrets).
-
-### Verify (no LLM calls)
+## Use it
+In Claude Code: `/make-short <topic>`. Or step by step:
 ```bash
-uv run pytest -q                                    # all tests
-uv run python tools/preflight.py --planning-only    # environment check → JSON, "problems": []
+uv run t2s new "<topic>" --approach zoom --minutes 2 --audience "…" --voice af_heart --font Roboto
+uv run t2s outline runs/<id>            # CP1 → uv run t2s approve runs/<id> outline
+uv run t2s clips   runs/<id>            # scenes → clips + math check. CP2 → approve runs/<id> plan
+uv run t2s voice   runs/<id>            # narration audio per clip (Kokoro local, or AWS Polly)
+uv run t2s build   runs/<id>            # one sandboxed agent per clip. CP3 → approve runs/<id> sNN
+uv run t2s final   runs/<id>            # 1440p render, audio sync, loudness, media checks. CP4 → approve … final
+uv run t2s status  runs/<id>            # approvals, every clip's state, spend
+uv run t2s feedback runs/<id> s02c03 --scope visual --text "…"   # or: build --clips s02c03 --feedback "…"
 ```
-System packages: ffmpeg, texlive-latex-base, texlive-latex-extra, dvisvgm, libpango1.0-dev, pkg-config,
-bubblewrap, socat.
+A video is scenes (`s01`…), a scene is clips (`s01c01`…): 4–20 s each, one teaching purpose, its own narration file
+and its own code file. Re-running any step redoes only what changed: an edited plan, new audio, feedback, or an
+earlier clip in the same scene. Everything else is reused through content hashes.
 
-### Implemented vs proposed
-- **Implemented and tested:** API index, static validator (including clip contracts), layout/timing probe, scene
-  harness (clip isolation, section renders, 9:16), clip A/V assembly, invalidation planner, doc cards, preflight,
-  catalog auditor, cost report, data contracts with JSON Schemas, and 11 topic cards (10 with executed examples
-  plus a removed-API table).
-- **Proposed (not implemented):** the `t2s` CLI, ledger, runner refactor, artifact cache, new LLM stages and
-  prompts, checkpoints, math lint, media checks, Docker, CI wiring.
+## How it works
+| Stage | What runs | Output |
+|---|---|---|
+| `new` | preflight (LaTeX, ffmpeg, bwrap, Claude Code version), brief refiner | `brief.json` |
+| `outline` | approach prompt → critic loop → deterministic length check | `outline.json` |
+| `clips` | clip planner per scene (Pydantic-validated contracts: clip N+1 entry = clip N exit) → math verifier | `scenes/sNN/plan.json`, `math.json` |
+| `voice` | TTS per clip; reused while the text is unchanged | `scenes/sNN/audio/clip_MM.mp3` |
+| `build` | per clip: `TASK.md` + generated API cards → sandboxed agent loops `./check static → probe → render → frames` → the orchestrator re-runs `./check all` in a jail and only then installs the clip | `scenes/sNN/clips/clip_MM.py` |
+| `final` | each scene composed from its clips, rendered in a jail with one Manim section per clip → per-clip A/V mux → EBU R128 loudness → media checks | `final.mp4`, `final_report.json` |
 
-**Key decisions (Plan.md §5.2):**
-- Each clip is an isolated file, rendered through Manim sections.
-- Audio is produced first.
-- The scene-level Director DSL is dropped.
-- Version-pinned generated API cards replace hand-written catalogs.
-- Deterministic checks run before any LLM review, and there is one conditional multimodal reviewer.
-- There are four human checkpoints, with feedback scoped to clips.
-- A plain-Python ledger replaces LangGraph, and LLM calls run one at a time.
+- **Gates** (`app/check.py`): `tools/validate_manim_code.py` (names, removed APIs, contracts), `tools/layout_probe.py`
+  (overlap, out-of-frame, clip timing vs narration), `tools/scene_harness.py` (clip isolation, section renders).
+- **Prompt caching**: every system prompt is byte-identical across calls; per-call data goes in the user message.
+  Identical non-agent calls are answered from `.cache/llm/`.
+- **Limits**: rate-limit and overload errors back off (10/40/120 s). A usage limit is waited out until its reset time.
+- **Sandbox**: agents run in Claude Code's bubblewrap sandbox (`app/sandbox.json`: no network, writes only in the
+  clip folder, secrets unreadable, fails closed). Final renders run LLM-written code in a read-only bwrap jail.
+- **Settings**: `STAGES` in `app/pipeline.py` (model/effort per stage). Env: `T2S_PARALLEL` (scenes at a time,
+  default 4), `T2S_FPS` (60–120, default 60), `T2S_MODEL` (force one model), `TTS_ENGINE`, `KOKORO_VOICE`.
+
+## Logs
+`runs/<id>/log.jsonl` has 2 rows per Claude call, paired by `call_id`. The `start` row is written when the call
+begins; a `start` row with no `end` row means the call is still running or was killed. The `end` row holds the result:
+- identity: `run`, `stage_no`, `stage`, `type` (llm/agent), `scene`, `model`, `model_id`, `effort`, `attempt`
+- result: `success`, `cache_hit`, `outcome` (agent READY/FAILED), `stop_reason`, `notes`, `error`
+- tokens: `input_tokens` (net, uncached), `output_tokens`, `thinking_tokens`, `cache_read`, `cache_write`,
+  `total_input_tokens`
+- cost and time: `cost_usd`, `duration_ms` (wall clock), `api_ms`, `ttft_ms`, `turns`
+- other: `permission_denials`, `session_id`
+
+Per-stage table: `uv run python tools/cost_report.py runs/<id>/log.jsonl` (`final` prints it too).
+
+## Repository
+```
+app/pipeline.py         t2s CLI, Claude runner (cache, retries, limit waits, logging), brief/outline/TTS
+app/clips.py            clip planner, math verifier, voice, build orchestration, final, approvals/feedback/status
+app/check.py            ./check gates used by clip agents and re-run by the orchestrator
+app/graph/              outline schemas + brief/outline prompts
+schemas/models.py       Pydantic contracts (ScenePlan, ClipPlan, …) + json/ exports
+tools/                  validator, layout probe, scene harness, assembly, doc cards, API index, preflight, cost report
+.claude/skills/         make-short (operator) · manim-ce-0-20-1-reference · t2s-clip-debugging · t2s-prompt-maintenance
+Plan.md, docs/          design reference (architecture, module specs, deployment, skills assessment)
+prompts/                specs of the two stages not built (outline_review, clip_reviewer)
+tests/                  deterministic suite, including a full build → final run with a fake agent
+```

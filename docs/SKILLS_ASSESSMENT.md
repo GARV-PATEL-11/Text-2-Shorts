@@ -1,6 +1,6 @@
 # Claude Skills assessment
 
-> **Repo status (merged):** the custom skills live in `.claude/skills/` (`make-short` is the working one for today's `app.pipeline`; the package's target-CLI version is `docs/make-short.target-cli.md`). The vendored `external/` skills were removed: use the built-in `claude-api` and `skill-creator` skills; `webapp-testing`, `manimce-best-practices` and the template are listed with their sources in `reference/SOURCES.md` (and in git history, commit ee787a2).
+> **Repo status (merged):** the custom skills live in `.claude/skills/` (`make-short` now operates the clip-level `t2s` CLI). The vendored `external/` skills were removed: use the built-in `claude-api` and `skill-creator` skills; `webapp-testing`, `manimce-best-practices` and the template are listed with their sources in `reference/SOURCES.md` (and in git history, commit ee787a2).
 
 **Question answered:** which Claude Skills are needed to *develop, operate and maintain* this system, which exist,
 which need customization, and which must be built.

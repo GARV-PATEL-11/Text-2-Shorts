@@ -1,11 +1,11 @@
 ---
 name: t2s-prompt-maintenance
-description: Safely change any LLM prompt, topic card, schema or model/effort setting in the Text-to-Shorts project. Use when editing files under app/prompts (or app/graph/prompts), prompts/, .claude/skills/manim-ce-0-20-1-reference/topics, schemas/models.py or config/stages.yaml, or when someone asks to reduce cost or improve output quality of a stage.
+description: Safely change any LLM prompt, topic card, schema or model/effort setting in the Text-to-Shorts project. Use when editing the prompts in app/clips.py or app/graph/prompts/, the topic cards in .claude/skills/manim-ce-0-20-1-reference/topics, schemas/models.py or STAGES in app/pipeline.py, or when someone asks to reduce cost or improve output quality of a stage.
 ---
 
 # Prompt / contract maintenance
 
-Status: PROPOSED.
+Prompts live in `app/clips.py` (clip planner, math verifier, clip builder) and `app/graph/prompts/` (brief + outline). Model/effort per stage: `STAGES` in `app/pipeline.py`.
 
 A prompt edit is a code change with a blast radius: it invalidates cached artifacts and can silently shift cost.
 1. **Find the contract first.** Every stage's output is a Pydantic model (`schemas/models.py`); the prompt must
@@ -15,8 +15,8 @@ A prompt edit is a code change with a blast radius: it invalidates cached artifa
 3. **No hand-written Manim API lists.** API facts come from generated cards; patterns from topic cards with tested
    examples. Run `python tools/audit_prompt_catalog.py <prompt files> --index <index>` — it must report no
    "banned_in_prompt_but_exists_in_api" and no unexplained "not_in_api" names.
-4. **Bump the prompt version** (`clip_planner@2`). This changes cache keys of exactly the artifacts it produces.
+4. **Any edit to a prompt changes its cache key**: the LLM result cache (`.cache/llm/`) and the clip build keys hash the exact prompt text, so only artifacts that prompt produced are redone.
 5. **Run the evals**: `pytest tests/` (contracts, tools) and the golden-topic regression set (Plan.md §22.4) for any
    stage whose prompt changed; compare first-pass gate success, tokens per clip and cost per clip against the
-   baseline in `reports/baseline.json`. Do not merge a change that raises cost >10% without a quality gain.
+   baseline from `uv run python tools/cost_report.py runs/<id>/log.jsonl` on the previous run. Do not merge a change that raises cost >10% without a quality gain.
 6. For cost work, the built-in `claude-api` skill (its `cost-optimize` workflow and prompt-caching guide) is the reference for caching rules and pricing — check live pricing before quoting.

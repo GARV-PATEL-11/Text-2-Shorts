@@ -1,60 +1,74 @@
 ---
 name: make-short
-description: Turn a topic into a narrated Manim explainer video. Orchestrates app/pipeline.py (each LLM stage is a sandboxed `claude -p` with its own model/effort), asks the user at every review checkpoint, and presents the final MP4. Use when the user says /make-short, "make a video/short about X", or wants to resume/redo scenes of a run in runs/.
+description: Turn a topic into a narrated Manim explainer video (2560x1440, 60–120 fps). Operates the `t2s` CLI (clip-level pipeline; each LLM stage is a sandboxed `claude -p`), asks the user at every review checkpoint, and presents the final MP4. Use when the user says /make-short, "make a video/short about X", or wants to resume, revise or check the status of a run in runs/.
 ---
 
 # make-short
 
-You are the director. `app/pipeline.py` does the work; you run its steps, show results, and **ask the user (AskUserQuestion) at every checkpoint below. Never skip a checkpoint and never answer one yourself.**
+You are the operator. `t2s` does the work; you run one step at a time, show results, and **ask the user
+(AskUserQuestion) at every checkpoint (CP1–CP4). Never skip a checkpoint and never answer one yourself.**
+Do not write plans, narration or Manim code yourself — everything goes through `t2s` so it is logged, versioned and checked.
 
-All commands run from the repo root: `uv run python -m app.pipeline <step> ...`.
-Run `outline`, `plan` and `render` with `run_in_background: true` (they take minutes) and wait for the completion notification; don't poll. If a step crashes, show the last lines of its output and `runs/<id>/log.jsonl`, then ask whether to retry.
+All commands run from the repo root as `uv run t2s <step> runs/<id> …`. Run `outline`, `clips`, `build` and `final`
+with `run_in_background: true` and wait for the completion notification; don't poll. If a step crashes, show the
+last lines of its output and of `runs/<id>/log.jsonl`, then ask whether to retry. `uv run t2s status runs/<id>`
+shows approvals, every clip's state and spend; use it to resume after any interruption.
 
-Model/effort per stage lives in `STAGES` in `app/pipeline.py`. Scene agents run sandboxed (bubblewrap, no network, writes only in their scene folder).
+Units: a video has scenes (`s01`…), a scene has clips (`s01c01`…). Each clip has its own narration audio and its own
+code file, built by one sandboxed agent. Re-running a step only redoes what changed (feedback, edited plan, earlier
+clip) — unchanged work is reused.
 
 ## 0. Resume?
-If the user names an existing run (`runs/<id>`), read its files to see which step is done (`brief.json` → `outline.json`/`narration.json` → `narration.mp3`s → `plan.md`s → `clip.mp4`s → `final.mp4`) and continue from the next checkpoint.
+If the user names a run, run `status` and continue from the first unfinished checkpoint:
+`outline.json` → `state.json` approved `outline` → `scenes/sNN/plan.json` + approved `plan` → `audio/index.json` →
+all clips READY + approved `scene:sNN` → `final.mp4` + approved `final`.
 
-## 1. Clarify the topic — CHECKPOINT
-Ask in one AskUserQuestion call (skip a question only if the user already answered it):
-- **Approach**: `zoom` Conceptual Zoom (big picture → detail) · `arc` Problem → Solution · `linear` Classic linear lesson.
-- **Audience / level**: e.g. curious beginners · students with high-school math · practitioners.
+## 1. Clarify the topic
+Ask in one AskUserQuestion call (skip what the user already said):
+- **Approach**: `zoom` Conceptual Zoom · `arc` Problem → Solution · `linear` Classic linear lesson.
+- **Audience / level**: curious beginners · students with high-school math · practitioners.
 - **Length**: 1 · 2 · 3 · 5 minutes.
-- **Voice** (Kokoro, local, default): af_heart (female, best) · af_bella (female) · am_michael (male) · bm_george (British male). Polly alternatives: Matthew/Joanna with `--engine neural`, Ruth/Stephen with `--engine generative`.
-- **Font** for on-screen text (optional; MathTex keeps LaTeX fonts): offer a few installed families, e.g. Roboto · Noto Sans · DejaVu Sans · Latin Modern Roman. The full list is `fc-list : family`. Skip the flag for Manim's default.
-
-Then:
+- **Voice** (Kokoro, local): af_heart (female, best) · af_bella · am_michael (male) · bm_george (British male).
+  Polly: Matthew/Joanna with `--engine neural`, Ruth/Stephen with `--engine generative`.
+- **Font** for on-screen text (MathTex keeps LaTeX fonts): Roboto · Noto Sans · DejaVu Sans · Latin Modern Roman
+  (full list: `fc-list : family`); skip for Manim's default.
 ```
-uv run python -m app.pipeline new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --voice <v> [--font "<family>"] [--engine neural|generative] [--notes "<anything else they said>"]
+uv run t2s new "<topic in the user's words>" --approach <a> --minutes <m> --audience "<aud>" --voice <v> [--font "<family>"] [--engine neural|generative] [--notes "<extra>"]
 ```
-First output line is the run folder (`runs/<id>`); use it for every later step.
+`new` runs a preflight first (LaTeX, ffmpeg, bubblewrap, Claude Code version) and stops with the fix if something is
+missing. Its first output line is the run folder.
 
-## 2. Outline + narration — CHECKPOINT
-`uv run python -m app.pipeline outline runs/<id>` (background). Show the printed scene table to the user as-is, plus the critic scores.
-Ask: **Approve** · **Change something** (they type what). On change:
-`... outline runs/<id> --feedback "<their words>"` and ask again. Loop until approved.
+## 2. CP1 — Outline
+`uv run t2s outline runs/<id>` (background). Show the scene table as printed.
+Ask: **Approve** · **Change something**. Change → `outline runs/<id> --feedback "<their words>"`, ask again.
+Approve → `uv run t2s approve runs/<id> outline`.
 
-## 3. Voiceover
-`uv run python -m app.pipeline tts runs/<id>` (foreground, quick). Report total narration seconds. First Kokoro run downloads ~350MB to `~/.cache/kokoro`. Polly AWS errors → tell the user to check `~/.aws` credentials / region.
+## 3. CP2 — Clip plan + math sheet
+`uv run t2s clips runs/<id>` (background). Show the clip table and the math findings as printed.
+- ERROR math findings block approval. For each, ask the user to accept the suggested fix or word their own, then
+  `feedback runs/<id> sNNcMM --scope math --text "<fix>"` and `clips runs/<id> --scenes N`.
+- Other changes: `clips runs/<id> --scenes N --feedback "<their words>"` (scene-level), or
+  `feedback runs/<id> sNNcMM --scope narration --text "…"` then `clips --scenes N` (one clip).
+Ask: **Approve plan** · **Change clips**. Approve → `uv run t2s approve runs/<id> plan`.
 
-## 4. Visual plans — CHECKPOINT
-`... plan runs/<id>` (background). Show the table. For each scene, add one line of your own summarising what will be on screen (read `runs/<id>/scenes/NNN/plan.md`, skim only the overview section).
-Ask: **Approve all** · **Change scenes** (they say which scenes and what). On change:
-`... plan runs/<id> --scenes 2,4 --feedback "<their words>"` (one call per distinct feedback), then ask again.
-Scores below 8, or plans that need another critic pass: `... plan runs/<id> --refine [--rounds 4] [--scenes …]`. This critiques and revises the existing `plan.md` without regenerating it. A scene whose plan is already at 8 or above is only scored. Old versions stay as `plan.vN.md`, and the critic history is in `plan_review.json`. If a plan step fails (for example on a usage limit), re-run the same `--refine` command; it resumes from the latest rewrite.
+## 4. Voice
+`uv run t2s voice runs/<id>` (foreground). Report the total narration seconds. The first Kokoro run downloads
+~350 MB (hash-checked). Polly errors → check `~/.aws` credentials/region.
 
-## 5. Render — CHECKPOINT only if something failed
-`... render runs/<id>` (background; can take 10–30 min). Show the status table. Scenes run 4 at a time (`T2S_PARALLEL`, default 4); use `T2S_PARALLEL=2 …` if usage limits are tight. A usage-limit failure shows as FAILED with "hit your … limit". Re-run just those scenes once the limit resets.
-For each FAILED scene ask: **Retry with a hint** (they type it) · **Simplify** · **Skip scene**.
-- Retry: `... render runs/<id> --scenes N --feedback "<hint>"`
-- Simplify: `... render runs/<id> --scenes N --feedback "Simplify: fewer objects, no LaTeX-heavy constructs, plain Text and basic shapes; keep the narration sync."`
-- Skip: do nothing; assemble leaves it out (its narration is dropped too — say so).
+## 5. CP3 — Build and preview, per scene
+`uv run t2s build runs/<id>` (background; 4 scenes at a time, clips in order). Show the status table.
+For each scene, Read `scenes/sNN/work/clip_MM/frames/f_last.png` for every clip and describe in one line what it
+shows and anything off. The draft video of a clip is `scenes/sNN/work/clip_MM/checks/render.json` → `video`.
+Ask per scene: **Approve scene** · **Revise clips** (which + what) · for FAILED clips: **Retry with a hint**.
+- Revise / retry: `build runs/<id> --clips sNNcMM --feedback "<their words>"` (only that clip and the ones after it
+  in the scene are rebuilt).
+- Approve: `uv run t2s approve runs/<id> sNN`.
+A FAILED clip stops its scene (later clips need its exit state). Usage-limit errors are waited out automatically.
 
-## 6. Assemble + present — CHECKPOINT
-`uv run python -m app.pipeline assemble runs/<id>`. Then present:
-- the final path (clickable `runs/<id>/final.mp4`), duration, scene count, total Claude cost (printed);
-- Read each `runs/<id>/scenes/NNN/thumb.png` and give one line per scene on what it shows and anything that looks off;
-- open it in Chrome (the default video player doesn't show up): `google-chrome "file://$PWD/runs/<id>/final.mp4"`, and also print that `file://` URL (spaces as `%20`) so the user can paste it.
-
-Ask: **Looks good** · **Redo scenes** (which + what to change).
-Redo → visual change only: `render --scenes N --feedback ...`; layout/content change: `plan --scenes N --feedback ...` then `render --scenes N`. Then assemble and present again. Loop until "Looks good".
+## 6. CP4 — Final
+`uv run t2s final runs/<id>` (background): final 1440p render (`T2S_FPS`, 60–120, default 60), per-clip audio sync,
+loudness normalisation, media checks, cost table. Present:
+- `runs/<id>/final.mp4`, duration, clip count, Claude cost, any media-check WARN/ERROR lines;
+- open it in Chrome: `google-chrome "file://$PWD/runs/<id>/final.mp4"`, and print that `file://` URL (spaces as `%20`).
+Ask: **Looks good** · **Redo clips** (which + what). Redo → back to step 5 for those clips, then `final` again.
+Looks good → `uv run t2s approve runs/<id> final`.
