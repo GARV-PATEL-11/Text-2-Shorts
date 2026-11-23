@@ -1,0 +1,509 @@
+TEXT-2-SHORTS — EVERY CHANGE MADE ON 2026-11-23 (one atomic change per entry)
+================================================================================
+Branch CCW-V02, on top of commit e7a4c10 (0.6.0). Three versions were built today: 0.7.0 (staged workflow),
+0.8.0 (visual + audio planning, critic loops, audio re-timed to the video, 720p30 drafts) and 0.9.0 (deterministic
+driver, scenes in series, clips in parallel). Not committed yet.
+Tags: [ADDED] new · [MODIFIED] changed behaviour or content · [REMOVED] deleted · [RENAMED] moved/renamed ·
+[FIXED] a defect corrected. Paths are relative to the repository root.
+
+Validation at the end of the day: 82 tests pass (63 before today; some were replaced), Ruff format + lint clean, Pyrefly 33 errors (35 before;
+none new, two old ones fixed). No video was generated (product build phase).
+
+
+PART 1 — 0.7.0: requirements → complete script → scene visual plans → clip code, enforced in order
+--------------------------------------------------------------------------------------------------
+
+001 [MODIFIED] schemas/models.py — `Brief`
+    The unused `Brief` model was reshaped to match the brief.json that `text-2-shorts new` really writes
+    (requirement, audience, approach, minutes, pace, notes, tts, voice, engine, font) and gained `objectives`
+    and `style`. It is now the contract for stage 1 and is validated.
+
+002 [ADDED] app/cli.py — `--objective` and `--style` flags
+    `text-2-shorts new` accepts `--objective` (repeatable: what the viewer should be able to do afterwards) and
+    `--style` (explanation style, default "ELI5 / Feynman"); both are stored in brief.json.
+
+003 [MODIFIED] app/cli.py — brief built and validated before a run is created
+    New `brief_from_arguments()` assembles brief.json (including the default voice per provider); `new` checks
+    it against `Brief` before creating runs/<id>, so an invalid request never produces a half-made run.
+
+004 [MODIFIED] app/cli.py — `build_parser()` split out of `main()`
+    The argument parser is built by its own function so tests can parse arguments without running a command;
+    the default-voice logic moved from `main()` into `brief_from_arguments()`.
+
+005 [ADDED] schemas/models.py — `Script` and `ScriptScene` (script.json)
+    The complete script: title, structure, objectives, target words per minute and, per scene, objective, key
+    concepts, covered objectives, duration, spoken bridge (`bridge_in`), complete narration and a short visual idea.
+    It replaces the outline as the stage-2 artifact.
+
+006 [REMOVED] app/outline_models/ (base_outline.py, conceptual_zoom.py, problem_solution_arc.py,
+    classic_linear_narrative.py, __init__.py)
+    The three outline schemas were structurally identical (only docstrings differed) and had no narration.
+    One `Script` schema now serves every narrative structure.
+
+007 [ADDED] app/run_steps.py — `validate_script()`
+    Gate for script.json: every objective is covered by a scene, every brief objective appears in the script,
+    each scene's spoken words fit its duration (±25% of duration × wpm), and the scenes total the requested
+    length (±20%).
+
+008 [ADDED] schemas/models.py — inter-scene bridge rule
+    The `Script` validator requires an empty `bridge_in` for the first scene and a non-empty one for every later
+    scene, so each scene opens by saying what was covered, what comes next and why it matters.
+
+009 [MODIFIED] schemas/models.py — `ScenePlan`
+    Added `composition` (required: zones and main visual elements) and `transition_in` (how the scene opens from
+    the previous scene's final image). Removed `segment_type` and `transition_to_next`, now covered by the script.
+
+010 [ADDED] app/run_steps.py — script-to-plan traceability check
+    `validate_plan()` joins the clips' narration and requires it to equal the approved script's text for that
+    scene (bridge + narration), word for word and in order. Wording can only change through the script.
+
+011 [ADDED] app/run_steps.py — opening transition required
+    `validate_plan()` rejects a plan for any scene after s01 whose `transition_in` is empty.
+
+012 [ADDED] app/run_steps.py — stage gate before visual planning
+    `validate_plan()` refuses every plan until CP1 (the script) is approved and still matches the current
+    script.json (`stage_approval_problem()`, `require_approval()`).
+
+013 [ADDED] app/run_steps.py — fingerprinted stage approvals
+    `script_fingerprint()` and `plans_fingerprint()` are stored with CP1 and CP2; editing an approved script or
+    plan makes its checkpoint stale automatically (`STAGE_FINGERPRINTS`).
+
+014 [FIXED] app/run_steps.py — `is_approval_current()` with nothing to approve
+    A forced approval recorded before script.json existed (fingerprint None) counted as current and opened the
+    next stage. A missing fingerprint now never counts as approved (test added first).
+
+015 [ADDED] app/run_steps.py — CP2 gates on `voice` and `task`
+    `text-2-shorts voice` and `text-2-shorts task` exit with "CP2 … get CP2 first" until the scene plans are
+    approved and unchanged since approval.
+
+016 [MODIFIED] app/run_steps.py — approval targets
+    `text-2-shorts approve` takes `script | plan | sNN | final` (was `outline | plan | sNN | final`); stage
+    approvals store the stage fingerprint, scene and final approvals the clip fingerprint.
+
+017 [MODIFIED] app/run_steps.py — `next_steps()` follows the stage order
+    Status now lists brief → script → script review → CP1 → plans → plan review → CP2 → audio → clips → CP3 →
+    final → CP4, and stops at the first stage that is not approved, so nothing downstream is suggested early.
+
+018 [ADDED] schemas/models.py — `ReviewReport` and `ReviewFinding`
+    Accuracy findings now point at a `target` (scene id or clip id) instead of only a clip id; they replace the
+    `MathFinding` / `MathReport` classes that lived in app/run_steps.py.
+
+019 [ADDED] app/run_steps.py — accuracy review at both stages
+    `validate_review()` checks script_review.json (scene targets) and plan_review.json (clip targets);
+    `review_problems()` makes ERROR findings block CP1/CP2. These replace math.json.
+
+020 [MODIFIED] app/run_steps.py — accuracy notes in TASK.md
+    `review_notes()` collects the findings for a clip and its scene; TASK.md shows them as "ACCURACY NOTES"
+    (was "MATH NOTES" from math.json).
+
+021 [MODIFIED] app/run_steps.py — hook validators
+    The PostToolUse hook now validates brief.json, script.json, scenes/sNN/plan.json, script_review.json and
+    plan_review.json the moment they are written (outline.json and math.json are gone).
+
+022 [MODIFIED] app/run_steps.py — `validate` command and feedback guidance
+    `text-2-shorts validate` takes `brief | script | script-review | plan | plan-review`; `feedback` now says
+    that a wording change goes through script.json (CP1 again) and a plan change needs CP2 again.
+
+023 [MODIFIED] app/run_steps.py — module docstring
+    Describes the staged workflow (which artifact each stage writes, which checkpoint closes it) and the ledger
+    files, instead of the old outline-based description.
+
+024 [RENAMED] run-environment/agents/math-reviewer.md → accuracy-reviewer.md
+    The subagent now runs in two modes: script mode (every claim in the narration, per scene, before CP1) and
+    plan mode (on-screen formulas and labels, per clip, before CP2).
+
+025 [ADDED] references/requirements.md (replaces brief.md)
+    Stage-1 guidance: complete and confirm brief.json (objectives, audience, style, approach, length,
+    constraints), ask only what is missing in one round, state the expected outcome in one sentence.
+
+026 [REMOVED] references/brief.md
+    The legacy prompt hard-coded "5–6 minute beginner video, 8–12 topics, must end with limitations" and a
+    `{user_raw_input}` placeholder, contradicting the requirement for no fixed creative approach.
+
+027 [ADDED] references/script-writing.md
+    How to write the complete script: inputs, script.json shape, rules for objectives, scenes, narration (word
+    budget), bridges, pacing, key concepts, accuracy, and the review steps before CP1.
+
+028 [ADDED] references/narrative-structures.md
+    The essence of the three structures (zoom, arc, linear) condensed from the old outline prompts: purpose,
+    ordering rules and closing rule for each, as guidance rather than a template.
+
+029 [REMOVED] references/outline-zoom.md, outline-arc.md, outline-linear.md (~93 KB)
+    Legacy pipeline prompts that produced an outline without narration and demanded 50–70-line visual plans per
+    scene at outline time, which is what inflated the Kepler run's plans to ~110 KB per scene.
+
+030 [ADDED] references/script-review.md (replaces outline-review.md)
+    A seven-point self-review of the script before CP1: objectives and scope, accuracy, progression,
+    granularity, narration quality, bridges, timing.
+
+031 [REMOVED] references/outline-review.md
+    A JSON-scoring critic prompt for the old outline stage; superseded by script-review.md and the
+    accuracy-reviewer.
+
+032 [ADDED] references/scene-visual-planning.md (rewritten from clip-planning.md)
+    Stage-3 guidance: plan one scene at a time with only the inputs it needs; a table mapping each required
+    aspect (composition, movement, positioning, fades, timing, sync, entry/exit) to a plan field; the clip rules.
+
+033 [REMOVED] references/clip-planning.md
+    Its clip rules moved into scene-visual-planning.md, extended with the scene-level fields and the
+    narration-must-match-script rule.
+
+034 [ADDED] references/transitions.md
+    The two transition levels: between clips, continuity with simple moves; between scenes, a spoken bridge
+    (covered → next → why it matters) plus a visual recap of the previous scene's final image.
+
+035 [MODIFIED] references/standards.md
+    Added a "Transitions" line (simple between clips, explained between scenes) pointing to transitions.md.
+
+036 [MODIFIED] run-environment/agents/clip-builder.md (0.7 part)
+    Added the continuity rule (start from the ENTRY objects as the previous clip left them; simple moves between
+    clips; the first clip performs `transition_in`) and "after CP2" in its description.
+
+037 [MODIFIED] run-environment/skills/text-2-shorts-produce/SKILL.md (0.7 rewrite)
+    Rewritten around a stage table (input → output, gate, checkpoint, reference to read), the order rules and
+    the revision paths; kept under the 650-word limit.
+
+038 [MODIFIED] run-environment/workspace/CLAUDE.md (0.7 part)
+    The per-run instructions now list the stages in order and the new layout (script.json, the review files).
+
+039 [MODIFIED] .claude/skills/make-short/SKILL.md
+    Added the objectives/style row and flags to the "what the product supports" table and the `new` command line.
+
+040 [MODIFIED] .claude/skills/text-2-shorts-prompt-maintenance/SKILL.md (0.7 part)
+    The "where each change lives" map now has rows for requirements, script rules and structures, scene planning
+    and transitions, and stage order; the outline rows were removed and its description updated.
+
+041 [MODIFIED] README.md (0.7 part)
+    New "Workflow" section (stage table and Mermaid diagram), architecture lists updated (references, the
+    accuracy-reviewer), validation-loop text and the `validate` command row.
+
+042 [MODIFIED] diagrams/04-generation-pipeline.mmd (0.7 part)
+    The old outline → critic → clip-planner flowchart was replaced by the staged workflow with its gates and
+    checkpoints.
+
+043 [MODIFIED] docs/architecture-plan.md, docs/module-specifications.md
+    Added a v0.7 workflow note at the top of both design documents pointing to the README workflow; their
+    historical sections are unchanged.
+
+044 [MODIFIED] docs/deployment-guide.md, docs/skills-assessment.md, docs/proposed-stages/README.md
+    Updated the subagent name math-reviewer → accuracy-reviewer where these documents describe the current
+    environment.
+
+045 [MODIFIED] docs/naming-conventions.md (0.7 part)
+    Vocabulary rows for brief, script, bridge and accuracy review; the outline_models row notes that it was
+    replaced by `Script` in 0.7.0.
+
+046 [MODIFIED] schemas/export_json_schemas.py + schemas/json/ (0.7 part)
+    `Script`, `ScriptScene`, `ReviewReport` and `ReviewFinding` are exported; Brief, ScenePlan, ClipPlan,
+    VideoPlan and VideoProject schema files were regenerated from the changed models.
+
+047 [ADDED] tests/conftest.py — workflow helpers
+    `write_brief`, `make_script`, `make_plan` (clips that split the script's text), `write_json_file` and
+    `approve` build a valid run stage by stage for the tests.
+
+048 [ADDED] tests/test_workflow.py (0.7 part)
+    Stage contract tests: brief validation, script rules, plans waiting for CP1 and matching the script, scene
+    boundaries and colours, accuracy reviews, voice/task waiting for CP2, stage order of next steps, `new` flags.
+
+049 [MODIFIED] tests/test_clips.py, tests/test_run_environment.py, tests/test_models.py (0.7 part)
+    Moved onto the script/approval flow; reference and agent names updated; the stale-name test now also rejects
+    outline.json, math.json, math-reviewer and the removed reference names in current docs.
+
+050 [FIXED] tests/test_models.py — clip-id test passed for the wrong reason
+    After `composition` became required, the "clip id must belong to the scene" test raised on the missing field
+    instead; it now supplies the field and asserts the intended error message.
+
+051 [MODIFIED] pyproject.toml, run-environment/.claude-plugin/plugin.json, CHANGELOG.md (0.7.0)
+    Version 0.7.0 with a changelog entry and migration note (runs started before 0.7 must be restarted).
+
+
+PART 2 — 0.8.0: index scene, creative approach, SSML, critic loops, audio follows the video, 720p30 drafts
+----------------------------------------------------------------------------------------------------------
+
+052 [MODIFIED] approaches: `custom` → `creative`
+    Brief, `--approach`, narrative-structures.md, requirements.md, make-short and the produce skill now offer
+    three fixed structures (zoom, arc, linear) and one creative one (designed for the topic, or the user's own).
+
+053 [ADDED] schemas/models.py — index scene
+    `ScriptScene` gained `role` (index · content · recap) and `previews`; the `Script` validator requires s01 to be
+    the index scene previewing every later scene, only s01 to be an index, and every teaching scene to cover an
+    objective.
+
+054 [MODIFIED] references/script-writing.md, transitions.md, narrative-structures.md
+    Rules for the index scene (hook + route ahead, 10–25 s), the bridge from the index into s02, and the creative
+    structure (name it in `structure` with a one-line rationale).
+
+055 [ADDED] schemas/models.py — `ClipPlan.ssml`
+    Every clip carries its audio plan: SSML over exactly its narration words, with breaks for waits and pauses,
+    prosody rate for pace, emphasis, sentence and substitution tags.
+
+056 [ADDED] app/narration.py — SSML helpers
+    `SSML_TAGS`, `ssml_problems()` (well-formed, single <speak>, allowed tags), `ssml_words()`, `speakable_ssml()`
+    (symbols spoken by name inside the text, [pause] → <break>), `mark_words()` (Google word marks).
+
+057 [REMOVED] app/narration.py — `to_ssml()` and `to_ssml_marked()`
+    The text-to-SSML converters were replaced, because the SSML is now planned per clip rather than generated
+    from plain narration.
+
+058 [MODIFIED] app/narration.py — `to_plain()`
+    Accepts SSML: removes tags, turns breaks into an ellipsis and unescapes entities, for voices that reject SSML.
+
+059 [MODIFIED] app/narration.py — Polly synthesizer
+    Takes the clip's SSML, removes tags the engine does not support (`UNSUPPORTED_TAGS`: emphasis for neural and
+    generative) and falls back to plain text if Polly still rejects it; word speech marks unchanged.
+
+060 [MODIFIED] app/narration.py — Google synthesizer
+    Takes the clip's SSML and inserts a <mark> before every word with `mark_words()`, so word timings work with
+    planned breaks and prosody; plain-text fallback for voices without SSML.
+
+061 [MODIFIED] app/run_steps.py — `voice` and `stale_audio()`
+    Audio is synthesised from the clip's speakable SSML; the voice hash covers the prepared SSML (an SSML edit
+    re-synthesises only that clip); the audio index stores the spoken text as plain text.
+
+062 [ADDED] app/run_steps.py — SSML check in `validate_plan()`
+    Each clip's SSML must be well-formed, use only allowed tags and contain exactly the clip's narration words
+    (only tags may be added).
+
+063 [ADDED] schemas/models.py — `Critique`, `CritiqueRound`, `CritiqueIssue`
+    One critique file per scene and kind: rounds of {reviewed version, verdict pass|revise, issues with target,
+    aspect, problem, fix}; "revise" must list issues and "pass" may not.
+
+064 [ADDED] app/run_steps.py — critic loop enforcement (3 rounds)
+    `MAX_CRITIQUE_ROUNDS = 3`, `critique_subject_hash()`, `validate_critique()` and `critique_problems()`: the
+    last round must have passed the current version; after round 3 the open issues are shown to the user and
+    approval needs `--force`.
+
+065 [ADDED] app/run_steps.py — CP2 requires plan critiques
+    CP2 approval and status require a passing plan critique for every scene's current plan (or the user's
+    acceptance after round 3).
+
+066 [ADDED] app/run_steps.py — `hash` command and critique validation
+    `text-2-shorts hash <run> sNN plan|video` prints the version a critique round records;
+    `validate … plan-critique|video-critique --scene sNN`; the hook validates critique files when written.
+
+067 [MODIFIED] app/run_steps.py — `clip_key()` no longer depends on SSML or audio
+    A clip's code key excludes its SSML and audio entry, so re-timing the audio to the built video does not
+    force a clip rebuild; a change of words still does.
+
+068 [ADDED] app/run_steps.py — `scene_fingerprint()`
+    A scene's clip keys plus its audio; `fingerprint()` (used by CP3 and the final render) is built from it, so
+    new audio asks CP3 again and re-renders the final.
+
+069 [MODIFIED] app/run_steps.py — `plans_fingerprint()` ignores SSML
+    CP2 approves the visual plans; SSML-only edits by the audio-refactorer after CP2 do not make CP2 stale.
+
+070 [ADDED] tools/scene_harness.py — `self.beat(n)`
+    Generated scenes get a `beat(number)` method and a `beat_log`, so clip code marks where each planned beat's
+    animation starts.
+
+071 [MODIFIED] tools/layout_probe.py — beat times in the report
+    The probe keeps the scene instance after rendering and reports `beats` per clip in seconds from the clip's
+    start.
+
+072 [MODIFIED] tools/validate_manim_code.py — `beat` is a known method
+    `PROJECT_SCENE_METHODS = {"beat"}` stops the validator warning about `self.beat(...)` as an unknown method.
+
+073 [ADDED] app/clip_gates.py — `BEAT_MARKS_MISSING` probe gate
+    `./check probe` fails a clip that does not mark every planned beat; the beats it marked are saved in
+    checks/probe.json for the sync report.
+
+074 [MODIFIED] app/run_steps.py — TASK.json / TASK.md beats
+    TASK.json carries the number of beats; the BEATS block in TASK.md tells the builder to call `self.beat(n)`
+    where beat n starts.
+
+075 [MODIFIED] app/run_steps.py — shared scene rendering
+    The final command's nested render became module functions `render_scene_sections()` (jailed section render
+    at a given quality and fps) and `scene_manifest()` (clip video + audio for assembly), shared with the preview.
+
+076 [ADDED] app/run_steps.py — `preview` command
+    `text-2-shorts preview <run> sNN` renders the whole scene (with its opening transition) at 720p30 with its
+    audio → scenes/sNN/preview.mp4, plus contact sheets (one frame every 2 s) for the video-critic.
+
+077 [ADDED] app/run_steps.py — `sync_report()` → scenes/sNN/sync.json
+    The changes-made document: per beat, when the voice says it vs when the animation marks it (offset), whether
+    each clip's audio fits its video, and each builder's CHANGES.md; tolerance `SYNC_TOLERANCE_SECONDS = 0.35`.
+
+078 [ADDED] app/run_steps.py — CP3 requires preview, sync and video critique
+    `preview_problems()` plus the video critique are required at CP3 and listed in status: a current preview,
+    speech in sync with the animation, and a passing (or round-3) video critique.
+
+079 [ADDED] app/run_steps.py — `doc` command
+    `text-2-shorts doc Name1,Name2 [--topics …]` prints Manim 0.20.1 API cards from the installed package, so the
+    planner and the critics check names instead of guessing.
+
+080 [MODIFIED] app/clip_gates.py — drafts at 720p30
+    `./check render` renders the clip's draft at 1280×720, 30 fps (was 854×480, 15 fps); `DRAFT_QUALITY` in
+    run_steps.py does the same for previews.
+
+081 [MODIFIED] app/cli.py, app/run_steps.py — final at 120 fps by default
+    `TEXT_2_SHORTS_FPS` now defaults to 120 (range 60–120) for the 2560×1440 delivery render; the media check
+    expects the configured frame rate instead of "at least 60".
+
+082 [ADDED] run-environment/agents/plan-critic.md
+    One combined critique round of a scene plan (clarity, sync, constructability in Manim 0.20.1, design) appended
+    to plan_critique.json; never a 4th round.
+
+083 [ADDED] run-environment/agents/video-critic.md
+    One critique round of a scene preview (plan-match, sync, render, design) from its contact sheets and sync.json,
+    appended to video_critique.json; issues routed to the audio-refactorer or a clip rebuild.
+
+084 [ADDED] run-environment/agents/audio-refactorer.md
+    Re-times a scene's SSML to the built video from sync.json (breaks before late beats, shorter breaks or rate
+    ≤ 110% for early ones), changing tags only, then re-voices and previews again, at most 3 times.
+
+085 [MODIFIED] run-environment/agents/clip-builder.md (0.8 part)
+    Calls `self.beat(n)` at every beat, writes CHANGES.md (deviations from the plan), knows drafts are 720p30 and
+    the BEAT_MARKS_MISSING code; trimmed to stay under 650 words.
+
+086 [ADDED] references/audio-ssml.md
+    The SSML tags both providers understand and the sync rules: beats start on their phrase, waits sized to the
+    animation, pointing-out words on the highlight, pace and pauses, lead-in and hold.
+
+087 [ADDED] references/scene-production.md
+    Stage 4 step by step: voice → clips one at a time → preview → audio sync → video critic loop (≤ 3 rounds) →
+    CP3, then the 2560×1440, 120 fps final.
+
+088 [MODIFIED] references/scene-visual-planning.md (0.8 part)
+    Now covers audio together with visuals (SSML rule, beat marks, the `doc` command), the plan critic loop per
+    scene, and that SSML-only edits after CP2 do not need CP2 again.
+
+089 [MODIFIED] run-environment/skills/text-2-shorts-produce/SKILL.md (0.8 rewrite)
+    Stage table including both critic loops, preview and sync, and a "References: by path, read once" section
+    (read at its stage, reuse the copy already in context, re-read only if changed; standards.md kept all run).
+
+090 [MODIFIED] run-environment/workspace/CLAUDE.md (0.8 part)
+    Stages now include SSML, the plan critic, the preview and sync loop, the video critic, and 720p30 drafts vs
+    the 1440p120 final; the layout lists the new per-scene files.
+
+091 [MODIFIED] README.md, diagrams/04-generation-pipeline.mmd (0.8 part)
+    Workflow table and diagram now show the four approaches, the index scene, SSML, both critic loops, preview,
+    audio refactoring, 720p30 drafts and 1440p120 delivery; new command rows; FPS default 120.
+
+092 [MODIFIED] .env.example, .claude/skills/make-short/SKILL.md
+    Document 720p30 drafts and the 120 fps default for `TEXT_2_SHORTS_FPS`.
+
+093 [MODIFIED] .claude/skills/text-2-shorts-clip-debugging/SKILL.md
+    New rows for `BEAT_MARKS_MISSING` and for out-of-sync scenes (read sync.json; audio-refactorer first, clip
+    rebuild if the animation itself is wrong).
+
+094 [MODIFIED] .claude/skills/text-2-shorts-prompt-maintenance/SKILL.md (0.8 part)
+    New map rows for visual + audio planning (SSML tags) and for the critic loops, production and sync settings
+    (`MAX_CRITIQUE_ROUNDS`, `SYNC_TOLERANCE_SECONDS`, `DRAFT_QUALITY`).
+
+095 [MODIFIED] docs/naming-conventions.md (0.8 part)
+    Vocabulary rows for index scene, critique round, beat mark, sync report and preview.
+
+096 [MODIFIED] schemas/export_json_schemas.py + schemas/json/ (0.8 part)
+    The three critique models are exported (Critique, CritiqueRound, CritiqueIssue); ClipPlan and ScriptScene
+    schema files regenerated with `ssml`, `role` and `previews`.
+
+097 [MODIFIED] tests/fixtures/scene_s01/clips/clip_02.py
+    The fixture clip now marks its two beats with `self.beat(1)` and `self.beat(2)`, so the harness and probe
+    tests exercise beat marks.
+
+098 [ADDED] tests — 0.8 behaviour tests
+    Index scene and previews; the four approaches; SSML must speak exactly the narration; critic loops (current
+    version, 3-round cap, `--force` after round 3); sync report; `doc`; audio re-timing keeps the clip code; beat
+    marks in the probe and the validator.
+
+099 [MODIFIED] tests/test_speech.py
+    Rewritten for planned SSML: validation, speakable SSML, Polly dropping unsupported tags with a plain-text
+    fallback, Google word marks inside prosody, plain-text conversion of SSML.
+
+100 [MODIFIED] tests/test_clips.py (0.8 part)
+    The end-to-end test now checks the BEAT_MARKS_MISSING gate, a 1280×720/30 fps clip draft, the scene preview
+    and sync.json, the video critique required at CP3, and a 2560×1440/120 fps final.
+
+101 [FIXED] app/narration.py — type annotations
+    `both_cases` parameters typed `AbstractSet[str]` (they default to a frozenset), which also removed two
+    type errors that existed before today.
+
+102 [FIXED] app/narration.py — whitespace between SSML tags
+    A rewrite briefly doubled the space between two tags; the speech test caught it and whitespace-only text
+    between tags is now kept as it is.
+
+103 [MODIFIED] pyproject.toml, run-environment/.claude-plugin/plugin.json, uv.lock, CHANGELOG.md (0.8.0)
+    Version 0.8.0 with a changelog entry describing every 0.8 change and its commands.
+
+
+PART 3 — 0.9.0: option B — a deterministic driver, scenes in series, a scene's clips in parallel
+-------------------------------------------------------------------------------------------------
+
+104 [ADDED] app/run_steps.py — `next_actions()` and the `next` command
+    `text-2-shorts next <run> [--json]` returns the exact next batch: each action says who does it (write,
+    subagent, command, ask the user), its target and the files to read by path, and whether the batch is parallel.
+
+105 [MODIFIED] app/run_steps.py — session start shows the next batch
+    The SessionStart hook prints the status followed by "NEXT BATCH", so a resumed session knows exactly what to do
+    without re-reading files.
+
+106 [ADDED] app/run_steps.py — `critique_state()`
+    Classifies a scene's critique as missing, stale, revise, exhausted or done, so the driver knows whether to call
+    the critic, ask for a refactor first, or move on to the checkpoint.
+
+107 [ADDED] tools/scene_harness.py — `self.entry(name, make)`
+    In the composed scene it returns the object the previous clip left; when a clip runs alone it builds the object
+    with `make()` and shows it. This is what lets every clip of a scene be built and checked independently.
+
+108 [ADDED] tools/validate_manim_code.py — `ENTRY_NOT_STANDALONE` and entry-call contracts
+    Every entry object must be taken with `self.entry(...)`; a `self.entry` call for a name outside the entry
+    contract is a CONTRACT_READ error; `entry` joins the known project scene methods.
+
+109 [ADDED] schemas/models.py — `ContinuityState.descriptions`
+    What each carried object is (type, text or LaTeX, colour, size), so a clip built on its own re-creates it
+    faithfully; `validate_plan()` requires a description for every entry object.
+
+110 [MODIFIED] app/run_steps.py — `prepare_clip()` builds clips in parallel
+    A clip no longer waits for earlier clips of its scene and its work folder no longer receives a copy of them;
+    TASK.md tells the builder to take entry objects with `self.entry` and shows their descriptions.
+
+111 [ADDED] app/run_steps.py — scenes in series (`earlier_scene_problem()`, `require_earlier_scenes()`)
+    `text-2-shorts task` and `text-2-shorts preview` for a scene refuse to start until every earlier scene's CP3 is
+    approved and current; status (`next_steps`) and `next` stop at the first open scene.
+
+112 [MODIFIED] app/run_steps.py — `clip_key()` without the previous clip's code
+    Clips are independent and the entry contract is their interface, so changing one clip no longer marks the
+    following clips stale; the preview and the video critic catch any mismatch.
+
+113 [MODIFIED] run-environment/skills/text-2-shorts-produce/SKILL.md — a loop around `next`
+    New "The loop" section: run `next`, do exactly its batch (parallel ones in one message), run it again; the
+    stage table and order rules now describe scenes in series and clips in parallel; trimmed under 650 words.
+
+114 [MODIFIED] run-environment/agents/clip-builder.md
+    Takes every entry object with `self.entry(name, lambda: …)` as described in TASK.md, knows ENTRY_NOT_STANDALONE;
+    wording trimmed to stay under the word limit.
+
+115 [MODIFIED] run-environment/skills/manim-ce-0-20-1-reference/topics/clip-structure.md
+    Rewritten for parallel clips (self.entry, beat marks); the old text said earlier clips always run first and
+    forbade reconstruction code. Its example is executed by the test suite.
+
+116 [MODIFIED] references/scene-production.md, references/scene-visual-planning.md
+    Production: `next` hands out each step, scenes in series, all clips of a scene dispatched together. Planning:
+    describe every carried object in `descriptions`.
+
+117 [MODIFIED] run-environment/workspace/CLAUDE.md, README.md, diagrams/04-generation-pipeline.mmd
+    "What to do now: text-2-shorts next"; the workflow text, table, command list and diagram show the driver,
+    scenes in series and parallel clips.
+
+118 [MODIFIED] .claude/skills/text-2-shorts-clip-debugging/SKILL.md, text-2-shorts-prompt-maintenance/SKILL.md,
+    docs/naming-conventions.md
+    A row for ENTRY_NOT_STANDALONE; a map row for the driver and the series rule; vocabulary rows for entry object
+    and batch.
+
+119 [MODIFIED] tests/fixtures/scene_s01/clips/clip_02.py, clip_03.py
+    The fixture clips take the equation with `self.entry(...)`, so each runs on its own and the composed scene still
+    uses one equation (checked: no overlap).
+
+120 [ADDED] tests — parallel and series behaviour
+    A clip rendered alone builds its entry objects; standalone-entry validation; carried objects must be described;
+    a scene's clips are prepared in any order while the next scene waits for CP3; independent clip keys; the batches
+    `next` hands out; the end-to-end test builds clip 02 before clip 01.
+
+121 [MODIFIED] schemas/json/, pyproject.toml, run-environment/.claude-plugin/plugin.json, uv.lock, CHANGELOG.md (0.9.0)
+    ContinuityState schema regenerated with `descriptions`; version 0.9.0 with its changelog entry.
+
+
+NOT INCLUDED
+- The 0.6.0 naming work (2026-11-20) — already committed as 6582b16 and e7a4c10.
+- tree.txt — a directory listing created in the working folder today (not by these changes); it was briefly swept
+  into the staged set and has since been removed from the folder.

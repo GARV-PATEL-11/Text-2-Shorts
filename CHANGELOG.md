@@ -1,5 +1,73 @@
 # Changelog
 
+## 0.9.0 — 2026-11-23
+Option B: a deterministic driver for the Claude Code session; scenes produced in series, a scene's clips in parallel.
+- **`text-2-shorts next <run> [--json]`** returns the exact next batch — who does what (write, subagent, command,
+  ask the user), for which target, reading which files — and whether it runs in parallel. The session start hook
+  prints it; the produce skill is now a loop around it.
+- **Clips of a scene in parallel**: the harness's `self.entry(name, make)` returns the previous clip's object in the
+  composed scene and builds it from `make()` when a clip runs alone, so every clip is built and checked on its own
+  (`text-2-shorts task` no longer waits for or copies earlier clips). Plans describe every carried object
+  (`ContinuityState.descriptions`, required for entry objects); `./check static` reports `ENTRY_NOT_STANDALONE`.
+- **Scenes in series**: `task` and `preview` for a scene refuse to start until every earlier scene passed CP3;
+  status and `next` stop at the first open scene.
+- **Clip keys** no longer include the previous clip's code: clips are independent, the entry contract is their
+  interface; mismatches show in the scene preview and the video critique.
+- `clip-structure` topic card, clip-builder, scene-production and scene-visual-planning references updated.
+
+## 0.8.0 — 2026-11-23
+Visual and audio planned together, critic-refactor loops, audio re-timed to the built video, 720p30 drafts.
+- **Approaches**: three fixed (`zoom`, `arc`, `linear`) and one `creative` (a structure designed for the topic, or the
+  user's own); `custom` is gone.
+- **Index scene**: `script.json` must open with s01 (`role: "index"`) saying what the video covers; its `previews`
+  list every later scene.
+- **Audio planned with the visuals**: every clip has `ssml` — exactly its narration words with `<break>`,
+  `<prosody rate>`, `<emphasis>`, … (checked: well-formed, allowed tags, same words). `voice` synthesises from it
+  (symbols spoken by name, engine-unsupported tags dropped for Polly, one mark per word for Google).
+- **Plan critic loop**: `plan-critic` subagent, one combined critic, at most 3 rounds per scene
+  (`scenes/sNN/plan_critique.json`); CP2 needs a passing round on each scene's current plan, or the user accepts the
+  open issues after round 3.
+- **Beat marks**: clips call `self.beat(n)` where beat n starts (harness method; probe gate `BEAT_MARKS_MISSING`);
+  the clip-builder writes `CHANGES.md`.
+- **Scene preview + sync report**: `text-2-shorts preview <run> sNN` renders the whole scene at 720p30 with audio
+  and writes `sync.json` (spoken vs shown time per beat, audio fit, CHANGES.md) — the changes-made document for the
+  new `audio-refactorer` subagent, which re-times the SSML (tags only) to the video.
+- **Video critic loop**: `video-critic` subagent, at most 3 rounds per scene (`video_critique.json`); CP3 needs a
+  current preview, speech in sync with the animation (±0.35 s) and the critique done.
+- **Keys**: a clip's code key no longer includes its SSML or audio (re-timing audio does not rebuild clips); CP3 and
+  the final render fingerprint include the audio; CP2 ignores SSML-only edits.
+- **Resolution**: drafts (`./check render`) and previews at 1280×720, 30 fps; final delivery 2560×1440 at 120 fps by
+  default (`TEXT_2_SHORTS_FPS`, 60–120); the media check expects the configured rate.
+- **Commands**: `preview`, `hash <run> sNN plan|video`, `doc <Names>`; `validate … plan-critique|video-critique --scene sNN`.
+- **References**: `audio-ssml.md`, `scene-production.md`; the workflow skill lists every reference by path and reads
+  each once per session.
+
+## 0.7.0 — 2026-11-23
+Staged workflow: requirements → complete script → scene-wise visual plans → clip-wise code, enforced in order.
+- **Stage 1, requirements**: `brief.json` gains `objectives` (`--objective`, repeatable) and `style` (`--style`);
+  `--approach custom` for the user's own structure; the brief is validated (`Brief`).
+- **Stage 2, complete script** replaces the outline: `script.json` (`Script`) holds every scene's objective, key
+  concepts, duration, spoken `bridge_in` and complete narration. Gate: every objective covered, bridges present,
+  words per scene within ±25% of duration × wpm, total length ±20%. CP1 approves the script.
+- **Stage 3, scene visual plans**: `ScenePlan` gains `composition` and `transition_in` (`segment_type`,
+  `transition_to_next` removed). A plan's clip narration must equal the approved script's text for that scene, word
+  for word. CP2 approves the plans.
+- **Order enforced**: plans are rejected before CP1; `voice` and `task` refuse to run before CP2; checkpoints store
+  fingerprints, so editing an approved script or plan makes its checkpoint stale. `text-2-shorts status` stops at
+  the first open stage.
+- **Accuracy reviews at both stages**: subagent `accuracy-reviewer` (was `math-reviewer`) writes
+  `script_review.json` (per scene) and `plan_review.json` (per clip, on-screen maths and labels; replaces
+  `math.json`). ERROR findings block the checkpoint.
+- **Transitions on two levels**: simple continuity between clips; a spoken bridge plus a visual recap between scenes
+  (`references/transitions.md`).
+- **Prompts**: one reference per stage — `requirements.md`, `script-writing.md`, `narrative-structures.md`,
+  `script-review.md`, `scene-visual-planning.md`, `transitions.md` (+ `standards.md`). The legacy outline prompts
+  (`outline-zoom/arc/linear.md`, ~93 KB, which also forced 50–70-line visual plans into the outline),
+  `outline-review.md`, `brief.md` and `clip-planning.md` are removed; `app/outline_models/` is replaced by `Script`.
+- **Commands**: `approve <run> script|plan|sNN|final`; `validate <run> brief|script|script-review|plan|plan-review`.
+- **Migration**: runs started before 0.7 have `outline.json`/`math.json` and must be restarted with
+  `text-2-shorts new`.
+
 ## 0.6.0 — 2026-11-20
 Naming standardisation; no behaviour change. Rules, vocabulary, full mapping and exceptions:
 `docs/naming-conventions.md`.

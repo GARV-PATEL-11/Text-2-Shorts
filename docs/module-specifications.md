@@ -14,6 +14,8 @@
 > subagents and hooks, and `app/` keeps only deterministic commands (validate, voice, task, accept, final, …).
 > **v0.6 naming** (`docs/naming-conventions.md`): `app/pipeline.py` → `app/cli.py`, `app/clips.py` → `app/run_steps.py`, `app/check.py` → `app/clip_gates.py`, `app/speech.py` → `app/narration.py` (now also the
 > Polly/Google synthesizers), `app/graph/models/` → `app/outline_models/`, `env/` → `run-environment/`, `Plan.md` → `docs/architecture-plan.md`. Historical tables below keep the names of their time.
+> **v0.7 workflow** (README → Workflow): requirements → complete script (`script.json`, CP1) → scene-wise visual
+> plans (CP2) → clip-wise code, enforced in order; the outline stage and its prompts are replaced by the script stage.
 > Not built: M1 config file (`STAGES` + env vars instead), `outline_review` (existing critic + length check),
 > `clip_reviewer` (human CP3), Docker. Sections below are the original design.
 

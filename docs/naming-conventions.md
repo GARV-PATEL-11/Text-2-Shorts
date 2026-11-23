@@ -40,7 +40,18 @@ Types: `uv run pyrefly check app tools schemas tests`.
 | scene id | a scene's identifier | `s01` |
 | clip id | a clip's identifier | `s01c02` |
 | clip name | a clip's file/method name | `clip_02` |
-| scene plan / clip plan | `ScenePlan` / `ClipPlan` contracts | `scenes/s01/plan.json` |
+| brief | stage 1: the user's requirements | `brief.json` |
+| script | stage 2: every scene's objective, key concepts, duration, bridge and complete narration | `script.json` |
+| bridge | the spoken scene-to-scene transition at the start of a scene | `bridge_in` |
+| scene plan / clip plan | stage 3: `ScenePlan` / `ClipPlan` contracts (scene visual plan split into clips) | `scenes/s01/plan.json` |
+| accuracy review | independent check of the script (per scene) or plans (per clip) | `script_review.json`, `plan_review.json` |
+| index scene | s01: what the video covers | `role: "index"`, `previews` |
+| critique round | one review by the plan-critic or video-critic (≤ 3 per scene) | `plan_critique.json`, `video_critique.json` |
+| beat mark | where a clip's animation starts beat n | `self.beat(n)` |
+| entry object | an object a clip takes over from the previous clip; re-created from its description when the clip runs alone | `self.entry(name, make)`, `descriptions` |
+| batch | the exact next set of actions the driver hands out | `text-2-shorts next` |
+| sync report | per beat: spoken vs shown time — the changes-made document | `sync.json` |
+| preview | a scene at 720p30 with audio | `preview.mp4` |
 | work directory | the clip-builder's prepared folder | `scenes/s01/work/clip_02/` |
 | audio index | `scenes/sNN/audio/index.json` (narration hash → seconds, beat times) | |
 | state | `state.json`: approvals, clip states, session transcripts | |
@@ -59,7 +70,7 @@ Types: `uv run pyrefly check app tools schemas tests`.
 | `app/clips.py` | `app/run_steps.py` | holds every run-level step, not only clips |
 | `app/check.py` | `app/clip_gates.py` | the `./check` gates of one clip |
 | `app/speech.py` | `app/narration.py` | narration text, SSML, timings, and now the Polly/Google synthesizers |
-| `app/graph/models/base_models.py` (+ 3) | `app/outline_models/base_outline.py` (+ 3) | outline schemas; LangGraph is gone |
+| `app/graph/models/base_models.py` (+ 3) | `app/outline_models/base_outline.py` (+ 3); replaced in 0.7.0 by `Script` in `schemas/models.py` | outline schemas; LangGraph is gone |
 | `env/` | `run-environment/` | `env/` read as a virtualenv and was git-ignored by that rule |
 | `prompts/*.md` | `docs/proposed-stages/*.md` (kebab-case) | specs for stages not built, not prompts |
 | `Plan.md` | `docs/architecture-plan.md` | kebab-case, with the other docs |

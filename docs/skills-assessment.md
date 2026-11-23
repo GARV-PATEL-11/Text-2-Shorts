@@ -19,7 +19,7 @@ related skills; verified links.
 | text-2-shorts-clip-debugging | did not explain CLIP_SECONDS (lead-in + narration + hold) or the tolerance | finding-code table with formulas and where to read the numbers; classify → fix where it lives | green: exact diagnosis (5.0 + 0.5 < 5.6) |
 | text-2-shorts-prompt-maintenance | missed the approach plumbing, model choice per clip, where tone lives | change → files table (all of them), rules, validation, Claude Code doc links | green: complete file list for a new approach, tone and per-clip model |
 | clip-builder (agent) | timing conflict with the topic card; EXIT naming and highlight end-state unclear | CLIP_SECONDS wins; EXIT objects may be created/grouped; highlights are temporary unless stated; report missing things instead of inventing | green + re-test: 5.3 s plan, highlight reverts, lbl_abc grouped |
-| math-reviewer (agent) | math-only wording; NOTATION severity unclear | accuracy for any topic (math, science, history, facts); explicit severities; empty findings valid | green: 2 ERROR + 1 WARN, correct |
+| accuracy-reviewer (agent; renamed in 0.7) | math-only wording; NOTATION severity unclear | accuracy for any topic (math, science, history, facts); explicit severities; empty findings valid | green: 2 ERROR + 1 WARN, correct |
 
 Cross-skill fixes: one timing vocabulary (`CLIP_SECONDS`) in topic cards, builder, debugging and standards;
 make-short defers to text-2-shorts-produce inside a run; tool scripts have one source; descriptions trigger-only.

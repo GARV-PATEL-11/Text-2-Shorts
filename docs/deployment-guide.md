@@ -48,7 +48,7 @@ CI runs the same suite on every push (`.github/workflows/ci.yml`).
 ## 7. Operating
 `uv run text-2-shorts new "<topic>" …` provisions `runs/<id>/` (or ask "/make-short <topic>" in a repo session), then
 `uv run text-2-shorts open runs/<id>` starts the run's own Claude Code session inside its bubblewrap jail, with the `run-environment/`
-plugin (workflow skill, clip-builder and math-reviewer subagents, hooks) and `run-environment/settings.json` (sandbox,
+plugin (workflow skill, clip-builder and accuracy-reviewer subagents, hooks) and `run-environment/settings.json` (sandbox,
 permissions). The jail needs bubblewrap with unprivileged user namespaces (the same requirement as Claude Code's
 sandbox); `text-2-shorts open RUN -- sh` opens a shell in the same jail for debugging.
 
