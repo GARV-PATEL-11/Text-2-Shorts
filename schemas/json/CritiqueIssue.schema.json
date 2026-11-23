@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "description": "the scene or clip the issue is about",
+      "pattern": "^s\\d{2}(c\\d{2})?$",
+      "title": "Target",
+      "type": "string"
+    },
+    "aspect": {
+      "description": "plan: clarity \u00b7 sync \u00b7 constructability \u00b7 design; video: plan-match \u00b7 sync \u00b7 render \u00b7 design",
+      "title": "Aspect",
+      "type": "string"
+    },
+    "problem": {
+      "title": "Problem",
+      "type": "string"
+    },
+    "fix": {
+      "title": "Fix",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target",
+    "aspect",
+    "problem",
+    "fix"
+  ],
+  "title": "CritiqueIssue",
+  "type": "object"
+}

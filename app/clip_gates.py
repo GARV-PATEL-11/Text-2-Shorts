@@ -86,10 +86,22 @@ def probe(task: dict) -> bool:
         if finding.get("event") == task["clip_name"]
         or (clip_span and clip_span["start"] <= finding["t"] <= clip_span["end"])
     ]
+    beats = probe_report.get("beats", {}).get(task["clip_name"], {})
+    if missing := [number for number in range(1, task.get("beats", 0) + 1) if str(number) not in beats]:
+        clip_findings.append(
+            {
+                "severity": "ERROR",
+                "code": "BEAT_MARKS_MISSING",
+                "t": 0,
+                "event": task["clip_name"],
+                "mobject": f"call self.beat(n) where beat n starts; missing beats {missing}",
+            }
+        )
     return save_gate_result(
         "probe",
         not any(finding["severity"] == "ERROR" for finding in clip_findings),
         clip=clip_span,
+        beats=beats,
         findings=clip_findings,
     )
 
@@ -105,7 +117,7 @@ def render(task: dict) -> bool:
         "--target",
         task["clip_name"],
         "--quality",
-        "l",
+        "m",  # drafts: 1280×720 at 30 fps (only the final delivery renders 1440p)
         env={**os.environ, "TEXT_2_SHORTS_BACKGROUND": task.get("background", "")},
     )
     try:

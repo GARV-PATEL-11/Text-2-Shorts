@@ -203,7 +203,12 @@ def main():
             return result
 
         setattr(scene_class, name, wrapped)
-    scene_class().render()
+    scene = scene_class()
+    scene.render()
+    beats: dict[str, dict[str, float]] = {}
+    for clip_name, number, time in getattr(scene, "beat_log", []):  # scenes composed by scene_harness.py
+        clip_start = clip_spans.get(clip_name, [0.0])[0]
+        beats.setdefault(clip_name, {})[str(number)] = round(time - clip_start, 3)
 
     budget = (
         dict((clip_name, float(seconds)) for clip_name, seconds in (x.split("=") for x in arguments.budget.split(",")))
@@ -245,6 +250,7 @@ def main():
 
     report = {
         "duration_s": timeline[-1]["t_end"] if timeline else 0.0,
+        "beats": beats,
         "clips": clips,
         "events": timeline,
         "findings": findings,

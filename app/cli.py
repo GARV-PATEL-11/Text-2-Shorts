@@ -1,7 +1,7 @@
 """The `text-2-shorts` CLI entry point: provisioning (`text-2-shorts new`) and the run jail
 (`text-2-shorts open`); deterministic steps only.
-Reasoning (outline, clip plans, clip code, math review) is done by the Claude Code session that runs inside the
-run workspace (run-environment/ plugin: skills, subagents, hooks); it calls these commands.
+Reasoning (script, scene visual plans, clip code, accuracy reviews) is done by the Claude Code session that runs
+inside the run workspace (run-environment/ plugin: skills, subagents, hooks); it calls these commands.
 Run-level commands: app/run_steps.py. Speech synthesis: app/narration.py.
 """
 
@@ -20,6 +20,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from schemas.models import Brief
+
 
 load_dotenv()
 
@@ -29,7 +31,7 @@ RUN_ENVIRONMENT = (
 )  # the execution environment: Claude Code plugin + settings + workspace template
 PYTHON_EXECUTABLE = sys.executable  # the venv interpreter — manim is installed here
 FINAL_FRAME_RATE = int(
-    os.environ.get("TEXT_2_SHORTS_FPS", 60)
+    os.environ.get("TEXT_2_SHORTS_FPS", 120)
 )  # final render is always 2560x1440 (-qp, 16:9); 60–120 fps
 MAX_PARALLEL_RENDERS = int(os.environ.get("TEXT_2_SHORTS_PARALLEL", 4))  # scenes at a time (user's call: 4)
 USER_CACHE_DIRECTORY = Path.home() / ".cache"
@@ -109,29 +111,42 @@ def handle_new_command(arguments) -> None:
         family_name.strip().lower() for line in families.splitlines() for family_name in line.split(",")
     }:
         sys.exit(f"Font not installed: {arguments.font!r} — pick one from `fc-list : family`")
+    brief = brief_from_arguments(arguments)
+    try:
+        Brief.model_validate(brief)
+    except ValueError as error:
+        sys.exit(f"Invalid requirements: {error}")
     slug = re.sub(r"[^a-z0-9]+", "-", arguments.requirement.lower())[:40].strip("-")
     run = REPOSITORY_ROOT / "runs" / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
-    provision_run_workspace(
-        run,
-        {
-            "requirement": arguments.requirement,
-            "approach": arguments.approach,
-            "minutes": arguments.minutes,
-            "pace": arguments.pace,
-            "audience": arguments.audience,
-            "notes": arguments.notes,
-            "tts": arguments.tts,
-            "voice": arguments.voice,
-            "engine": arguments.engine,
-            "font": arguments.font,
-        },
-        json.loads(preflight.stdout),
-    )
+    provision_run_workspace(run, brief, json.loads(preflight.stdout))
     print(run.relative_to(REPOSITORY_ROOT))
     print(
         f"next: text-2-shorts open {run.relative_to(REPOSITORY_ROOT)}   "
         "(starts Claude Code inside this run's isolated workspace)"
     )
+
+
+def brief_from_arguments(arguments) -> dict:
+    """Stage 1: the user's requirements as brief.json (schema: `Brief` in schemas/models.py)."""
+    default_voice = (
+        os.environ.get("GOOGLE_VOICE", "en-US-Neural2-D")
+        if arguments.tts == "google"
+        else os.environ.get("POLLY_VOICE", "Matthew")
+    )
+    return {
+        "requirement": arguments.requirement,
+        "objectives": arguments.objective,
+        "audience": arguments.audience,
+        "style": arguments.style,
+        "approach": arguments.approach,
+        "minutes": arguments.minutes,
+        "pace": arguments.pace,
+        "notes": arguments.notes,
+        "tts": arguments.tts,
+        "voice": arguments.voice or default_voice,
+        "engine": arguments.engine,
+        "font": arguments.font,
+    }
 
 
 def provision_run_workspace(run: Path, brief: dict, env_report: dict) -> None:
@@ -232,13 +247,26 @@ def handle_open_command(arguments) -> None:
     os.execvp("bwrap", build_jail_command(run.resolve(), command))
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="text-2-shorts")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
     command_parser = subparsers.add_parser("new")
     command_parser.add_argument("requirement")
-    command_parser.add_argument("--approach", choices=["zoom", "arc", "linear"], default="zoom")
+    command_parser.add_argument(
+        "--objective",
+        action="append",
+        default=[],
+        help="what the viewer should be able to do or explain afterwards (repeat for several)",
+    )
+    command_parser.add_argument("--style", default="ELI5 / Feynman", help="explanation style and tone")
+    command_parser.add_argument(
+        "--approach",
+        choices=["zoom", "arc", "linear", "creative"],
+        default="zoom",
+        help="narrative structure: zoom (big picture → detail), arc (problem → solution), linear (lesson), "
+        "creative (a structure designed for this topic, or the user's own)",
+    )
     command_parser.add_argument("--minutes", type=float, default=2)
     command_parser.add_argument("--pace", choices=["slow", "medium", "fast"], default="medium")
     command_parser.add_argument("--audience", default="curious beginners")
@@ -273,13 +301,11 @@ def main() -> None:
     from app import run_steps  # run-level commands (they import this module, so register late)
 
     run_steps.register_subcommands(subparsers)
-    arguments = parser.parse_args()
-    if arguments.subcommand == "new" and not arguments.voice:
-        arguments.voice = (
-            os.environ.get("GOOGLE_VOICE", "en-US-Neural2-D")
-            if arguments.tts == "google"
-            else os.environ.get("POLLY_VOICE", "Matthew")
-        )
+    return parser
+
+
+def main() -> None:
+    arguments = build_parser().parse_args()
     if getattr(arguments, "run", None):
         arguments.run = str(Path(arguments.run).resolve())
     arguments.handler(arguments)

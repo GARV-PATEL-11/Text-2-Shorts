@@ -36,15 +36,17 @@ def test_no_llm_orchestration_in_app():
     assert not (app_directory / "graph" / "prompts").exists()
     for name in (
         "standards",
-        "brief",
-        "outline-zoom",
-        "outline-arc",
-        "outline-linear",
-        "outline-review",
-        "clip-planning",
+        "requirements",
+        "script-writing",
+        "narrative-structures",
+        "script-review",
+        "scene-visual-planning",
+        "audio-ssml",
+        "scene-production",
+        "transitions",
     ):
         assert len((REFERENCES_DIRECTORY / f"{name}.md").read_text()) > 300, name
-    for agent in ("clip-builder", "math-reviewer"):
+    for agent in ("clip-builder", "accuracy-reviewer", "plan-critic", "video-critic", "audio-refactorer"):
         agent_frontmatter = frontmatter(RUN_ENVIRONMENT / "agents" / f"{agent}.md")
         assert (
             agent_frontmatter["name"].strip() == agent
@@ -124,7 +126,7 @@ def test_hooks_resume_validate_and_log(tmp_path):
     run = tmp_path / "run"
     cli.provision_run_workspace(run, {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
     result = run_hook({"hook_event_name": "SessionStart", "cwd": str(run), "transcript_path": "/x/t.jsonl"})
-    assert result.returncode == 0 and "next:" in result.stdout and "outline.json does not exist" in result.stdout
+    assert result.returncode == 0 and "next:" in result.stdout and "script.json does not exist" in result.stdout
     assert cli.read_json(run / "state.json")["sessions"] == ["/x/t.jsonl"]
 
     (run / "scenes" / "s01").mkdir(parents=True)
@@ -137,7 +139,7 @@ def test_hooks_resume_validate_and_log(tmp_path):
             "tool_input": {"file_path": str(run / "scenes" / "s01" / "plan.json")},
         }
     )
-    assert result.returncode == 2 and "scene_id" in result.stderr  # errors go back to Claude
+    assert result.returncode == 2 and "CP1" in result.stderr  # errors go back to Claude: no plans before CP1
     result = run_hook(
         {
             "hook_event_name": "PostToolUse",
@@ -212,7 +214,9 @@ def test_docs_have_no_stale_commands():
         r"app/sandbox\.json|CLIP_BUILDER_SYSTEM|STAGES|"
         r"app/(pipeline|clips|check|speech)\.py|app\.(pipeline|clips|speech)\b|app/graph/models|"
         r"(?<![\w.-])env/|Plan\.md|MODULE_SPECS|DEPLOYMENT\.md|SKILLS_ASSESSMENT|"
-        r"\bt2s\b|\bT2S_(FPS|PARALLEL|TTS|BACKGROUND|TARGET_CLIP|STOP_AFTER)\b"
+        r"\bt2s\b|\bT2S_(FPS|PARALLEL|TTS|BACKGROUND|TARGET_CLIP|STOP_AFTER)\b|"
+        r"outline\.json|math\.json|math-reviewer|approve \S+ outline|validate \S+ (outline|math)\b|clip-planning|"
+        r"outline-(zoom|arc|linear|review)|references/brief\.md|app/outline_models"
     )
     hits = [f"{doc.relative_to(root)}: {match[0]}" for doc in docs for match in stale.finditer(doc.read_text())]
     assert not hits, hits
@@ -279,9 +283,14 @@ def test_hook_finds_the_run_from_a_subfolder(tmp_path):
 
 
 def test_status_survives_a_malformed_plan(tmp_path):
-    from app import cli, run_steps
+    from app import run_steps
 
-    cli.provision_run_workspace(tmp_path / "r", {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
+    from conftest import approve, make_script, write_brief, write_json_file
+
+    write_brief(tmp_path / "r", objectives=["understand the topic"])
+    write_json_file(tmp_path / "r" / "script.json", make_script(30, 30))
+    write_json_file(tmp_path / "r" / "script_review.json", {"findings": []})
+    approve(tmp_path / "r", "script")
     (tmp_path / "r" / "scenes" / "s01").mkdir(parents=True)
     (tmp_path / "r" / "scenes" / "s01" / "plan.json").write_text('{"scene_id": "s01"}')
     assert any("s01 plan:" in step for step in run_steps.next_steps(tmp_path / "r"))
@@ -325,7 +334,7 @@ def test_every_skill_and_agent_meets_the_standard():
         *RUN_ENVIRONMENT.glob("skills/*/SKILL.md"),
         *RUN_ENVIRONMENT.glob("agents/*.md"),
     ]
-    assert len(files) == 7
+    assert len(files) == 10  # 3 repo skills, 2 run-environment skills, 5 subagents
     for path in files:
         desc = frontmatter(path)["description"].strip()
         assert desc.startswith("Use when") and len(desc) <= 500, f"{path}: {desc[:60]}"
@@ -352,3 +361,9 @@ def test_the_command_is_named_after_the_project():
 
     pyproject = tomllib.loads((RUN_ENVIRONMENT.parent / "pyproject.toml").read_text())
     assert pyproject["project"]["scripts"] == {"text-2-shorts": "app.cli:main"}
+
+
+def test_the_workflow_skill_lists_every_reference_by_path():
+    skill = (RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "SKILL.md").read_text()
+    for reference in sorted(REFERENCES_DIRECTORY.glob("*.md")):
+        assert f"references/{reference.name}" in skill, reference.name

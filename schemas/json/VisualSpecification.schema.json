@@ -20,6 +20,14 @@
           "title": "Object Positions",
           "type": "object"
         },
+        "descriptions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "name \u2192 what the object is (type, text or LaTeX, colour, size), so a clip built on its own can re-create the objects it takes over",
+          "title": "Descriptions",
+          "type": "object"
+        },
         "camera": {
           "default": "default_frame",
           "title": "Camera",

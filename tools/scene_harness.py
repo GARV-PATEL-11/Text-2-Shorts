@@ -44,13 +44,28 @@ class {cls}({base}):
 
     def construct(self):
         self.reg = {{}}
+        self.beat_log = []                                  # [clip, beat number, scene time] per self.beat(n)
         if os.environ.get("TEXT_2_SHORTS_BACKGROUND"):        # one background for every clip and scene of a video
             self.camera.background_color = os.environ["TEXT_2_SHORTS_BACKGROUND"]
         for name in self.CLIPS:
+            self._clip = name
             self.next_section(name, skip_animations=bool(_TARGET) and name < _TARGET)
             getattr(self, name)()
             if _STOP_AFTER and name >= _STOP_AFTER:
                 break
+
+    def entry(self, name, make):
+        """An object this clip takes over from the previous clip: the real one when the scene runs in order; built
+        with make() and shown at once when the clip is built and checked on its own (clips are built in parallel)."""
+        if name not in self.reg:
+            self.reg[name] = make()
+            self.add(self.reg[name])
+        return self.reg[name]
+
+    def beat(self, number):
+        """Mark where beat <number> of the current clip starts: the audio-video sync report compares it with the
+        time the voice says that beat's phrase."""
+        self.beat_log.append([self._clip, number, round(float(self.renderer.time), 3)])
 {binds}
 '''
 

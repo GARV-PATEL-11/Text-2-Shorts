@@ -42,3 +42,29 @@ def test_portrait_render_is_actually_portrait(tmp_path):
     assert result["ok"]
     first_section = result["sections"][0]
     assert (first_section["width"], first_section["height"]) == (480, 854)
+
+
+def test_clips_mark_when_each_planned_beat_starts(tmp_path):
+    import json
+
+    from conftest import run_tool
+
+    scene_directory = _scene(tmp_path)
+    exit_code, output = run_tool("layout_probe.py", scene_directory / "scene.py", "Scene01", "--json")
+    beats = json.loads(output)["beats"]
+    assert exit_code == 0 and beats == {"clip_02": {"1": 0.0, "2": 1.0}}  # seconds from the clip's start
+
+
+def test_a_clip_builds_its_entry_objects_when_rendered_alone_and_reuses_them_in_the_scene(tmp_path):
+    from conftest import run_tool
+
+    alone = tmp_path / "alone"
+    (alone / "clips").mkdir(parents=True)
+    shutil.copy(FIXTURES_DIRECTORY / "scene_s01" / "clips" / "clip_02.py", alone / "clips")
+    scene_harness.compose_scene(alone, "s01")
+    result = scene_harness.render_scene(alone, "s01", "clip_02", "l")
+    assert result["ok"] and [section["name"] for section in result["sections"]] == ["clip_02"]  # no clip_01 needed
+
+    whole = _scene(tmp_path)  # in the composed scene, clip_02 takes clip_01's equation instead of making a second one
+    exit_code, output = run_tool("layout_probe.py", whole / "scene.py", "Scene01", "--json")
+    assert exit_code == 0 and not [f for f in __import__("json").loads(output)["findings"] if f["code"] == "OVERLAP"]

@@ -13,6 +13,8 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Set as AbstractSet
+from xml.etree import ElementTree
 
 LETTERS = dict(
     zip(
@@ -105,9 +107,13 @@ ABBREVIATIONS = {
     "No.": "number",
 }
 PAUSE = "[pause]"
+PAUSE_MS = 600
+SSML_TAGS = {"speak", "break", "prosody", "emphasis", "s", "p", "sub", "say-as"}  # supported by Polly and Google
+UNSUPPORTED_TAGS = {"neural": {"emphasis"}, "generative": {"emphasis"}}  # Polly engines without these tags
+TAG = re.compile(r"(<[^>]+>)")
 
 
-def symbol_name(token: str, both_cases: set[str]) -> str:
+def symbol_name(token: str, both_cases: AbstractSet[str]) -> str:
     """`M` → "capital em" when m and M both occur in the video, else "em"; `r_1` → "ar one"; `θ` → "theta"."""
     base, _, subscript = token.partition("_")
     if base in GREEK:
@@ -131,7 +137,7 @@ def case_pairs(texts: list[str]) -> set[str]:
     return {letter.lower() for letter in seen if len(letter) == 1 and letter.isalpha() and letter.swapcase() in seen}
 
 
-def speakable(text: str, both_cases: set[str] = frozenset()) -> str:
+def speakable(text: str, both_cases: AbstractSet[str] = frozenset()) -> str:
     """Plain text any TTS engine reads correctly; [pause] stays as a marker for to_ssml/to_plain."""
     text = re.sub(r"`([^`]+)`", lambda match: symbol_name(match[1], both_cases), text)
     for written, spoken in ABBREVIATIONS.items():
@@ -146,29 +152,70 @@ def speakable(text: str, both_cases: set[str] = frozenset()) -> str:
     return re.sub(r"\s+", " ", re.sub(r"\s+([,.!?;:])", r"\1", text)).strip()
 
 
-def to_ssml(text: str, pause_ms: int = 600) -> str:
-    parts = [html.escape(part.strip(), quote=False) for part in text.split(PAUSE)]
-    return "<speak>" + f' <break time="{pause_ms}ms"/> '.join(part for part in parts if part) + "</speak>"
+def ssml_problems(ssml: str) -> list[str]:
+    """A clip's planned SSML: one <speak> element, well-formed, only tags every voice provider understands."""
+    try:
+        root = ElementTree.fromstring(ssml)
+    except ElementTree.ParseError as error:
+        return [f"not well-formed SSML: {error}"]
+    problems = [] if root.tag == "speak" else ["SSML must be one <speak>…</speak> element"]
+    if unsupported := sorted({element.tag for element in root.iter()} - SSML_TAGS):
+        problems.append(f"unsupported SSML tags {unsupported}; use only {sorted(SSML_TAGS)}")
+    return problems
 
 
-def to_ssml_marked(text: str, pause_ms: int = 600) -> tuple[str, list[str]]:
+def ssml_words(ssml: str) -> list[str]:
+    """The written words inside the SSML (tags removed): must equal the clip's narration."""
+    return " ".join(ElementTree.fromstring(ssml).itertext()).split()
+
+
+def speakable_ssml(ssml: str, both_cases: AbstractSet[str] = frozenset()) -> str:
+    """The planned SSML with every text part made speakable (symbols, units, abbreviations) and [pause] → <break>."""
+    parts = []
+    for chunk in TAG.split(ssml):
+        if not chunk or chunk.startswith("<"):
+            parts.append(chunk)
+            continue
+        text = html.unescape(chunk)
+        core = text.strip()
+        if not core:  # whitespace between tags stays as it is
+            parts.append(chunk)
+            continue
+        lead, trail = text[: len(text) - len(text.lstrip())], text[len(text.rstrip()) :]
+        tokens = []
+        for piece_index, piece in enumerate(core.split(PAUSE)):
+            if piece_index:
+                tokens.append(f'<break time="{PAUSE_MS}ms"/>')
+            if spoken := speakable(piece, both_cases):
+                tokens.append(html.escape(spoken, quote=False))
+        parts.append(lead + " ".join(tokens) + trail)
+    return "".join(parts)
+
+
+def mark_words(ssml: str) -> tuple[str, list[str]]:
     """SSML with <mark name="i"/> before every word (Google TTS returns a time per mark) + the word list."""
-    words, ssml_parts = [], []
-    for part_index, part in enumerate(text.split(PAUSE)):
-        if part_index:
-            ssml_parts.append(f'<break time="{pause_ms}ms"/>')
-        for word in part.split():
-            ssml_parts.append(f'<mark name="{len(words)}"/>{html.escape(word, quote=False)}')
-            words.append(word)
-    return "<speak>" + " ".join(ssml_parts) + "</speak>", words
+    words, parts = [], []
+    for chunk in TAG.split(ssml):
+        if chunk.startswith("<"):
+            parts.append(chunk)
+            continue
+
+        def mark(match):
+            words.append(html.unescape(match[0]))
+            return f'<mark name="{len(words) - 1}"/>{match[0]}'
+
+        parts.append(re.sub(r"\S+", mark, chunk))
+    return "".join(parts), words
 
 
 def to_plain(text: str) -> str:
+    """Plain text for a voice that rejects SSML: tags removed, pauses as an ellipsis."""
+    text = html.unescape(re.sub(r"<[^>]+>", "", re.sub(r"<break[^>]*>", f" {PAUSE} ", text)))
     return re.sub(r"\s+", " ", text.replace(PAUSE, " … ")).strip()
 
 
 def phrase_times(
-    marks: list[tuple[str, float]], beats: list[str], both_cases: set[str] = frozenset()
+    marks: list[tuple[str, float]], beats: list[str], both_cases: AbstractSet[str] = frozenset()
 ) -> list[float | None]:
     """Start time (s) of each beat's quoted narration phrase, from word marks [(word, start_s)], in order."""
     normalized_words = lambda text: re.sub(r"[^a-z0-9 ]", "", text.lower()).split()  # noqa: E731
@@ -198,19 +245,23 @@ def create_speech_synthesizer(brief: dict):
 
 
 def create_polly_synthesizer(voice: str, engine: str):
-    """AWS Polly with SSML (pauses) and word speech marks (beat timing). Falls back to plain text when an engine
-    rejects a tag, and to no marks when an engine has none."""
+    """AWS Polly from the clip's speakable SSML, without tags this engine lacks, plus word speech marks (beat timing).
+    Falls back to plain text when an engine rejects the SSML, and to no marks when an engine has none."""
     import boto3
 
     polly_client = boto3.client("polly")
 
-    def synthesize_request(text: str, **request_options):
+    unsupported = UNSUPPORTED_TAGS.get(engine, set())
+
+    def synthesize_request(ssml: str, **request_options):
+        if unsupported:
+            ssml = re.sub(rf"</?(?:{'|'.join(unsupported)})\b[^>]*>", "", ssml)
         try:
             return polly_client.synthesize_speech(
-                Text=to_ssml(text), TextType="ssml", VoiceId=voice, Engine=engine, **request_options
+                Text=ssml, TextType="ssml", VoiceId=voice, Engine=engine, **request_options
             )
         except polly_client.exceptions.InvalidSsmlException:
-            return polly_client.synthesize_speech(Text=to_plain(text), VoiceId=voice, Engine=engine, **request_options)
+            return polly_client.synthesize_speech(Text=to_plain(ssml), VoiceId=voice, Engine=engine, **request_options)
 
     def synthesize_clip(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
         # ponytail: one request per clip (clips are ≤ 30 s, far under Polly's 3000-char limit)
@@ -232,7 +283,7 @@ def create_polly_synthesizer(voice: str, engine: str):
 
 
 def create_google_synthesizer(voice: str):
-    """Google Cloud TTS (v1beta1 for timepoints): SSML with a <mark/> per word → word timings for beat sync.
+    """Google Cloud TTS (v1beta1 for timepoints): the clip's SSML with a <mark/> per word → word timings.
     Voices without SSML support (e.g. Chirp 3 HD) fall back to plain text without timings."""
     from google.api_core.exceptions import InvalidArgument
     from google.cloud import texttospeech_v1beta1 as texttospeech
@@ -242,7 +293,7 @@ def create_google_synthesizer(voice: str):
     audio_config = {"audio_encoding": texttospeech.AudioEncoding.MP3}
 
     def synthesize_clip(text: str) -> tuple[bytes, list[tuple[str, float]] | None]:
-        ssml, words = to_ssml_marked(text)
+        ssml, words = mark_words(text)
         try:
             response = client.synthesize_speech(
                 request={

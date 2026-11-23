@@ -9,6 +9,7 @@ def clip(clip_id, i, entry=(), exit_=()):
         index=i,
         objective="o",
         narration="n",
+        ssml="<speak>n</speak>",
         visual_intent="v",
         beats=["b"],
         entry=models.ContinuityState(persistent_objects=list(entry)),
@@ -24,7 +25,7 @@ def test_continuity_contract_enforced():
             index=1,
             title="t",
             objective="o",
-            segment_type="concept",
+            composition="c",
             clips=[clip("s01c01", 1, exit_=["eq"]), clip("s01c02", 2, entry=["eq", "axes"])],
         )
 
@@ -35,17 +36,15 @@ def test_valid_scene():
         index=1,
         title="t",
         objective="o",
-        segment_type="concept",
+        composition="c",
         clips=[clip("s01c01", 1, exit_=["eq"]), clip("s01c02", 2, entry=["eq"])],
     )
     assert len(scene.clips) == 2
 
 
 def test_clip_id_must_belong_to_scene():
-    with pytest.raises(ValidationError):
-        models.ScenePlan(
-            scene_id="s02", index=1, title="t", objective="o", segment_type="concept", clips=[clip("s01c01", 1)]
-        )
+    with pytest.raises(ValidationError, match="does not match scene s02"):
+        models.ScenePlan(scene_id="s02", index=1, title="t", objective="o", composition="c", clips=[clip("s01c01", 1)])
 
 
 def test_cache_key_is_stable_and_input_sensitive():

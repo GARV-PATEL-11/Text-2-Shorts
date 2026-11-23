@@ -20,6 +20,14 @@
           "title": "Object Positions",
           "type": "object"
         },
+        "descriptions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "name \u2192 what the object is (type, text or LaTeX, colour, size), so a clip built on its own can re-create the objects it takes over",
+          "title": "Descriptions",
+          "type": "object"
+        },
         "camera": {
           "default": "default_frame",
           "title": "Camera",
@@ -58,6 +66,11 @@
     "narration": {
       "description": "exact spoken text for this clip (TTS input)",
       "title": "Narration",
+      "type": "string"
+    },
+    "ssml": {
+      "description": "the clip's audio plan: <speak> SSML over exactly the narration's words \u2014 <break> for waits, <prosody rate> for pace, <emphasis>, <s>/<p>, <sub>, <say-as>",
+      "title": "Ssml",
       "type": "string"
     },
     "on_screen_math": {
@@ -107,7 +120,7 @@
       "type": "array"
     },
     "manim_topics": {
-      "description": "keys into the doc index, e.g. ['mathtex.indexing','axes.plot']",
+      "description": "topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']",
       "items": {
         "type": "string"
       },
@@ -120,6 +133,7 @@
     "index",
     "objective",
     "narration",
+    "ssml",
     "visual_intent",
     "beats",
     "entry",

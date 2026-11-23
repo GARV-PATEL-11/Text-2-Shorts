@@ -1,4 +1,4 @@
-from app.narration import case_pairs, phrase_times, speakable, to_plain, to_ssml
+from app.narration import case_pairs, phrase_times, speakable, speakable_ssml, ssml_problems, ssml_words, to_plain
 
 
 def test_symbols_units_abbreviations_and_case():
@@ -15,10 +15,20 @@ def test_symbols_units_abbreviations_and_case():
     assert speakable("at 90° and 50%") == "at 90 degrees and 50 percent"
 
 
-def test_pause_markers_become_ssml_breaks_or_ellipses():
-    spoken = speakable("Look at this. [pause] Now `c` & more.")
-    assert to_ssml(spoken) == '<speak>Look at this. <break time="600ms"/> Now see &amp; more.</speak>'
-    assert to_plain(spoken) == "Look at this. … Now see & more."
+def test_planned_ssml_is_checked_and_made_speakable():
+    planned = '<speak>Look at `c` &amp; more. <break time="700ms"/> <emphasis>Now</emphasis> [pause] done.</speak>'
+    assert ssml_problems(planned) == []
+    assert ssml_words(planned) == ["Look", "at", "`c`", "&", "more.", "Now", "[pause]", "done."]
+    assert speakable_ssml(planned) == (
+        '<speak>Look at see &amp; more. <break time="700ms"/> '
+        '<emphasis>Now</emphasis> <break time="600ms"/> done.</speak>'
+    )
+    assert any("well-formed" in problem for problem in ssml_problems("<speak>Look <break></speak>"))
+    assert any("audio" in problem for problem in ssml_problems('<speak><audio src="x"/>Hi</speak>'))
+    assert any("<speak>" in problem for problem in ssml_problems("<p>Hi</p>"))
+    assert to_plain('<speak>Look at this. <break time="600ms"/> Now see &amp; more.</speak>') == (
+        "Look at this. … Now see & more."
+    )
 
 
 def test_phrase_times_follow_word_marks_in_order():
@@ -56,20 +66,22 @@ def test_polly_sends_ssml_falls_back_to_text_and_returns_word_marks(monkeypatch)
             return {"AudioStream": io.BytesIO(body)}
 
     monkeypatch.setattr(boto3, "client", lambda name: FakePolly())
-    audio, marks = narration.create_polly_synthesizer("Matthew", "neural")("Look here. [pause] Done.")
+    ssml = '<speak>Look <emphasis>here</emphasis>. <break time="600ms"/> Done.</speak>'
+    audio, marks = narration.create_polly_synthesizer("Matthew", "neural")(ssml)
     assert audio == b"mp3" and marks == [("Look", 0.0), ("here", 0.45)]
-    assert calls[0]["Text"].startswith("<speak>") and calls[1]["Text"] == "Look here. … Done."
+    assert calls[0]["Text"] == '<speak>Look here. <break time="600ms"/> Done.</speak>'  # neural: no <emphasis>
+    assert calls[1]["Text"] == "Look here. … Done."  # the engine rejected the SSML → plain text
     assert calls[2]["SpeechMarkTypes"] == ["word"] and calls[2]["TextType"] == "ssml"
 
 
 def test_marked_ssml_for_google_timepoints():
-    from app.narration import to_ssml_marked
+    from app.narration import mark_words
 
-    ssml, words = to_ssml_marked("Hi & bye. [pause] See")
+    ssml, words = mark_words('<speak>Hi &amp; bye. <break time="600ms"/> <prosody rate="90%">See</prosody></speak>')
     assert words == ["Hi", "&", "bye.", "See"]
     assert ssml == (
         '<speak><mark name="0"/>Hi <mark name="1"/>&amp; <mark name="2"/>bye. <break time="600ms"/> '
-        '<mark name="3"/>See</speak>'
+        '<prosody rate="90%"><mark name="3"/>See</prosody></speak>'
     )
 
 
@@ -94,10 +106,12 @@ def test_google_maps_timepoints_to_words_and_falls_back_to_text(monkeypatch):
             return Namespace(audio_content=b"mp3", timepoints=timepoints)
 
     monkeypatch.setattr(gtts, "TextToSpeechClient", FakeClient)
-    audio, marks = narration.create_google_synthesizer("en-US-Neural2-D")("Look at see")
+    audio, marks = narration.create_google_synthesizer("en-US-Neural2-D")("<speak>Look at see</speak>")
     assert (audio, marks) == (b"mp3", [("Look", 0.0), ("see", 0.7)])
     assert requests[0]["voice"] == {"language_code": "en-US", "name": "en-US-Neural2-D"}
-    assert narration.create_google_synthesizer("en-US-Chirp3-HD-Aoede")("Hi [pause] there") == (b"mp3", None)
+    assert narration.create_google_synthesizer("en-US-Chirp3-HD-Aoede")(
+        '<speak>Hi <break time="600ms"/> there</speak>'
+    ) == (b"mp3", None)
     assert requests[-1]["input"] == {"text": "Hi … there"}
     assert narration.create_speech_synthesizer(
         {"tts": "google", "voice": "en-US-Neural2-D", "engine": "neural"}

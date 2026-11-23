@@ -53,6 +53,7 @@ REMOVED_APIS = {
     "SpeechBubble": "primitive callout (RoundedRectangle + Text)",
 }
 PYTHON_BUILTIN_METHODS = set(dir(list)) | set(dir(dict)) | set(dir(str)) | {"astype", "tolist", "reshape"}
+PROJECT_SCENE_METHODS = {"beat", "entry"}  # scene_harness.py: self.beat(n) marks beat n; self.entry(name, make)
 
 
 def load_index(path: Path) -> dict:
@@ -138,6 +139,7 @@ class Validator(ast.NodeVisitor):
                 and method_name not in self.all_methods
                 and method_name not in self.defined
                 and method_name not in PYTHON_BUILTIN_METHODS
+                and method_name not in PROJECT_SCENE_METHODS
                 and not (
                     isinstance(function.value, ast.Name) and function.value.id in {"np", "numpy", "math", "random"}
                 )
@@ -166,9 +168,24 @@ class Validator(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def entry_calls(tree) -> list[tuple[str, int]]:
+    """self.entry("name", make) calls: the clip takes over (or, alone, builds) that entry object."""
+    return [
+        (node.args[0].value, node.lineno)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "entry"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    ]
+
+
 def registry_access(tree) -> tuple[list[tuple[str, int]], set[str]]:
-    """(reads, writes) of self.reg["name"] with constant string keys."""
-    reads, writes = [], set()
+    """(reads, writes) of self.reg["name"] with constant string keys; self.entry(name) counts as both."""
+    entries = entry_calls(tree)
+    reads, writes = list(entries), {name for name, _ in entries}
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Subscript)
@@ -190,6 +207,7 @@ def registry_access(tree) -> tuple[list[tuple[str, int]], set[str]]:
             and node.func.value.attr == "reg"
             and node.args
             and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
         ):
             reads.append((node.args[0].value, node.lineno))
     return reads, writes
@@ -228,6 +246,30 @@ def validate_clip_file(
                         "message": f"self.reg['{key}'] is not in the entry contract {sorted(entry_contract)}",
                     }
                 )
+    if entry_contract is not None:
+        for name, line in entry_calls(tree):
+            if name not in entry_contract:
+                validator.findings.append(
+                    {
+                        "severity": "ERROR",
+                        "code": "CONTRACT_READ",
+                        "line": line,
+                        "message": f"self.entry('{name}'): '{name}' is not in the entry contract "
+                        f"{sorted(entry_contract)}",
+                    }
+                )
+    if entry_contract:
+        taken = {name for name, _ in entry_calls(tree)}
+        for name in sorted(entry_contract - taken):
+            validator.findings.append(
+                {
+                    "severity": "ERROR",
+                    "code": "ENTRY_NOT_STANDALONE",
+                    "line": 0,
+                    "message": f"take entry object '{name}' with self.entry('{name}', lambda: <how it looks>) so the "
+                    "clip also runs on its own (clips are built in parallel)",
+                }
+            )
     if exit_contract is not None:
         carried = entry_contract or set()
         for key in sorted(exit_contract):

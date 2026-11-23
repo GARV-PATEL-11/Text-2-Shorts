@@ -26,6 +26,11 @@
           "title": "Narration",
           "type": "string"
         },
+        "ssml": {
+          "description": "the clip's audio plan: <speak> SSML over exactly the narration's words \u2014 <break> for waits, <prosody rate> for pace, <emphasis>, <s>/<p>, <sub>, <say-as>",
+          "title": "Ssml",
+          "type": "string"
+        },
         "on_screen_math": {
           "description": "LaTeX strings that must appear",
           "items": {
@@ -73,7 +78,7 @@
           "type": "array"
         },
         "manim_topics": {
-          "description": "keys into the doc index, e.g. ['mathtex.indexing','axes.plot']",
+          "description": "topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']",
           "items": {
             "type": "string"
           },
@@ -86,6 +91,7 @@
         "index",
         "objective",
         "narration",
+        "ssml",
         "visual_intent",
         "beats",
         "entry",
@@ -113,6 +119,14 @@
           },
           "description": "name \u2192 semantic zone, e.g. 'eq_main': 'top_center'",
           "title": "Object Positions",
+          "type": "object"
+        },
+        "descriptions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "name \u2192 what the object is (type, text or LaTeX, colour, size), so a clip built on its own can re-create the objects it takes over",
+          "title": "Descriptions",
           "type": "object"
         },
         "camera": {
@@ -153,8 +167,16 @@
       "title": "Objective",
       "type": "string"
     },
-    "segment_type": {
-      "title": "Segment Type",
+    "composition": {
+      "description": "layout zones and the main visual elements of the scene, 2\u20134 sentences",
+      "minLength": 1,
+      "title": "Composition",
+      "type": "string"
+    },
+    "transition_in": {
+      "default": "",
+      "description": "how the scene opens from the previous scene's final image; empty for the first scene",
+      "title": "Transition In",
       "type": "string"
     },
     "clips": {
@@ -165,18 +187,6 @@
       "minItems": 1,
       "title": "Clips",
       "type": "array"
-    },
-    "transition_to_next": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Transition To Next"
     },
     "color_roles": {
       "additionalProperties": {
@@ -192,7 +202,7 @@
     "index",
     "title",
     "objective",
-    "segment_type",
+    "composition",
     "clips"
   ],
   "title": "ScenePlan",

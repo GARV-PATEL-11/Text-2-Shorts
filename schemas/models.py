@@ -109,17 +109,23 @@ class ArtifactRef(Strict):
 
 
 class Brief(Strict):
-    requirement: str
-    refined: str | None = None
-    approach: Literal["zoom", "arc", "linear"] = "zoom"
-    target_minutes: float = Field(2.0, gt=0, le=12)
-    pace: Literal["slow", "medium", "fast"] = "medium"
+    """Stage 1 — the user's requirements, written by `text-2-shorts new` and confirmed with the user."""
+
+    requirement: str = Field(..., min_length=1, description="the topic and request in the user's words")
+    objectives: list[str] = Field(default_factory=list, description="what the viewer should be able to do or explain")
     audience: str = "curious beginners"
-    notes: str = ""
-    aspect: Literal["16:9", "9:16", "1:1"] = "16:9"
-    voice: str = "Matthew"
+    style: str = Field("ELI5 / Feynman", description="explanation style and tone")
+    approach: Literal["zoom", "arc", "linear", "creative"] = Field(
+        "zoom",
+        description="narrative structure: three fixed ones, or 'creative' (designed for this topic, or the user's own)",
+    )
+    minutes: float = Field(2.0, gt=0, le=12)
+    pace: Literal["slow", "medium", "fast"] = "medium"
+    notes: str = Field("", description="constraints and anything else the user asked for")
     tts: Literal["polly", "google"] = "polly"
-    tts_engine: Literal["neural", "generative", "standard"] = "neural"
+    voice: str | None = None
+    engine: Literal["neural", "generative", "standard"] = "neural"
+    font: str | None = None
 
 
 class EnvironmentReport(Strict):
@@ -141,6 +147,62 @@ class VideoProject(Strict):
     created_at: datetime = Field(default_factory=now)
 
 
+# ── Script (stage 2) ────────────────────────────────────────────────────────────
+
+
+class ScriptScene(Strict):
+    scene_id: SceneId
+    role: Literal["index", "content", "recap"] = Field(
+        "content", description="s01 is the index scene: it tells the viewer what the video covers"
+    )
+    title: str = Field(..., min_length=1)
+    objective: str = Field(..., min_length=1, description="what this scene teaches, in one sentence")
+    key_concepts: list[str] = Field(..., min_length=1)
+    covers: list[int] = Field(default_factory=list, description="1-based indexes into Script.objectives it teaches")
+    previews: list[SceneId] = Field(default_factory=list, description="index scene only: every later scene, in order")
+    duration_seconds: float = Field(..., gt=0)
+    bridge_in: str = Field(
+        "",
+        description="spoken inter-scene transition at the start of this scene: what was just covered, what comes "
+        "next, why it matters. Empty for the first scene.",
+    )
+    narration: str = Field(..., min_length=1, description="the complete spoken text of the scene after the bridge")
+    visual_idea: str = Field("", description="one or two sentences; the scene's visual plan holds the detail")
+
+
+class Script(Strict):
+    title: str = Field(..., min_length=1)
+    structure: str = Field(..., min_length=1, description="narrative structure used, e.g. zoom, arc, linear, custom")
+    objectives: list[str] = Field(..., min_length=1)
+    target_wpm: int = Field(150, ge=90, le=220)
+    scenes: list[ScriptScene] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def _scenes_are_sequential_and_bridged(self):
+        index_scene = self.scenes[0]
+        if index_scene.role != "index":
+            raise ValueError("s01 must be the index scene (role 'index'): say what the video covers")
+        later = [scene.scene_id for scene in self.scenes[1:]]
+        if index_scene.previews != later:
+            raise ValueError(f"the index scene's previews must list every later scene in order: {later}")
+        for number, scene in enumerate(self.scenes, 1):
+            if number > 1 and scene.role == "index":
+                raise ValueError(f"{scene.scene_id}: only s01 is the index scene")
+            if scene.role != "index" and not scene.covers:
+                raise ValueError(f"{scene.scene_id} covers no objective: every teaching scene covers at least one")
+            if scene.scene_id != f"s{number:02d}":
+                raise ValueError(f"scene {scene.scene_id} is at position {number}: expected s{number:02d}")
+            if bad := [index for index in scene.covers if not 1 <= index <= len(self.objectives)]:
+                raise ValueError(f"{scene.scene_id} covers objectives {bad}, but there are {len(self.objectives)}")
+            if number == 1 and scene.bridge_in.strip():
+                raise ValueError("s01 bridge_in must be empty: the first scene has nothing to bridge from")
+            if number > 1 and not scene.bridge_in.strip():
+                raise ValueError(
+                    f"{scene.scene_id} bridge_in is empty: say what was covered, what comes next and why it matters"
+                )
+        return self
+
+
 # ── Planning ────────────────────────────────────────────────────────────────────
 
 
@@ -151,6 +213,11 @@ class ContinuityState(Strict):
     object_positions: dict[str, str] = Field(
         default_factory=dict, description="name → semantic zone, e.g. 'eq_main': 'top_center'"
     )
+    descriptions: dict[str, str] = Field(
+        default_factory=dict,
+        description="name → what the object is (type, text or LaTeX, colour, size), so a clip built on its own can "
+        "re-create the objects it takes over",
+    )
     camera: str = "default_frame"
     notes: str = ""
 
@@ -160,6 +227,11 @@ class ClipPlan(Strict):
     index: int = Field(..., ge=1)
     objective: str = Field(..., description="one teaching purpose; if you need 'and', split the clip")
     narration: str = Field(..., description="exact spoken text for this clip (TTS input)")
+    ssml: str = Field(
+        ...,
+        description="the clip's audio plan: <speak> SSML over exactly the narration's words — <break> for waits, "
+        "<prosody rate> for pace, <emphasis>, <s>/<p>, <sub>, <say-as>",
+    )
     on_screen_math: list[str] = Field(default_factory=list, description="LaTeX strings that must appear")
     visual_intent: str = Field(..., description="what the viewer sees, 2–6 sentences, no code")
     beats: list[str] = Field(
@@ -170,7 +242,7 @@ class ClipPlan(Strict):
     est_seconds: float = Field(..., gt=0, le=45)
     depends_on: list[ClipId] = Field(default_factory=list)
     manim_topics: list[str] = Field(
-        default_factory=list, description="keys into the doc index, e.g. ['mathtex.indexing','axes.plot']"
+        default_factory=list, description="topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']"
     )
 
 
@@ -179,9 +251,13 @@ class ScenePlan(Strict):
     index: int = Field(..., ge=1)
     title: str
     objective: str
-    segment_type: str
+    composition: str = Field(
+        ..., min_length=1, description="layout zones and the main visual elements of the scene, 2–4 sentences"
+    )
+    transition_in: str = Field(
+        "", description="how the scene opens from the previous scene's final image; empty for the first scene"
+    )
     clips: list[ClipPlan] = Field(..., min_length=1, max_length=8)
-    transition_to_next: str | None = None
     color_roles: dict[str, str] = Field(default_factory=dict, description="semantic role → Manim color constant")
 
     @model_validator(mode="after")
@@ -356,3 +432,51 @@ class ClipState(Strict):
     validations: dict[str, ValidationStatus] = Field(default_factory=dict)
     attempts: int = 0
     last_error: str | None = None
+
+
+# ── Accuracy reviews (stage 2: script, stage 3: scene plans) ───────────────────
+
+
+class ReviewFinding(Strict):
+    target: str = Field(
+        ..., pattern=r"^s\d{2}(c\d{2})?$", description="scene id (script review) or clip id (plan review)"
+    )
+    severity: Literal["ERROR", "WARN"]
+    kind: Literal["FALSE", "UNSTATED", "NOTATION", "MISLEADING", "SPOKEN"]
+    quote: str
+    why: str
+    fix: str
+
+
+class ReviewReport(Strict):
+    findings: list[ReviewFinding]
+
+
+# ── Critic-refactor loops (plan before CP2, video before CP3): one critic, at most 3 rounds per scene ──────────
+
+
+class CritiqueIssue(Strict):
+    target: str = Field(..., pattern=r"^s\d{2}(c\d{2})?$", description="the scene or clip the issue is about")
+    aspect: str = Field(
+        ..., description="plan: clarity · sync · constructability · design; video: plan-match · sync · render · design"
+    )
+    problem: str
+    fix: str
+
+
+class CritiqueRound(Strict):
+    reviewed: str = Field(..., description="`text-2-shorts hash <run> sNN plan|video` of the version reviewed")
+    verdict: Literal["pass", "revise"]
+    issues: list[CritiqueIssue] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _revise_names_issues(self):
+        if self.verdict == "revise" and not self.issues:
+            raise ValueError("a 'revise' verdict must list the issues to fix")
+        if self.verdict == "pass" and self.issues:
+            raise ValueError("a 'pass' verdict has no open issues")
+        return self
+
+
+class Critique(Strict):
+    rounds: list[CritiqueRound] = Field(..., min_length=1)

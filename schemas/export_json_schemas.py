@@ -9,6 +9,13 @@ OUTPUT_DIRECTORY = Path(__file__).with_name("json")
 CLASSES = [
     models.VideoProject,
     models.Brief,
+    models.Script,
+    models.ScriptScene,
+    models.ReviewReport,
+    models.ReviewFinding,
+    models.Critique,
+    models.CritiqueRound,
+    models.CritiqueIssue,
     models.EnvironmentReport,
     models.VideoPlan,
     models.ScenePlan,
