@@ -13,11 +13,12 @@ session. Production never happens in this session. If the current folder is alre
 | Need | Supported | How |
 |---|---|---|
 | Length | any number of minutes > 0 | `--minutes 7` (decimals fine; longer = more scenes, longer build) |
-| Structure | `zoom` big picture → detail · `arc` problem → solution · `linear` lesson | `--approach`; a user's own outline/script → `--notes` + paste it in the run session |
+| Objectives, style | what the viewer should be able to do afterwards · tone (default ELI5 / Feynman) | `--objective "…"` (repeat), `--style "…"` |
+| Structure | `zoom` big picture → detail · `arc` problem → solution · `linear` lesson · `creative` a structure designed for the topic | `--approach`; a user's own outline/script → `--approach creative` + paste it in the run session |
 | Audience, pace | free text · slow / medium / fast | `--audience`, `--pace` |
 | Voice | AWS Polly (any voice id; `--engine neural`, `generative` or `standard`) or Google Cloud TTS (any voice name) | `--tts polly\|google --voice <id>` |
 | Font | any installed family | `--font "<family>"`; list: `fc-list : family` |
-| Output | 2560×1440 (16:9), 60–120 fps | fixed; fps via `TEXT_2_SHORTS_FPS` |
+| Output | drafts 720p30; delivery 2560×1440 (16:9) at 120 fps (60–120) | fixed; fps via `TEXT_2_SHORTS_FPS` |
 
 `uv run text-2-shorts new --help` is the source of truth for flags. A request outside this table (another TTS vendor,
 vertical 9:16, the user's own audio, …) is not supported: say so plainly, offer the closest supported option, and
@@ -27,7 +28,7 @@ ask before substituting. Never invent a flag or quietly change what the user ask
 1. In one question round: flag anything unsupported (with the closest option) and ask only for what is missing;
    offer common choices as suggestions, not as the only options (e.g. voices Matthew/Joanna for Polly,
    en-US-Neural2-D/F for Google).
-2. `uv run text-2-shorts new "<topic in the user's words>" --approach … --minutes … --audience "…" --tts … --voice … [--engine …] [--pace …] [--font …] [--notes "…"]`.
+2. `uv run text-2-shorts new "<topic in the user's words>" --objective "…" --approach … --minutes … --audience "…" [--style "…"] --tts … --voice … [--engine …] [--pace …] [--font …] [--notes "…"]`.
    It checks the machine (LaTeX, ffmpeg, bubblewrap, Claude Code version) and the voice credentials, then prints
    `runs/<id>`. On failure, relay the fix it prints.
 3. Tell the user to run `uv run text-2-shorts open runs/<id>` in their own terminal: an interactive session that produces

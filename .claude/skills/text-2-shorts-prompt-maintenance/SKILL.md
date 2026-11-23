@@ -1,6 +1,6 @@
 ---
 name: text-2-shorts-prompt-maintenance
-description: Use when changing how Text-2-Shorts behaves — tone or explanation style, outline approaches, planning or clip-building instructions, subagents and their models, hooks, session sandbox or permissions, schemas, validators or topic cards — or when improving output quality or token use.
+description: Use when changing how Text-2-Shorts behaves — tone or explanation style, requirements, script rules or narrative structures, scene visual planning or transitions, clip-building instructions, subagents and their models, hooks, session sandbox or permissions, schemas, validators or topic cards — or when improving output quality or token use.
 ---
 
 # Changing the run environment
@@ -13,9 +13,13 @@ schemas and validators in `app/`. Change both sides together and prove it with t
 |---|---|
 | Tone / explanation style | ask first: for every video → `run-environment/skills/text-2-shorts-produce/references/standards.md` (EXPLANATION STYLE); for one run → `--notes` or the user's request in that session |
 | Visual standards (palette, sizes, timing) | `standards.md` **and** `VIDEO_STYLE` / `VOICE_LEAD_IN_SECONDS` / `END_HOLD_SECONDS` in `app/run_steps.py` (a test keeps them equal) |
-| New outline approach | `references/outline-<name>.md`; model in `app/outline_models/` + `OUTLINE_MODELS` (`app/run_steps.py`); `--approach` choices (`app/cli.py`); `Brief.approach` (`schemas/models.py`) → `uv run python schemas/export_json_schemas.py`; `make-short` table; tests |
-| Planning rules | `references/clip-planning.md` + `validate_plan` + `ScenePlan` |
-| Clip-builder / math-reviewer | `run-environment/agents/*.md` (frontmatter `model`, `tools`). A different model for some clips: agree with the user how those clips are chosen (a list, or a field added to `ClipPlan`), add a second agent file, say in `text-2-shorts-produce` when to use it, and add that file to `clip_key` (`CLIP_BUILDER_AGENT_PATH` in `app/run_steps.py`) so its edits mark clips stale |
+| Requirements (what is asked at the start) | `references/requirements.md` + `Brief` (`schemas/models.py`) + `new` flags (`brief_from_arguments`, `app/cli.py`) |
+| Script rules, narrative structures | `references/script-writing.md`, `narrative-structures.md` (a new fixed structure: a section there + `--approach` / `Brief.approach` choices + `make-short` table), `script-review.md`; gate: `Script` + `validate_script` |
+| Scene visual + audio planning, transitions | `references/scene-visual-planning.md`, `audio-ssml.md` (SSML tags: `SSML_TAGS` in `app/narration.py`), `transitions.md`; gate: `ScenePlan` + `validate_plan` |
+| Order of work, batches, parallelism | `next_actions()` (`app/run_steps.py`, the `next` command) + the loop in `text-2-shorts-produce`; series rule `earlier_scene_problem()` |
+| Critic loops, clip production, sync | `run-environment/agents/plan-critic.md`, `video-critic.md`, `audio-refactorer.md`; `references/scene-production.md`; rounds `MAX_CRITIQUE_ROUNDS`, tolerance `SYNC_TOLERANCE_SECONDS`, draft quality `DRAFT_QUALITY` (`app/run_steps.py`) |
+| Stage order, checkpoints | `stage_approval_problem` / `next_steps` / `approval_problems` (`app/run_steps.py`) + the `text-2-shorts-produce` stage table |
+| Clip-builder / accuracy-reviewer | `run-environment/agents/*.md` (frontmatter `model`, `tools`). A different model for some clips: agree with the user how those clips are chosen (a list, or a field added to `ClipPlan`), add a second agent file, say in `text-2-shorts-produce` when to use it, and add that file to `clip_key` (`CLIP_BUILDER_AGENT_PATH` in `app/run_steps.py`) so its edits mark clips stale |
 | Workflow, checkpoints | `run-environment/skills/text-2-shorts-produce/SKILL.md` (+ `text-2-shorts` commands in `app/`) |
 | Hooks, sandbox, permissions | `run-environment/hooks/hooks.json`, `run-environment/settings.json`; jail mounts: `build_jail_command` in `app/cli.py` |
 | Manim knowledge | `run-environment/skills/manim-ce-0-20-1-reference/topics/` (examples are executed by tests) |

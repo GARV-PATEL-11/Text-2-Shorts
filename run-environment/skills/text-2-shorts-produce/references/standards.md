@@ -13,6 +13,8 @@ Timing: Write/Create 0.8–1.5 s · FadeIn/FadeOut 0.4–0.6 s · Transform 0.8�
 Nothing moves during a [pause]: that is when the viewer looks.
 Clip rhythm: the picture starts 0.3 s before the voice; the final frame holds ≥ 0.8 s after the voice ends.
 Scenes: every scene starts on an empty frame and ends with its objects faded out (last beat of the last clip).
+Transitions: simple and continuous between clips; explained (spoken bridge + recap image) between scenes —
+see transitions.md.
 Narration text: plain spoken English for a voice. Write math symbols in backticks (`a`, `M`, `v_1`, `θ`) so the voice
 says their names; write [pause] where the viewer needs a moment to look (after a key result, before a new step);
 write units and abbreviations as words when in doubt ("meters per second", "astronomical units"). If one letter is used

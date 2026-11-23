@@ -19,12 +19,15 @@ Find the cause from evidence, cheapest first, then fix it where it lives (tool, 
 |---|---|---|
 | CLIP_TOO_SHORT (ERROR) | probe | target `CLIP_SECONDS` = 0.3 s lead-in + narration + 0.8 s hold; fails when duration + 0.5 < target. `checks/probe.json` → `clip.duration` vs `clip.budget` |
 | CLIP_TOO_LONG (WARN) | probe | duration − target > 1.5 s |
+| ENTRY_NOT_STANDALONE | static | an entry object is used without `self.entry(name, make)`, so the clip cannot run on its own |
+| BEAT_MARKS_MISSING | probe | the clip never calls `self.beat(n)` for some planned beat n (needed for the sync report) |
 | OVERLAP / OUT_OF_FRAME | probe | text boxes overlap / leave the frame within this clip's time window |
 | TINY_TEXT (WARN) | probe | text below the readable height |
 | CLIP_NOT_RUN | probe | the clip's function never executed (an earlier clip failed) |
 | CONTRACT_* | static | ENTRY/EXIT registry names (`self.reg`) differ from the plan |
 | REMOVED_API / UNKNOWN_* | static | name not in Manim 0.20.1 (see `manim-ce-0-20-1-reference`) |
-| render failure | render | traceback in `checks/render.json` → `error` |
+| render failure | render | traceback in `checks/render.json` → `error` (drafts render at 720p30) |
+| out of sync | `preview` | `scenes/sNN/sync.json` → beats whose `offset` (shown − spoken) exceeds 0.35 s: audio-refactorer first, clip rebuild if the animation is wrong |
 Definitions: `tools/layout_probe.py`, `tools/validate_manim_code.py`, `app/clip_gates.py`.
 
 ## Classify, then fix
