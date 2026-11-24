@@ -10,7 +10,7 @@ import { Breadcrumbs } from "../components/navigation/Breadcrumbs";
 import { Journey } from "../components/navigation/Journey";
 import { Button } from "../components/ui/Button";
 import { Field, FormRow, MarkdownField, RadioCards } from "../components/ui/fields";
-import { ArrowLeft, ArrowRight, Check } from "../components/ui/icons";
+import { ArrowLeft, ArrowRight } from "../components/ui/icons";
 import { Markdown } from "../components/ui/Markdown";
 import { titleCase } from "../components/ui/text";
 import { useAction } from "../hooks/useAction";
@@ -95,7 +95,7 @@ export function NewRunPage() {
       <dl className="facts">
         <div><dt>Template</dt><dd>{choice ? `${titleCase(choice.template)}${changed ? ` · ${changed} Changed` : ""}` : "—"}</dd></div>
         <div><dt>Explain</dt><dd>{topic.trim() ? <Markdown text={topic} compact /> : "—"}</dd></div>
-        <div><dt>Objectives</dt><dd>{goals.length ? <ul>{goals.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Claude Proposes Them with You"}</dd></div>
+        <div><dt>Objectives</dt><dd>{goals.length ? <ul>{goals.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Claude suggests some"}</dd></div>
         <div><dt>Approach</dt><dd>{APPROACHES.find((candidate) => candidate.id === approach)?.label}</dd></div>
         <div><dt>Length</dt><dd>{minutes} Min</dd></div>
         <div><dt>Audience</dt><dd>{titleCase(audience)}</dd></div>
@@ -108,14 +108,14 @@ export function NewRunPage() {
       {step > 0 ? <Button variant="secondary" icon={<ArrowLeft />} onPress={() => setStep(step - 1)} isDisabled={busy}>Back</Button> : <span />}
       {step < STEPS.length - 1
         ? <Button onPress={() => setStep(step + 1)} isDisabled={!ready[at.id]} icon={<ArrowRight />}>{`Continue: ${STEPS[step + 1].label}`}</Button>
-        : <Button icon={<Check />} onPress={start} isDisabled={busy}>Start the Run</Button>}
+        : <Button icon={<ArrowRight />} onPress={start} isDisabled={busy}>Start the Run</Button>}
     </div>
   );
 
   let body;
   if (at.stage === "template") {
-    body = catalogue.error ? <SystemMessage kind="unavailable" title="The Templates Could Not Be Read">{catalogue.error.message}</SystemMessage>
-      : !catalogue.data || !choice ? <SystemMessage kind="loading" title="Laying Out Every Template…" />
+    body = catalogue.error ? <SystemMessage kind="unavailable" title="The Templates Did Not Load">{catalogue.error.message}</SystemMessage>
+      : !catalogue.data || !choice ? <SystemMessage kind="loading" title="Loading Templates" />
       : <div className="stack"><TemplateStep catalogue={catalogue.data} choice={choice} setChoice={setChoice} step={at.id} />{foot}</div>;
   } else {
     body = (

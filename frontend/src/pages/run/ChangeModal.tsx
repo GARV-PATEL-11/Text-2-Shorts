@@ -4,7 +4,7 @@ import { Modal } from "../../components/feedback/Overlay";
 import { Notice } from "../../components/feedback/Notice";
 import { Button } from "../../components/ui/Button";
 import { MarkdownField, SelectField } from "../../components/ui/fields";
-import { Message } from "../../components/ui/icons";
+import { RequestChange } from "../../components/ui/icons";
 import { useAction } from "../../hooks/useAction";
 import { send } from "../../services/http";
 import { runPath } from "../../services/runs";
@@ -42,7 +42,7 @@ export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => 
   }, [ask, targets, setNote]);
 
   const submit = () =>
-    action.run("Recording your change request…", async () => {
+    action.run("Sending your request…", async () => {
       const request = await send<TrackedRequest>(runPath(run.summary.id, "/requests"), {
         target, kind, text: text.trim(), checkpoint: ask?.checkpoint && !ask.checkpoint.startsWith("start:") ? ask.checkpoint : null,
       });
@@ -50,11 +50,11 @@ export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => 
       refresh(`Change request ${request.id} recorded. The run's session applies it at its next step.`);
     });
   return (
-    <Modal isOpen={ask !== null} onOpenChange={(open) => (open ? null : onClose())} icon={<Message />}
-      title="Ask for a Change" description="Any stage, scene or clip. The run's session applies it and marks it done."
+    <Modal isOpen={ask !== null} onOpenChange={(open) => (open ? null : onClose())} icon={<RequestChange />}
+      title="Request a Change" description="Any stage, scene or clip. Claude applies it and marks it done."
       footer={<>
         <Button variant="secondary" onPress={onClose}>Cancel</Button>
-        <Button onPress={submit} isDisabled={action.busy || text.trim().length < 3}>Record Change Request</Button>
+        <Button onPress={submit} isDisabled={action.busy || text.trim().length < 3}>Send Request</Button>
       </>}>
       <SelectField label="What Should Change" value={target} onChange={setTarget} options={targets} />
       <SelectField label="Kind of Change" value={kind} onChange={setKind} options={KINDS} />

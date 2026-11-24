@@ -7,7 +7,7 @@ import { Section } from "../../../../components/layout/Page";
 import { ImagePreview } from "../../../../components/media/ImagePreview";
 import { Button } from "../../../../components/ui/Button";
 import { RadioCards, Toggle } from "../../../../components/ui/fields";
-import { Render } from "../../../../components/ui/icons";
+import { Picture } from "../../../../components/ui/icons";
 import type { TabSpec } from "../../../../components/ui/Tabs";
 import { titleCase } from "../../../../components/ui/text";
 import { useAction } from "../../../../hooks/useAction";
@@ -83,7 +83,7 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras }:
       </Section>
     ) },
     { id: "look", label: "Build Your Own", content: (
-      <Section title="Build Your Own" description={`${titleCase(choice.template)} · ${titleCase(mode)} Mode · Every Option Drawn in Your Look`}>
+      <Section title="Build Your Own" description={`Every option is drawn in your look: ${titleCase(choice.template)}, ${mode} mode.`}>
         {tree("visual", ["mode"])}
       </Section>
     ) },
@@ -95,9 +95,9 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras }:
       </Section>
     ) },
     { id: "whole", label: "Whole Look", content: (
-      <Section title="The Whole Look" description="One Frame · 2560 × 1440 · As Every Clip Gets It"
-        actions={<Button icon={<Render />} onPress={renderStill} isDisabled={stillAction.busy}>Render the Whole Look</Button>}>
-        {still ? <ImagePreview src={still} fullSrc={still} alt="The Whole Look" caption="Backdrop, grid, border, colours, font and sizes, at the delivery size." />
+      <Section title="Whole Look" description="One frame at 2560 × 1440, as every clip will look."
+        actions={<Button icon={<Picture />} onPress={renderStill} isDisabled={stillAction.busy}>Render the Whole Look</Button>}>
+        {still ? <ImagePreview src={still} fullSrc={still} alt="Whole Look" caption="Backdrop, grid, border, colors, font and sizes, at the delivery size." />
           : <SystemMessage kind="empty" title="Nothing Rendered Yet" compact>Render the whole look to see your combination.</SystemMessage>}
       </Section>
     ) },

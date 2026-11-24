@@ -34,7 +34,8 @@ export function MarkdownField({ label, hint, value, onChange, placeholder, rows 
   const [preview, setPreview] = useState(false);
   return (
     <div className="md-field">
-      <div className="md-field__modes" role="group" aria-label={`${label}: write or preview`}>
+      <div className="md-field__modes" role="group" aria-label={`${label}: write or preview (Markdown supported)`}>
+        <span className="md-field__tag" aria-hidden="true">Markdown</span>
         <button type="button" className="md-field__mode" aria-pressed={!preview} onClick={() => setPreview(false)}>Write</button>
         <button type="button" className="md-field__mode" aria-pressed={preview} onClick={() => setPreview(true)}>Preview</button>
       </div>
@@ -45,7 +46,7 @@ export function MarkdownField({ label, hint, value, onChange, placeholder, rows 
         </div>
       ) : (
         <Field label={label} value={value} onChange={onChange} multiline rows={rows} placeholder={placeholder} isRequired={isRequired}
-          maxLength={maxLength} hint={`${hint ? `${hint} ` : ""}Markdown works: **bold**, _italic_, lists, \`code\`, tables, links.`} />
+          maxLength={maxLength} hint={hint} />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 // Reshuffle, the optional last stage: the look reshuffled by a seed, the same seed always giving the same look. Only
-// colours, fonts, background, grid and border change, never sizes, so every clip keeps its layout. Applying it
-// recolours the built clips without Claude and keeps the current final video in versions/; the scene previews and the
+// colors, fonts, background, grid and border change, never sizes, so every clip keeps its layout. Applying it
+// recolors the built clips without Claude and keeps the current final video in versions/; the scene previews and the
 // final video are then rendered again.
 import { useState } from "react";
 import { navigate } from "../../../app/routes";
@@ -11,7 +11,7 @@ import { Section } from "../../../components/layout/Page";
 import { ImagePreview } from "../../../components/media/ImagePreview";
 import { Button } from "../../../components/ui/Button";
 import { Checkbox, Field } from "../../../components/ui/fields";
-import { Dice, Render, Shuffle } from "../../../components/ui/icons";
+import { Dice, Preview, Shuffle } from "../../../components/ui/icons";
 import { titleCase } from "../../../components/ui/text";
 import { stageStatuses } from "../../../config/stages";
 import { useAction } from "../../../hooks/useAction";
@@ -22,11 +22,11 @@ import { useRun } from "../context";
 import type { StageProps } from "./StageTabs";
 
 const GROUPS: { id: ReshuffleGroup; label: string; hint: string }[] = [
-  { id: "colours", label: "Colours & Palettes", hint: "Primary, secondary and accent palettes." },
-  { id: "fonts", label: "Fonts", hint: "The text font and the maths font." },
-  { id: "background", label: "Background", hint: "Its type and colour." },
-  { id: "grid", label: "Grid", hint: "Its type, colour and opacity." },
-  { id: "border", label: "Border", hint: "Its style and colour." },
+  { id: "colours", label: "Colors & Palettes", hint: "Primary, secondary and accent palettes." },
+  { id: "fonts", label: "Fonts", hint: "The text font and the math font." },
+  { id: "background", label: "Background", hint: "Its type and color." },
+  { id: "grid", label: "Grid", hint: "Its type, color and opacity." },
+  { id: "border", label: "Border", hint: "Its style and color." },
 ];
 const newSeed = () => String(Math.floor(Math.random() * 1_000_000));
 
@@ -65,7 +65,7 @@ export function Reshuffle(_: StageProps) {
     setStill((await send<{ url: string }>(runPath(id, "/look/still"), answer.look)).url);
     return `${answer.changes.length} elements change.`;
   });
-  const apply = () => action.run("Recolouring every built clip…", async () => {
+  const apply = () => action.run("Recoloring every built clip…", async () => {
     await send<ReshuffleView>(runPath(id, "/reshuffle"), { ...wanted, apply: true });
     setConfirming(false);
     forget();
@@ -74,7 +74,7 @@ export function Reshuffle(_: StageProps) {
 
   return (
     <Section title="Reshuffle the Look"
-      description="Optional. Picks new variants for the parts you choose, decided by the seed alone: the same seed always gives the same look. Text sizes never change, so every clip keeps its layout.">
+      description="New variants from a seed: same seed, same look. Layouts never change.">
       <div className="split">
         <div className="card stack">
           <fieldset className="fieldset">
@@ -89,7 +89,7 @@ export function Reshuffle(_: StageProps) {
             <Button variant="secondary" icon={<Dice />} onPress={() => { setSeed(newSeed()); forget(); }}>New Seed</Button>
           </div>
           <div className="form-foot">
-            <Button variant="secondary" icon={<Render />} onPress={preview} isDisabled={!valid || action.busy}>Preview</Button>
+            <Button variant="secondary" icon={<Preview />} onPress={preview} isDisabled={!valid || action.busy}>Preview</Button>
             <Button icon={<Shuffle />} onPress={() => setConfirming(true)} isDisabled={!view?.changes.length || action.busy}>Apply Reshuffle</Button>
           </div>
           <Notice note={action.note} />
@@ -112,7 +112,7 @@ export function Reshuffle(_: StageProps) {
         </div>
       </div>
       <Modal isOpen={confirming} onOpenChange={setConfirming} icon={<Shuffle />} title="Apply This Reshuffle?"
-        description="Every built clip is recoloured in place (no Claude), the current final video is kept in the run's versions folder, and the scene previews and the final video are rendered again. Each scene asks for your approval again."
+        description="Recolors every built clip and renders the previews and the final video again. The current final video is kept. Every scene needs approval again."
         footer={<>
           <Button variant="secondary" onPress={() => setConfirming(false)}>Cancel</Button>
           <Button icon={<Shuffle />} onPress={apply} isDisabled={action.busy}>Apply Reshuffle</Button>

@@ -43,7 +43,7 @@ export function CheckpointPanel({ target }: { target: string }) {
       <div className="stack">
         {approved
           ? <SystemMessage kind="success" title="You Approved This Checkpoint">Changing what it covers asks you again.</SystemMessage>
-          : <SystemMessage kind="pending" title="Nothing to Decide Here Yet">Claude asks you here when this stage is ready.</SystemMessage>}
+          : <SystemMessage kind="pending" title="Nothing to Decide Yet">Claude asks when this stage is ready.</SystemMessage>}
         {history}
       </div>
     );
@@ -66,15 +66,15 @@ export function CheckpointPanel({ target }: { target: string }) {
           <>
             <p className="subhead">Open Problems</p>
             <ul className="problems">{checkpoint.problems.map((problem) => <li key={problem}><WithCode text={problem} /></li>)}</ul>
-            <Checkbox label="I Accept These Open Problems" hint="Approving records that you accepted them." isSelected={accepted} onChange={setAccepted} />
+            <Checkbox label="Approve with Open Problems" hint="The approval records that these were open." isSelected={accepted} onChange={setAccepted} />
           </>
         ) : <p className="note">Nothing blocks this checkpoint. Look through the other tabs, then decide.</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />
         <div className="row">
           <Button onPress={approve} isDisabled={action.busy || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve</Button>
-          <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Ask for Changes</Button>
+          <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>
         </div>
-        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick “I Accept These Open Problems” to approve with them, or ask for changes.</p> : null}
+        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick “Approve with Open Problems” to approve anyway, or request a change.</p> : null}
         <Notice note={action.note} />
       </div>
       {history}

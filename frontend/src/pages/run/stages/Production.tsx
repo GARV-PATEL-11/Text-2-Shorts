@@ -5,6 +5,7 @@ import { SystemMessage } from "../../../components/feedback/SystemMessage";
 import { VideoPreview } from "../../../components/media/VideoPreview";
 import { titleCase } from "../../../components/ui/text";
 import { runTitle } from "../../../components/ui/Markdown";
+import { sceneName } from "../Overview";
 import { useRunFile } from "../../../hooks/useRunFile";
 import { CheckpointPanel } from "../CheckpointPanel";
 import { useRun } from "../context";
@@ -17,10 +18,10 @@ interface ScenePlan { scene_id: string; title: string; composition: string; tran
 function PlanCard({ sceneId }: { sceneId: string }) {
   const { run } = useRun();
   const plan = useRunFile<ScenePlan>(run.summary.id, `scenes/${sceneId}/plan.json`);
-  if (!plan.data) return plan.loading ? <SystemMessage kind="loading" title={`Reading the Plan of ${sceneId}…`} compact /> : null;
+  if (!plan.data) return plan.loading ? <SystemMessage kind="loading" title={`Loading the Plan of ${sceneName(sceneId)}`} compact /> : null;
   return (
     <article className="card stack">
-      <div className="row row--tight"><span className="id">{plan.data.scene_id}</span><h3 className="card__title">{titleCase(plan.data.title)}</h3></div>
+      <div className="row row--tight"><span className="badge">{sceneName(plan.data.scene_id)}</span><h3 className="card__title">{titleCase(plan.data.title)}</h3></div>
       <p className="note">{plan.data.composition}</p>
       {plan.data.transition_in ? <p className="note">Opens With: {plan.data.transition_in}</p> : null}
       <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
@@ -45,8 +46,8 @@ function PlanCard({ sceneId }: { sceneId: string }) {
 function SceneCritique({ sceneId, kind }: { sceneId: string; kind: "plan" | "video" }) {
   const { run } = useRun();
   const critique = useRunFile<{ rounds: Round[] }>(run.summary.id, `scenes/${sceneId}/${kind}_critique.json`);
-  if (!critique.data) return <SystemMessage kind="pending" title={`No ${titleCase(kind)} Critique for ${sceneId} Yet`} compact>Critics review it once it exists.</SystemMessage>;
-  return <CritiqueRounds title={`${sceneId} · ${titleCase(kind)} Critique`} rounds={critique.data.rounds} />;
+  if (!critique.data) return <SystemMessage kind="pending" title={`No ${titleCase(kind)} Critique for ${sceneName(sceneId)} Yet`} compact>Critics review it once it exists.</SystemMessage>;
+  return <CritiqueRounds title={`${sceneName(sceneId)} · ${titleCase(kind)} Critique`} rounds={critique.data.rounds} />;
 }
 
 export function Plans(props: StageProps) {
@@ -71,10 +72,10 @@ export function Scenes(props: StageProps) {
       const built = scene.clips.filter((clip) => ["completed", "approved"].includes(clip.status)).length;
       const decision = run.awaiting.find((checkpoint) => checkpoint.target === scene.scene_id || checkpoint.target === `start:${scene.scene_id}`);
       return {
-        id: scene.scene_id, label: scene.scene_id, count: decision ? 1 : 0,
+        id: scene.scene_id, label: sceneName(scene.scene_id), count: decision ? 1 : 0,
         content: (
           <div className="scene-view">
-            <VideoPreview src={scene.preview} label={`Preview of ${scene.title}`} empty="No Preview Yet: Rendered Once Every Clip Is Built" />
+            <VideoPreview src={scene.preview} label={`Preview of ${scene.title}`} empty="No Preview Yet" emptyHint="Appears once every clip is built." />
             <div className="stack">
               <div className="row row--tight"><h3 className="card__title">{titleCase(scene.title)}</h3><StatusPill value={scene.status} /></div>
               <ProgressBar label="Clips Built" value={built} max={scene.clips.length} valueLabel={`${built} of ${scene.clips.length}`} />
@@ -101,7 +102,7 @@ export function Final(props: StageProps) {
   const { run } = useRun();
   return (
     <StageTabs {...props} label="Final Video" tabs={[
-      { id: "video", label: "Video", content: <VideoPreview src={run.final_video} label={`Final Video: ${runTitle(run.summary.topic)}`} empty="No Final Video Yet: Rendered at 2560 × 1440 Once Every Scene Is Approved" /> },
+      { id: "video", label: "Video", content: <VideoPreview src={run.final_video} label={`Final Video: ${runTitle(run.summary.topic)}`} empty="No Final Video Yet" emptyHint="Rendered at 2560 × 1440 once every scene is approved." /> },
       { id: "checks", label: "Media Checks", count: run.final_checks.length, content: !run.final_video ? <NotYet what="Media Checks" /> : run.final_checks.length ? (
         <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
           <table className="table table--compact">

@@ -1,6 +1,6 @@
-// The colour picker (saturation/brightness area, hue slider, hex field, the template's colours to start from) and the
-// gradient picker (top and bottom colour, as the video's gradient background draws them). The page around them stays
-// black and white; the colours are the user's content.
+// The color picker (saturation/brightness area, hue slider, hex field, the template's colors to start from) and the
+// gradient picker (top and bottom color, as the video's gradient background draws them). The page around them stays
+// black and white; the colors are the user's content.
 import { useState } from "react";
 import {
   ColorArea, ColorField, ColorPicker as AriaColorPicker, ColorSlider, ColorSwatch, ColorSwatchPicker,
@@ -42,7 +42,7 @@ export function ColorPicker({ label, value, onChange, swatches = [] }: {
         {swatches.length ? (
           <div className="color-picker__saved">
             <span className="field__label">From This Template</span>
-            <ColorSwatchPicker className="swatches" aria-label="Template colours">
+            <ColorSwatchPicker className="swatches" aria-label="Template colors">
               {swatches.map((swatch) => (
                 <ColorSwatchPickerItem key={swatch} color={swatch} className="swatches__item">
                   <ColorSwatch className="color-swatch color-swatch--round" />
@@ -67,16 +67,16 @@ export function GradientPicker({ value, onChange, swatches = [] }: {
     <div className="gradient-picker">
       <div className="gradient-picker__preview" style={{ background: `linear-gradient(to bottom, ${top}, ${bottom})` }}>
         <button type="button" className={`gradient-picker__stop gradient-picker__stop--top${stop === "top" ? " is-active" : ""}`}
-          style={{ background: top }} onClick={() => setStop("top")} aria-label="Edit the top colour" />
+          style={{ background: top }} onClick={() => setStop("top")} aria-label="Edit the top color" />
         <button type="button" className={`gradient-picker__stop gradient-picker__stop--bottom${stop === "bottom" ? " is-active" : ""}`}
-          style={{ background: bottom }} onClick={() => setStop("bottom")} aria-label="Edit the bottom colour" />
+          style={{ background: bottom }} onClick={() => setStop("bottom")} aria-label="Edit the bottom color" />
       </div>
       <div className="gradient-picker__stops">
         <span className="field__label">Linear, Top to Bottom</span>
-        <Button variant="tertiary" size="sm" icon={<Swap />} onPress={() => onChange(`${bottom},${top}`)} label="Swap the Colours" />
+        <Button variant="tertiary" size="sm" icon={<Swap />} onPress={() => onChange(`${bottom},${top}`)} label="Swap the Colors" />
       </div>
       <ColorPicker
-        label={stop === "top" ? "Top Colour" : "Bottom Colour"} value={stop === "top" ? top : bottom}
+        label={stop === "top" ? "Top Color" : "Bottom Color"} value={stop === "top" ? top : bottom}
         onChange={(hex) => set(stop, hex)} swatches={swatches}
       />
     </div>

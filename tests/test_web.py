@@ -406,7 +406,7 @@ def test_the_look_and_sound_tree_starts_on_defaults_saves_choices_and_custom_val
     catalogue = client.get("/api/look").json()
     elements = {element["id"]: element for element in catalogue["elements"]}
     assert len(catalogue["templates"]) == 7 and "frame" not in elements  # the delivery format is ours
-    assert elements["background_color"]["custom"] == "colour or gradient" and elements["grid_type"]["custom"] is None
+    assert elements["background_color"]["custom"] == "color or gradient" and elements["grid_type"]["custom"] is None
     assert elements["grid_type"]["previewed"] and not elements["voice"]["previewed"]
     assert {element["kind"] for element in elements.values()} == {"visual", "sound"}
     look = client.get(f"/api/runs/{run.name}/look").json()  # nothing chosen yet: the default starter

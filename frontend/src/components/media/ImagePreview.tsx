@@ -14,7 +14,7 @@ export function MediaImage({ src, alt, ratio = "16/9", fit = "contain" }: { src:
       {state !== "broken" ? (
         <img src={src} alt={alt} loading="lazy" style={{ objectFit: fit }} onLoad={() => setState("ready")} onError={() => setState("broken")} />
       ) : (
-        <span className="media__state">Image Unavailable</span>
+        <span className="media__state">No Image</span>
       )}
     </span>
   );
@@ -75,10 +75,10 @@ export function Lightbox({ isOpen, onOpenChange, src, fullSrc, alt, caption }: {
                   {fullSrc && sharp === "loading" ? (
                     <div className="lightbox__wait" role="status">
                       <span className="spinner" aria-hidden="true" />
-                      <span><strong>Rendering at 2560 × 1440…</strong><br />Thank you for your patience: the first time takes a few seconds, after that it opens at once.</span>
+                      <span><strong>Rendering at 2560 × 1440</strong><br />Thank you for your patience. The first view takes a few seconds; after that it opens at once.</span>
                     </div>
                   ) : null}
-                  {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>The full-size picture could not be rendered; this is the preview size.</span></div> : null}
+                  {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>Full size did not render. Showing the preview.</span></div> : null}
                 </div>
                 {fullSrc && sharp === "loading" ? (
                   <img className="lightbox__loader" src={fullSrc} alt="" onLoad={() => setSharp("ready")} onError={() => setSharp("failed")} />

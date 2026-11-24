@@ -5,6 +5,7 @@ import { useSession } from "../app/session";
 import { Notice } from "../components/feedback/Notice";
 import { Logo } from "../components/layout/Logo";
 import { Page } from "../components/layout/Page";
+import { QUOTES } from "../config/quotes";
 import { Button } from "../components/ui/Button";
 import { useAction } from "../hooks/useAction";
 import { load, send } from "../services/http";
@@ -27,7 +28,7 @@ export function SignInPage() {
   }, [signIn]);
 
   const proceed = () =>
-    run("Asking Claude Code which account this computer uses…", async () => {
+    run("Checking your sign-in…", async () => {
       const signed = await send<SessionView>("/api/session", null).catch((error) => {
         setCodeSignedIn(false);
         throw error;
@@ -41,15 +42,19 @@ export function SignInPage() {
       <div className="signin">
         <p className="signin__brand"><Logo height={32} /><span>Curiosity, Illustrated.</span></p>
         <h1 className="page-header__title">Sign In</h1>
-        <p className="page-header__lead">Use the Claude account your Claude Code is signed in to on this computer.</p>
+        <p className="page-header__lead">Faraday uses the Claude account already on this computer.</p>
+        <figure className="epigraph">
+          <blockquote cite={QUOTES.welcome.url}>{QUOTES.welcome.text}</blockquote>
+          <figcaption>{QUOTES.welcome.source}</figcaption>
+        </figure>
         <div className="card stack">
           <Button size="lg" onPress={proceed} isDisabled={busy}>Continue with Claude</Button>
-          <p className="note">No password is entered here: Faraday asks Claude Code which Claude account this computer uses. You stay signed in for 12 hours, or until you sign out.</p>
+          <p className="note">No password needed. You stay signed in for 12 hours.</p>
           <Notice note={note} />
         </div>
         {!codeSignedIn ? (
           <div className="card stack">
-            <h2 className="section-header__title">Claude Code Is Not Signed In Here</h2>
+            <h2 className="section-header__title">Claude Code Is Not Signed In</h2>
             <ol className="steps-list">
               <li>Open a terminal on this computer.</li>
               <li>Run <code>claude auth login</code>. It opens claude.ai so you can sign in.</li>

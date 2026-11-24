@@ -56,17 +56,17 @@ def run_summary(run: Path) -> RunSummary:
 LABELS = {
     "requirements": "Requirements",
     "template": "Template",
-    "outline": "Outline (CP0)",
-    "script": "Script (CP1)",
-    "plan": "Scene Plans (CP2)",
-    "final": "Final Video (CP4)",
+    "outline": "Outline",
+    "script": "Script",
+    "plan": "Scene Plans",
+    "final": "Final Video",
 }
 
 
 def checkpoint_label(target: str) -> str:
     if target.startswith("start:"):
-        return f"Start Scene {target.removeprefix('start:')}"
-    return LABELS.get(target, f"Scene {target} (CP3)")
+        return f"Start Scene {int(target.removeprefix('start:s'))}"
+    return LABELS.get(target, f"Scene {int(target[1:])}" if re.fullmatch(r"s\d{2}", target) else target)
 
 
 def awaiting_checkpoints(run: Path, statuses: dict, batch: ActionBatch) -> list[CheckpointView]:
@@ -92,10 +92,7 @@ def run_detail(run: Path) -> RunDetail:
     summary = run_summary(run)
     detail = RunDetail(summary=summary, final_video=media_url(run, run / "final.mp4"))
     if not summary.readable:
-        detail.problem = (
-            f"This run was {summary.stage}: only its final video can be shown. Start a new run with "
-            "`text-2-shorts new`."
-        )
+        detail.problem = "Made by an older version of Faraday: only its final video can be shown."
         return detail
     brief = load_brief(run)
     assert brief is not None  # readable runs have a valid brief

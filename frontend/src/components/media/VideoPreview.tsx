@@ -10,8 +10,8 @@ import { useFullScreen } from "./ImagePreview";
 const clock = (seconds: number) =>
   Number.isFinite(seconds) ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}` : "";
 
-export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet" }: {
-  src?: string | null; label: string; ratio?: Ratio; empty?: string;
+export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet", emptyHint }: {
+  src?: string | null; label: string; ratio?: Ratio; empty?: string; emptyHint?: string;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -29,7 +29,8 @@ export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet
     return (
       <div className="player player--empty">
         <Film />
-        <span>{empty}</span>
+        <strong className="player__empty-title">{empty}</strong>
+        {emptyHint ? <span>{emptyHint}</span> : null}
       </div>
     );
   }

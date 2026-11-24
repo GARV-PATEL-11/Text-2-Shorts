@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.25.0 — 2026-11-24
+The frontend council (design system, iconography, UX writing, cultural references, critical reviewer): every icon, word
+and state given one deliberate meaning. Decisions and rejected alternatives: `docs/DESIGN_REFERENCE.md`.
+- **Icons**: Untitled UI kept (equivalent coverage elsewhere, one stroke family); one meaning per glyph. Claude,
+  Request a Change, Console, Preview, Whole Look, Done (CheckCircle) vs a control's tick (Check), Length (stopwatch),
+  Started (calendar), Waiting for You (bell), Failed, Warning, Error, Nothing Here, Unavailable, Not Supported each have
+  their own; the generic "AI" sparkle is gone. Status pills carry their icon beside the word.
+- **One status vocabulary** (`config/status.tsx`): word, icon and chart fill per state, used by the status pills and the
+  clips chart. Failed has its own fill; "Done" is the one word for finished work.
+- **Design system**: one icon box in three sizes (24/32/40, no 28) with one halo; badges and status pills share one
+  24px recipe; button icons scale with the button; pictures r-lg (r-md inside cards); one not-allowed cursor.
+- **Words**: errors say what did not load; loading says Loading; no checkpoint codes (CP0–CP4) in labels; "Request a
+  Change" and "Open Console" everywhere; "Approve with Open Problems"; "Ready to Begin" before production; shorter
+  sign-in, reshuffle and console copy; American spelling to match the template kit; scenes named "Scene 1".
+- **Run page**: the duplicate status pill, Stages chip and Clips Built chip removed (the rail and chart carry them);
+  the approval bar steps back only while Claude asks; the clips chart sizes each bar by its clip count and lists only
+  the states present; "Claude's Next Step" with a count.
+- **Quotations**: only Michael Faraday's own words, public domain, verified word for word: the candle lecture on
+  sign-in, his 1849 journal line on an empty Home (`config/quotes.ts`). No game or film lines (unverifiable, copyright).
+- Markdown fields show a visible "Markdown" tag on their Write/Preview switch instead of a hint line.
+
+## 0.24.1 — 2026-11-24
+Each mode's colours computed, not taken as given: deep shades in dark mode, pastels in light mode.
+- `video_settings.mode_tones`: dark mode keeps backgrounds deep (lightness ≤ 0.16) and the kit's bright colours,
+  brightening only one under 3:1. Light mode turns the background into a pastel of the template's own hue (lightness
+  0.93) and each colour into the lightest, softest tone of its hue (saturation ≤ 0.6) that still reads on it: 3:1 for
+  shapes, 4.5:1 for secondary text, 7:1 for text. Before, light mode drew dark browns and navies on near-white.
+- A neutral background (Accessible Lecture's white) keeps the kit's high-contrast colours; the user's own background
+  and accent are never toned.
+- Subtitles follow the mode: the box is a deep shade in dark mode and a pale pastel in light mode, and a caption
+  colour that would not read on it (white on a pale box) becomes the look's text colour.
+- A test checks all of this for every starter in both modes. The starter pictures and the preview cache are re-rendered.
+
 ## 0.24.0 — 2026-11-24
 The Faraday logo, one journey strip, and pictures instead of paragraphs.
 - **Logo**: the brand banner as a white-on-transparent logo (`frontend/src/assets/faraday-logo.webp`) in the header,

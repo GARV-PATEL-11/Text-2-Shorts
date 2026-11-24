@@ -7,8 +7,8 @@ import { titleCase } from "../../../../components/ui/text";
 import type { LookChoice, LookElement, OptionPictures } from "../../../../types/api";
 
 const GROUP_NAMES: Record<string, string> = {
-  mode: "Mode", background: "Background", grid: "Grid", colour: "Colour", type: "Type", border: "Border",
-  narration: "Narration", subtitles: "Subtitles (Previewed Now, Burned In Later)",
+  mode: "Mode", background: "Background", grid: "Grid", color: "Colour", type: "Type", border: "Border",
+  narration: "Narration", subtitles: "Subtitles",
 };
 export const CUSTOM = "__custom__";
 
@@ -54,7 +54,7 @@ export function LookTree({ elements, choice, defaults, mode, pictures, onOpen, o
                       <summary>
                         <span className="tree__name">{titleCase(element.label)}</span>
                         <span className="tree__value">{custom || titleCase(chosen?.label ?? "")}</span>
-                        <span className={`badge${mark === "default" ? "" : " badge--solid"}`}>{titleCase(mark)}</span>
+                        {mark === "default" ? null : <span className="badge badge--solid">{titleCase(mark)}</span>}
                       </summary>
                       {open.has(element.id) ? (
                         <div className="tree__body">

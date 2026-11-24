@@ -26,10 +26,10 @@ At the root: `README.md`, `CHANGELOG.md`, `pyproject.toml` + `uv.lock` (dependen
 | `index.html`, `vite.config.ts`, `tsconfig.json`, `package.json` | React 19 + Vite + TypeScript. `npm ci && npm run build` → `dist/` (served by FastAPI); `npm run dev` → live reload on :5173, API proxied to :8765 |
 | `src/main.tsx` | Mount; imports the five stylesheets in order |
 | `src/app/` | `App.tsx` (session, frame, route table), `routes.ts` (hash routes, `navigate`, `useHashRoute`: focus and scroll on page change), `session.tsx` (account, sign-in/out, `fail`) |
+| `src/config/` | `stages.tsx` (stages, steps, names), `status.tsx` (one status vocabulary: word, icon, fill), `quotes.ts` (verified Faraday quotations), `media.ts` (aspect-ratio presets, waveform limits) — decisions in `docs/DESIGN_REFERENCE.md` |
 | `src/services/` | `http.ts` (one request core: `load`, `loadText`, `send`, `streamTurn`; `ApiError`, `SignedOut`), `runs.ts` (paths: `runPath`, `mediaUrl`, `runHash`, `starterPreview`), `log.ts` (the frontend's logging → `POST /api/logs`) |
 | `src/types/api.ts` | The API's Pydantic contracts as TypeScript types |
 | `src/hooks/` | `useApi` (cancellable, kept while reloading), `useAction` (busy + one message per write), `useRuns`, `useRunFile` |
-| `src/config/` | `stages.tsx` (the seven stages, where a run is), `media.ts` (aspect-ratio presets, waveform limits) |
 | `src/components/ui/` | `Button` + `LinkButton`, `fields` (Field, SelectField, Checkbox, Toggle, RadioCards), `Tabs`, `pickers` (colour, gradient), `icons` (Untitled UI), `text` (`titleCase`), `Markdown` (+ `plainText`, `runTitle`), `MarkdownField` in `fields` |
 | `src/components/layout/`, `navigation/` | `Shell` (one-tier header, footer, skip link), `Page`/`PageHeader`/`Section`/`SectionHeader`; `Breadcrumbs`, `ProgressSteps` (horizontal, vertical) |
 | `src/components/feedback/` | `SystemMessage` (every non-content state: 11 kinds, told apart by label, icon and border), `Notice` (persistent live regions), `ProgressBar`, `StatusPill`, `Overlay` (Modal, Drawer) |

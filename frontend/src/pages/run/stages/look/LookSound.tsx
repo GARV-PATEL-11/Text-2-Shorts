@@ -28,9 +28,9 @@ export function LookSound(props: StageProps) {
   }, [saved.data, choice]);
 
   if (catalogue.error || saved.error) {
-    return <SystemMessage kind="unavailable" title="The Look and Sound Could Not Be Read">{(catalogue.error ?? saved.error)?.message}</SystemMessage>;
+    return <SystemMessage kind="unavailable" title="The Template Did Not Load">{(catalogue.error ?? saved.error)?.message}</SystemMessage>;
   }
-  if (!catalogue.data || !choice || !saved.data) return <SystemMessage kind="loading" title="Laying Out Every Option…" />;
+  if (!catalogue.data || !choice || !saved.data) return <SystemMessage kind="loading" title="Loading Options" />;
   return <TemplateStage {...props} catalogue={catalogue.data} choice={choice} setChoice={setChoice} saved={saved.data.saved} />;
 }
 
@@ -42,7 +42,7 @@ function TemplateStage({ catalogue, choice, setChoice, saved, ...props }: StageP
   const action = useAction();
   const [audio, setAudio] = useState<string | null>(null);
   useEffect(() => setAudio(null), [choice]);  // the voice sample belongs to the choice it was made from
-  const hear = () => action.run("Synthesising a few seconds with your voice provider…", async () => {
+  const hear = () => action.run("Synthesizing a few seconds with your voice provider…", async () => {
     setAudio((await send<{ url: string }>(runPath(id, "/look/voice"), choice)).url);
     return "Voice sample ready.";
   });

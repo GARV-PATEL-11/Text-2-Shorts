@@ -48,6 +48,9 @@
   /* controls and icons */
   --h-sm: 32px; --h-md: 40px; --h-lg: 48px;
   --icon-sm: 16px; --icon-md: 20px; --icon-lg: 24px;
+  --box-sm: 24px; --box-md: 32px; --box-lg: 40px;   /* icon boxes: chips; steps, journey, compact messages; messages, Claude */
+  --h-xs: 24px;                                      /* badges and status pills */
+  --halo: 0 0 0 4px var(--veil-1);                   /* the one ring for "current" and "asks" */
 
   /* layout */
   --max: 2400px;                  /* wide enough to use the whole screen up to 2560px; text keeps --measure */

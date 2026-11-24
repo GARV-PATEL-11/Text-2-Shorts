@@ -12,7 +12,7 @@ import { Page } from "../../components/layout/Page";
 import { Breadcrumbs } from "../../components/navigation/Breadcrumbs";
 import { ProgressSteps } from "../../components/navigation/ProgressSteps";
 import { Button } from "../../components/ui/Button";
-import { Message, Terminal } from "../../components/ui/icons";
+import { RequestChange, Terminal } from "../../components/ui/icons";
 import { runTitle } from "../../components/ui/Markdown";
 import { WithCode } from "../../components/ui/text";
 import { currentStage, isFinished, REQUIRED_STEPS, STAGE_STEPS, stageStatuses, stepState } from "../../config/stages";
@@ -49,6 +49,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   const [notice, setNotice] = useState<Note | null>(null);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [ask, setAsk] = useState<Ask | null>(null);
+  const [claudeAsks, setClaudeAsks] = useState(false);  // while Claude asks, its panel leads and the approval bar steps back
   const { reload } = detail;
   const refresh = useCallback((message: string) => {
     setNotice({ text: message });
@@ -69,13 +70,13 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   if (detail.error && !run) {
     return (
       <Page title="Run">
-        <SystemMessage kind="unavailable" title="This Run Could Not Be Read" action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
+        <SystemMessage kind="unavailable" title="This Run Did Not Load" action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
           {detail.error.message}
         </SystemMessage>
       </Page>
     );
   }
-  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run…">Reading its stages, scenes and checkpoints.</SystemMessage></Page>;
+  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" /></Page>;
 
   const finished = isFinished(run.summary);
   const list = finished ? { label: "Previous Runs", href: "#/previous" } : { label: "Ongoing Runs", href: "#/ongoing" };
@@ -97,8 +98,8 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
                 steps={STAGE_STEPS.map((candidate) => ({ ...candidate, state: stepState(run, candidate.id) }))} />
             )}
             <div className="run__actions">
-              <Button variant="secondary" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Console</Button>
-              <Button variant="secondary" icon={<Message />} onPress={() => setAsk({ target: open, checkpoint: null })}>Ask for a Change</Button>
+              <Button variant="secondary" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
+              <Button variant="secondary" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>
             </div>
           </aside>
           <div className="run__main">
@@ -109,24 +110,24 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             </header>
             <Notice note={notice} />
             {detail.error ? (
-              <SystemMessage kind="offline" title="The Latest State of This Run Could Not Be Read" compact
+              <SystemMessage kind="offline" title="Not Up to Date" compact
                 action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
                 {detail.error.message} What you see may be out of date.
               </SystemMessage>
             ) : null}
-            {run.problem ? null : <ClaudePanel onOpenConsole={() => setConsoleOpen(true)} />}
+            {run.problem ? null : <ClaudePanel onOpenConsole={() => setConsoleOpen(true)} onAsking={setClaudeAsks} />}
             {run.problem ? (
               <SystemMessage kind="unsupported" title="This Run Was Made by an Older Version"><WithCode text={run.problem} /></SystemMessage>
             ) : (
               <section className="stage" aria-labelledby="stage-title">
                 <div className="stage__head">
                   <h2 className="stage__title" id="stage-title" tabIndex={-1} ref={heading}>{step.label}</h2>
-                  {step.optional ? <span className="badge">Optional</span> : <StatusPill value={statuses[open] ?? "pending"} />}
+                  {step.optional ? <span className="badge">Optional</span> : waitingIn ? null : <StatusPill value={statuses[open] ?? "pending"} />}
                 </div>
                 {waitingIn && tab !== waitingIn ? (
-                  <div className="approval-bar" role="status">
+                  <div className={`approval-bar${claudeAsks ? " approval-bar--quiet" : ""}`} role="status">
                     <span><strong>{step.label}</strong> is waiting for your decision.</span>
-                    <Button size="sm" onPress={() => navigate(runHash(id, open, waitingIn))}>Review and Decide</Button>
+                    <Button size="sm" variant={claudeAsks ? "secondary" : "primary"} onPress={() => navigate(runHash(id, open, waitingIn))}>Review and Decide</Button>
                   </div>
                 ) : null}
                 <NextUp stage={open} />
@@ -136,7 +137,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
           </div>
         </div>
         <Drawer isOpen={consoleOpen} onOpenChange={setConsoleOpen} title="Console"
-          description="Talk to the run's Claude Code session. Every message is one turn; Claude stops when it needs you.">
+          description="Every message you send here, and everything Claude does in reply.">
           <Console />
         </Drawer>
         <ChangeModal ask={ask} onClose={() => setAsk(null)} />

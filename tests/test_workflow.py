@@ -935,3 +935,30 @@ def test_runtime_commands_log_into_the_run_and_never_to_stderr(tmp_path, capsys)
     for handler in list(logging.getLogger().handlers):
         if getattr(handler, "_faraday", False):
             logging.getLogger().removeHandler(handler)
+
+
+def test_dark_mode_is_deep_and_light_mode_is_pastel_and_everything_stays_readable():
+    import video_settings as v
+
+    for name in v.starter_names():
+        for mode in ("dark", "light"):
+            template = v.starter(name)
+            template["elements"] |= {"theme_mode": mode, "subtitles": "on"}
+            look, drawing = v.resolve(template), v.drawing(template)
+            ground, roles = look["background"]["base"], look["roles"]
+            _, lightness, saturation = v.hls(ground)
+            if mode == "dark":
+                assert lightness <= 0.16, (name, ground)  # a deep shade
+            elif saturation >= v.NEUTRAL:
+                assert lightness >= 0.9, (name, ground)  # a pale pastel of the template's own hue
+                assert all(v.hls(roles[role])[2] <= 0.6 + 1e-6 for role in v.GRAPHIC_ROLES if role in roles)  # soft
+            assert v.contrast(roles["text"], ground) >= 7, (name, mode)
+            assert all(v.contrast(roles[role], ground) >= 3 for role in v.GRAPHIC_ROLES if role in roles), (name, mode)
+            subtitles = drawing["subtitles"]
+            box = subtitles["style"].get("box")
+            behind = box["color"] if box and box.get("opacity", 1) >= 0.6 else ground
+            assert v.contrast(subtitles["text_color"], behind) >= 4.5, (name, mode)
+    own = v.starter("standard")
+    own["elements"]["theme_mode"] = "light"
+    own["overrides"] = {"accent_color": v.custom_override("accent_color", "#123456", "light")}
+    assert v.resolve(own)["roles"]["accent"] == "#123456"  # the user's own colour is never toned

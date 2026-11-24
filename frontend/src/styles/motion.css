@@ -29,11 +29,12 @@
 .overlay--drawer[data-exiting] { animation-duration: var(--motion-normal); }  /* the backdrop waits for the slide */
 
 /* waiting */
-.spinner { animation: turn 800ms linear infinite; }
+.spinner, .icon-spin { animation: turn 800ms linear infinite; }
 .media--loading, .media--rendering, .audio__skeleton { animation: pulse 1.6s var(--ease-standard) infinite; }
 .progress--indeterminate .progress__fill { animation: sweep 1.2s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; border-top-color: var(--mute); }
+  .icon-spin { animation: none; }
   .media--loading, .media--rendering, .audio__skeleton, .progress--indeterminate .progress__fill { animation: none; }
 }

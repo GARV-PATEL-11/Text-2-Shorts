@@ -15,9 +15,9 @@ export const STAGE_STEPS: StageStep[] = [
   { id: "outline", label: "Outline", hint: "The Story", icon: <Outline />, checkpoint: "outline", batch: ["2 outline"] },
   { id: "script", label: "Script", hint: "Every Word", icon: <Script />, checkpoint: "script", batch: ["3 script"] },
   { id: "plan", label: "Scene Plans", hint: "What Is Shown", icon: <Storyboard />, checkpoint: "plan", batch: ["4 plans"] },
-  { id: "scenes", label: "Scenes", hint: "Built One by One", icon: <Clapperboard />, checkpoint: "", batch: ["5 production"] },
-  { id: "final", label: "Final Video", hint: "2560 × 1440, Checked", icon: <FinalVideo />, checkpoint: "final", batch: ["final", "done"] },
-  { id: "reshuffle", label: "Reshuffle", hint: "Optional · Same Seed, Same Look", icon: <Shuffle />, checkpoint: "", batch: [], optional: true },
+  { id: "scenes", label: "Scenes", hint: "One by One", icon: <Clapperboard />, checkpoint: "", batch: ["5 production"] },
+  { id: "final", label: "Final Video", hint: "1440p", icon: <FinalVideo />, checkpoint: "final", batch: ["final", "done"] },
+  { id: "reshuffle", label: "Reshuffle", hint: "Optional", icon: <Shuffle />, checkpoint: "", batch: [], optional: true },
 ];
 /** The stages every run must pass (the progress counts these). */
 export const REQUIRED_STEPS = STAGE_STEPS.filter((step) => !step.optional);
@@ -60,7 +60,7 @@ export function batchStage(run: RunDetail): string | null {
 
 const BATCH_NAMES: Record<string, string> = {
   "1 template": "Template", "1 requirements": "Requirements", "2 outline": "Outline", "3 script": "Script",
-  "4 plans": "Scene Plans", "5 production": "Making the Scenes", final: "Final Video",
+  "4 plans": "Scene Plans", "5 production": "Scenes", final: "Final Video",
   "change requests": "Applying Your Changes", done: "Done",
 };
 /** The workflow's stage of a batch ("3 script"), in plain words. */

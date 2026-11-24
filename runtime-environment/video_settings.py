@@ -9,6 +9,7 @@ drafts 1280×720 at 30 fps, final 2560×1440 at 120 fps — the template's `fram
 
 from __future__ import annotations
 
+import colorsys
 import copy
 import json
 import random
@@ -33,8 +34,8 @@ ROLES = ("text", "focus", "given", "derived", "warning", "secondary", "accent", 
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 # The elements a user may set to their own value, and what the value is: it becomes an override of the variant.
 CUSTOM = {
-    "background_color": "colour or gradient",  # one colour, or "base,shade": the gradient's top and bottom
-    "accent_color": "colour",
+    "background_color": "color or gradient",  # one color, or "base,shade": the gradient's top and bottom
+    "accent_color": "color",
     "text_font": "font family",
     "voice": "Polly voice id or Google voice name",
     "speaking_speed": "rate 0.8–1.2",
@@ -118,7 +119,7 @@ def problems(template: dict) -> list[str]:
     for name, override in template.get("overrides", {}).items():
         if name not in CUSTOM:
             errors.append(f"{name}: no custom value allowed (custom: {', '.join(CUSTOM)})")
-        elif CUSTOM[name].startswith("colour") and not all(
+        elif CUSTOM[name].startswith("color") and not all(
             HEX.match(colour) for part in override.values() for colour in part.values()
         ):
             errors.append(f"{name}: a custom colour is #RRGGBB")
@@ -135,17 +136,82 @@ def problems(template: dict) -> list[str]:
     return errors
 
 
+# Each mode's colours are computed, not eyeballed. Dark mode: deep backgrounds (lightness ≤ 0.16), colours at least
+# 3:1 on them. Light mode: pastel backgrounds (the template's hue at lightness 0.93) and each colour the lightest, softest
+# tone of its hue that still reads on them (3:1 for shapes, 4.5:1 for secondary text, 7:1 for text). A neutral
+# background (no hue: Accessible Lecture's white) stays as the kit made it, colours and all, since its high contrast is
+# the point; the user's own colours are never changed.
+GRAPHIC_ROLES = ("focus", "given", "derived", "warning", "accent", "outline")
+NEUTRAL = 0.06  # saturation below which a colour has no hue to tint with
+
+
+def hls(colour: str) -> tuple[float, float, float]:
+    return colorsys.rgb_to_hls(*(int(colour[i : i + 2], 16) / 255 for i in (1, 3, 5)))
+
+
+def from_hls(hue: float, lightness: float, saturation: float) -> str:
+    red, green, blue = colorsys.hls_to_rgb(hue, min(max(lightness, 0.0), 1.0), saturation)
+    return "#{:02X}{:02X}{:02X}".format(*(round(channel * 255) for channel in (red, green, blue)))
+
+
+def readable(colour: str, ground: str, ratio: float, lightest: bool, max_saturation: float = 1.0) -> str:
+    """The colour's hue at the lightest (or, on a dark ground, the softest) lightness that keeps `ratio` on the ground;
+    the colour itself when no lightness of its hue does."""
+    hue, _, saturation = hls(colour)
+    saturation = saturation if saturation < NEUTRAL else min(saturation, max_saturation)
+    steps = [step / 100 for step in range(95, 4, -1)]  # from light to dark
+    for candidate in steps if lightest else reversed(steps):
+        tone = from_hls(hue, candidate, saturation)
+        if contrast(tone, ground) >= ratio:
+            return tone
+    return colour
+
+
+def mode_tones(background: dict, roles: dict, mode: str) -> tuple[dict, dict]:
+    """The kit's background and roles, toned for the mode (see above)."""
+    hue, lightness, saturation = hls(background["base"])
+    if mode == "light" and saturation >= NEUTRAL:
+        tint = min(max(saturation, 0.45), 0.7)
+        background = {**background, "base": from_hls(hue, 0.93, tint), "shade": from_hls(hue, 0.87, tint),
+                      "glow": from_hls(hue, 0.97, tint)}  # fmt: skip
+    elif mode == "dark" and lightness > 0.16:
+        shade_hue, _, shade_saturation = hls(background["shade"])
+        background = {
+            **background,
+            "base": from_hls(hue, 0.14, saturation),
+            "shade": from_hls(shade_hue, 0.09, shade_saturation),
+        }
+    if mode == "light" and saturation < NEUTRAL:
+        return background, roles
+    ground, light = background["base"], mode == "light"
+    toned = dict(roles)
+    for (
+        role
+    ) in GRAPHIC_ROLES:  # light: always the pastel-most readable tone; dark: the kit's own, brightened only if dim
+        if role in toned and (light or contrast(toned[role], ground) < 3.0):
+            toned[role] = readable(toned[role], ground, 3.0, lightest=light, max_saturation=0.6 if light else 1.0)
+    for role, ratio in (("secondary", 4.5), ("text", 7.0)):
+        if role in toned and contrast(toned[role], ground) < ratio:
+            toned[role] = readable(toned[role], ground, ratio, lightest=light)
+    return background, toned
+
+
 def resolve(template: dict) -> dict:
-    """Every element's full settings for the chosen variant (overrides merged), plus the mode's colours."""
-    lib = library()
-    look = {
-        name: merge(lib[name]["variants"][template["elements"][name]], template.get("overrides", {}).get(name, {}))
-        for name in ELEMENTS
-    }
+    """Every element's full settings for the chosen variant (overrides merged), plus the mode's colours: the kit's
+    toned for the mode (mode_tones), then the user's own background and accent exactly as given."""
+    lib, overrides = library(), template.get("overrides", {})
+    variants = {name: lib[name]["variants"][template["elements"][name]] for name in ELEMENTS}
+    look = {name: merge(variant, overrides.get(name, {})) for name, variant in variants.items()}
     mode = look["theme_mode"]["id"]
-    roles = {**look["primary_palette"][mode], **look["secondary_palette"][mode], **look["accent_color"][mode]}
-    return {**look, "name": template.get("name", ""), "mode": mode, "background": look["background_color"][mode],
-            "roles": roles}  # fmt: skip
+    roles = {
+        **variants["primary_palette"][mode],
+        **variants["secondary_palette"][mode],
+        **variants["accent_color"][mode],
+    }
+    background, roles = mode_tones(variants["background_color"][mode], roles, mode)
+    background = {**background, **overrides.get("background_color", {}).get(mode, {})}
+    roles = {**roles, **overrides.get("accent_color", {}).get(mode, {})}
+    return {**look, "name": template.get("name", ""), "mode": mode, "background": background, "roles": roles}
 
 
 def luminance(colour: str) -> float:
@@ -210,8 +276,12 @@ def settings(template: dict) -> dict:
     }
 
 
-def mode_roles(look: dict, mode: str) -> dict:
-    return {**look["primary_palette"][mode], **look["secondary_palette"][mode], **look["accent_color"][mode]}
+def subtitle_text(style: dict, background: dict, roles: dict) -> str:
+    """The subtitle style's own text colour when it reads (4.5:1) on what is behind it (its box, or the background),
+    else the look's text colour: a white caption never ends up on a pale box."""
+    behind = style["box"]["color"] if style.get("box") and style["box"].get("opacity", 1) >= 0.6 else background["base"]
+    wanted = style["text_color"]
+    return wanted if wanted != "auto" and contrast(wanted, behind) >= 4.5 else roles["text"]
 
 
 def drawing(template: dict) -> dict:
@@ -220,9 +290,12 @@ def drawing(template: dict) -> dict:
     mode, background, roles = look["mode"], look["background"], look["roles"]
     grid_colour = look["grid_color"]
     border_role = look["border_color"]["role"]
-    style = look["subtitle_style"]
-    box = style.get("box")
-    behind = ("dark" if luminance(box["color"]) < 0.18 else "light") if box and box["opacity"] >= 0.6 else mode
+    style = dict(look["subtitle_style"])
+    if style.get("box"):  # the box follows the mode: a deep shade in dark mode, a pale pastel in light mode
+        style["box"] = {
+            **style["box"],
+            "color": background["shade"] if mode == "dark" else background.get("glow", "#FFFFFF"),
+        }
     return {
         "mode": mode,
         "background": {**background, **{k: look["background_type"][k] for k in ("fill", "grid", "texture")}},
@@ -252,8 +325,8 @@ def drawing(template: dict) -> dict:
             "style": style,
             "position": look["caption_position"],
             "highlight": look["word_highlighting"],
-            "text_color": mode_roles(look, behind)["text"] if style["text_color"] == "auto" else style["text_color"],
-            "highlight_color": mode_roles(look, behind)[style.get("highlight_role", "focus")],
+            "text_color": subtitle_text(style, background, roles),
+            "highlight_color": roles[style.get("highlight_role", "focus")],
         },
     }
 

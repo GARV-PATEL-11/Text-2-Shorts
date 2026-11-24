@@ -8,6 +8,7 @@ import { Plus } from "../components/ui/icons";
 import { runTitle } from "../components/ui/Markdown";
 import { REQUIRED_STEPS, STAGE_STEPS, stageName } from "../config/stages";
 import { useRuns } from "../hooks/useRuns";
+import { QUOTES } from "../config/quotes";
 import { runHash } from "../services/runs";
 
 export function HomePage() {
@@ -31,12 +32,13 @@ export function HomePage() {
             {runs.data ? <span className="note">{runs.ongoing.length} Ongoing · {runs.finished.length} Finished</span> : null}
           </div>
           {runs.error ? (
-            <SystemMessage kind="unavailable" title="Your Runs Could Not Be Read" compact>{runs.error.message}</SystemMessage>
+            <SystemMessage kind="unavailable" title="Your Runs Did Not Load" compact>{runs.error.message}</SystemMessage>
           ) : !runs.data ? (
-            <SystemMessage kind="loading" title="Reading Your Runs…" compact />
+            <SystemMessage kind="loading" title="Loading Your Runs" compact />
           ) : !runs.ongoing.length ? (
             <SystemMessage kind="empty" title="Nothing in Progress" compact action={<LinkButton href="#/new" size="sm">Start a Run</LinkButton>}>
-              Describe what a video should explain, and Faraday sets the run up.
+              <q className="quote" cite={QUOTES.wonder.url}>{QUOTES.wonder.text}</q>
+              <span className="quote__source">{QUOTES.wonder.source}</span>
             </SystemMessage>
           ) : (
             <ul className="run-cards">

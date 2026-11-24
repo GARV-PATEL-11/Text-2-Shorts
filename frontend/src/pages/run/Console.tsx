@@ -28,8 +28,8 @@ export function Console() {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [lines]);
 
-  if (view.error) return <SystemMessage kind="unavailable" title="The Console Could Not Be Opened">{view.error.message}</SystemMessage>;
-  if (!view.data) return <SystemMessage kind="loading" title="Connecting to the Run's Session…" />;
+  if (view.error) return <SystemMessage kind="unavailable" title="The Console Did Not Load">{view.error.message}</SystemMessage>;
+  if (!view.data) return <SystemMessage kind="loading" title="Connecting" />;
   const kickoff = view.data.kickoff;
   const started = lines.length > 0;
   const busy = turn.busy || view.data.busy;
@@ -39,7 +39,7 @@ export function Console() {
     const message = text.trim() || (started ? "" : kickoff);
     if (!message) return;
     setText("");
-    void turn.run("Claude is working. Replies appear as they come; long steps (renders, voice) can take minutes.", async () => {
+    void turn.run("Claude is working. Renders and voice can take minutes.", async () => {
       await streamTurn(runPath(id, "/console"), message, (entry) => setLines((current) => [...current, entry]));
       refresh("Claude finished its turn.");
     });
@@ -72,7 +72,7 @@ export function Console() {
       </form>
       <p className="term__keys" id="console-keys">Enter sends · Shift+Enter starts a new line</p>
       <div className="term__status">
-        {view.data.busy && !turn.busy ? <p className="note">Claude is still working on an earlier message; close and reopen to see its replies.</p> : null}
+        {view.data.busy && !turn.busy ? <p className="note">Claude is still replying. Reopen to see more.</p> : null}
         <Notice note={turn.note} />
       </div>
     </div>

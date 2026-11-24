@@ -1,4 +1,4 @@
-// The user's own value for an element: a colour (picker), a colour or gradient (background), or text (font, voice,
+// The user's own value for an element: a color (picker), a color or gradient (background), or text (font, voice,
 // speaking rate), in a modal.
 import { useEffect, useState } from "react";
 import { Modal } from "../../../../components/feedback/Overlay";
@@ -20,10 +20,10 @@ export function CustomEditor({ element, value, onApply, onClose }: {
     setKind(value.includes(",") ? "gradient" : "solid");
   }, [value, element]);
   if (!element) return null;
-  const colour = element.custom?.startsWith("colour");
+  const color = element.custom?.startsWith("color");
   const solid = <ColorPicker label={titleCase(element.label)} value={draft.split(",")[0] || "#ffffff"} onChange={setDraft} />;
   let editor = solid;
-  if (element.custom === "colour or gradient") {
+  if (element.custom === "color or gradient") {
     editor = (
       <Tabs label="Colour or Gradient" selected={kind}
         onChange={(next) => {
@@ -36,7 +36,7 @@ export function CustomEditor({ element, value, onApply, onClose }: {
           { id: "gradient", label: "Gradient", content: <GradientPicker value={draft} onChange={setDraft} /> },
         ]} />
     );
-  } else if (!colour) {
+  } else if (!color) {
     editor = <Field label={titleCase(element.label)} value={draft} onChange={setDraft} hint={element.custom ?? ""}
       type={element.id === "speaking_speed" ? "number" : "text"} min={0.8} max={1.2} step={0.05} />;
   }

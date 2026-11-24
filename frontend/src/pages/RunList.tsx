@@ -20,17 +20,17 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
   const shown = wanted.filter((run) => run.topic.toLowerCase().includes(query.trim().toLowerCase()));
 
   let body;
-  if (runs.error) body = <SystemMessage kind="unavailable" title="The Runs Could Not Be Read" action={<Button variant="secondary" size="sm" onPress={runs.reload}>Try Again</Button>}>{runs.error.message}</SystemMessage>;
-  else if (!runs.data) body = <SystemMessage kind="loading" title="Reading Your Runs…" />;
+  if (runs.error) body = <SystemMessage kind="unavailable" title="Your Runs Did Not Load" action={<Button variant="secondary" size="sm" onPress={runs.reload}>Try Again</Button>}>{runs.error.message}</SystemMessage>;
+  else if (!runs.data) body = <SystemMessage kind="loading" title="Loading Your Runs" />;
   else if (!shown.length) {
     body = query ? (
-      <SystemMessage kind="empty" title="No Run Matches" action={<Button variant="secondary" size="sm" onPress={() => setQuery("")}>Clear Search</Button>}>
+      <SystemMessage kind="empty" title="No Matches" action={<Button variant="secondary" size="sm" onPress={() => setQuery("")}>Clear Search</Button>}>
         Nothing in {title.toLowerCase()} mentions “{query}”.
       </SystemMessage>
     ) : (
       <SystemMessage kind="empty" title={which === "ongoing" ? "Nothing in Progress" : "No Finished Run Yet"}
         action={<LinkButton href="#/new" size="sm" icon={<Plus />}>Start a Run</LinkButton>}>
-        {which === "ongoing" ? "Start one: describe what the video should explain." : "A run lands here once its final video is approved."}
+        {which === "ongoing" ? "No runs yet. Ask your first question." : "A run lands here once its final video is approved."}
       </SystemMessage>
     );
   } else {

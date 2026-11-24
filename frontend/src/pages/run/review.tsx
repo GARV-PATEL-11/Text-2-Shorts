@@ -3,7 +3,7 @@ import { useState } from "react";
 import { SystemMessage } from "../../components/feedback/SystemMessage";
 import { Section } from "../../components/layout/Page";
 import { Button } from "../../components/ui/Button";
-import { ChevronDown, Message } from "../../components/ui/icons";
+import { ChevronDown, RequestChange } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
 import { titleCase, WithCode } from "../../components/ui/text";
 import { batchStage } from "../../config/stages";
@@ -17,7 +17,7 @@ export function NextUp({ stage }: { stage: string }) {
   return (
     <div className="disclosure">
       <button type="button" className="disclosure__toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <ChevronDown /> What Claude Does Next ({run.next.actions.length}), When You Message It in the Console
+        <ChevronDown /> Claude's Next Step <span className="badge badge--count">{run.next.actions.length}</span>
       </button>
       {open ? (
         <ul className="disclosure__body next-list">
@@ -39,7 +39,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
   const requests = run.requests.filter((request) => targets(request.target));
   return (
     <Section title="Change Requests" description="What you asked to change here, and where each stands."
-      actions={<Button size="sm" icon={<Message />} onPress={() => ask({ target: defaultTarget, checkpoint: null })}>Ask for a Change</Button>}>
+      actions={<Button size="sm" icon={<RequestChange />} onPress={() => ask({ target: defaultTarget, checkpoint: null })}>Request a Change</Button>}>
       {requests.length ? (
         <ul className="list">
           {requests.map((request) => (
@@ -49,7 +49,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
             </li>
           ))}
         </ul>
-      ) : <SystemMessage kind="empty" title="No Change Requests" compact>Ask for one whenever something should be different.</SystemMessage>}
+      ) : <SystemMessage kind="empty" title="No Changes Requested" compact>Request one whenever something should differ.</SystemMessage>}
     </Section>
   );
 }
