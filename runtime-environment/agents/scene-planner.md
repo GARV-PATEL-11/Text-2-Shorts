@@ -15,7 +15,8 @@ READ (paths from the session), and nothing else:
   requirements, depends_on) and its outline segment's `visual_plan` in `outline.json`;
 - the other scenes' titles and objectives; the earlier plans' `color_roles` (SYMBOL COLORS SO FAR) and the previous
   plan's last clip (PREVIOUS SCENE FINAL IMAGE);
-- `template.json` (type scale, animation style, density, composition, pacing) and `preferences.json` if present;
+- `template.json` (its colour roles, font and text sizes; layout, motion and density are yours) and
+  `preferences.json` if present;
 - the scene's open change requests (`text-2-shorts status .`) and, when refactoring, the last round of
   `scenes/sNN/plan_critique.json` with `references/critique-protocol.md` (§5: how to act on a critique round).
 Look up every Manim name with `text-2-shorts doc Name1,Name2 [--topics card-name]` — never from memory.

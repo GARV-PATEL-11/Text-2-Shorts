@@ -5,9 +5,8 @@ Environment variables (read once, after loading the repository's .env):
   TEXT_2_SHORTS_FPS        final frame rate, 60–120 (default 120)
   TEXT_2_SHORTS_PARALLEL   scenes rendered at once by `final` (default 4)
   TEXT_2_SHORTS_TTS        default narration provider for `new`: polly | google
-  POLLY_ENGINE, POLLY_VOICE, GOOGLE_VOICE   default voice settings for `new`
-Per-run choices (palette, font, voice rate, quality threshold, template) live in the run's preferences.json and
-template.json, not here.
+Per-run choices live in the run's template.json (look and sound: runtime-environment/video_settings.py and
+audio_settings.py) and preferences.json (tone, pauses, quality threshold), not here.
 """
 
 from __future__ import annotations
@@ -28,7 +27,6 @@ RUNS_DIRECTORY = REPOSITORY_ROOT / "artifacts" / "runs"  # one workspace per vid
 SCHEMAS_DIRECTORY = BACKEND_DIRECTORY / "schemas"  # read by the run session (--add-dir)
 TOOLS_DIRECTORY = BACKEND_DIRECTORY / "tools"  # standalone scripts, also run inside the render jail
 CLIP_GATES_PATH = TOOLS_DIRECTORY / "clip_gates.py"  # the ./check gates of one clip
-TEMPLATES_DIRECTORY = RUN_ENVIRONMENT / "templates"  # starter video templates
 CLIP_BUILDER_AGENT_PATH = RUN_ENVIRONMENT / "agents" / "clip-builder.md"
 REFERENCES_DIRECTORY = RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "references"
 STANDARDS_PATH = REFERENCES_DIRECTORY / "standards.md"
@@ -54,21 +52,9 @@ REVIEW_AND_AUDIO_MODEL = "claude-sonnet-5-5"
 EFFORT = "medium"
 
 # ── Narration defaults for `text-2-shorts new` ───────────────────────────────────────────────────────────────────
-DEFAULT_TTS = os.environ.get("TEXT_2_SHORTS_TTS", "polly")
-DEFAULT_POLLY_ENGINE = os.environ.get("POLLY_ENGINE", "neural")
-DEFAULT_POLLY_VOICE = os.environ.get("POLLY_VOICE", "Matthew")
-DEFAULT_GOOGLE_VOICE = os.environ.get("GOOGLE_VOICE", "en-US-Neural2-D")
+DEFAULT_TTS = os.environ.get("TEXT_2_SHORTS_TTS", "polly")  # the provider; the voice itself is the template's
 
-# ── Video style and timing ───────────────────────────────────────────────────────────────────────────────────────
-VIDEO_STYLE = {  # the standard look; preferences.json, then template.json, override it
-    "background": "#0e2733",
-    "text": "WHITE",
-    "focus": "YELLOW",
-    "given": "BLUE",
-    "derived": "GREEN",
-    "warning": "RED",
-    "secondary": "GREY_B",
-}
+# ── Timing ───────────────────────────────────────────────────────────────────────────────────────────────────────
 VOICE_LEAD_IN_SECONDS, END_HOLD_SECONDS = 0.3, 0.8  # picture before the voice starts / after it ends, every clip
 WORD_BUDGET_TOLERANCE = 0.25  # spoken words per scene vs duration_seconds × target_wpm / 60
 SYNC_TOLERANCE_SECONDS = 0.35  # spoken vs shown time of a beat

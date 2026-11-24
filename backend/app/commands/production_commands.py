@@ -28,14 +28,13 @@ from app.workflow.production import (
     sync_report,
     voice_key,
 )
-from app.workflow.templates import load_template
+from app.workflow.templates import load_template, look, sound
 
 
 def handle_voice_command(arguments) -> None:
     run = Path(arguments.run)
     require_approval(run, "plan")
-    brief = load_brief(run)
-    if brief is None:
+    if load_brief(run) is None:
         sys.exit("brief.json is missing or invalid: `text-2-shorts validate . brief`")
     synthesize_clip = None
     plans = load_scene_plans(run)
@@ -52,7 +51,7 @@ def handle_voice_command(arguments) -> None:
             audio_path = audio_directory / f"clip_{clip.index:02d}.mp3"
             if clip.clip_id in audio_index and audio_index[clip.clip_id].hash == voice_hash and audio_path.exists():
                 continue  # unchanged SSML → keep the audio
-            synthesize_clip = synthesize_clip or narration.create_speech_synthesizer(brief)
+            synthesize_clip = synthesize_clip or narration.create_speech_synthesizer(sound(run))
             audio, marks = synthesize_clip(text)
             audio_path.write_bytes(audio)
             audio_index[clip.clip_id] = ClipAudio(
@@ -99,7 +98,7 @@ def handle_final_command(arguments) -> None:
     manifest = AssemblyManifest(scenes=[scene_manifest(run, plan, scene_renders[plan.scene_id]) for plan in plans])
     if template := load_template(run):  # scene transitions and the user's music, as the template specifies
         manifest.transition = SceneTransition(
-            style=template.scene_transition, seconds=template.transition_seconds, color=template.background
+            style=template.scene_transition, seconds=template.transition_seconds, color=look(run)["background"]
         )
         if template.music:
             manifest.music = BackgroundMusic(file=str(run / template.music), volume_db=template.music_volume_db)

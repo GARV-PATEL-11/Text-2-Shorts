@@ -1,5 +1,140 @@
 # Changelog
 
+## 0.24.0 — 2026-11-24
+The Faraday logo, one journey strip, and pictures instead of paragraphs.
+- **Logo**: the brand banner as a white-on-transparent logo (`frontend/src/assets/faraday-logo.webp`) in the header,
+  footer and sign-in page; its F mark is the browser tab icon (`faraday-mark.png`).
+- **Journey** (`components/navigation/Journey.tsx`): Start a Run loses its heading and paragraph; one compact strip
+  shows every stage of a run, and under it the current stage's steps, numbered, taken one after another (template:
+  Starter Templates → Build Your Own → Sound → Whole Look; requirements: The Question → Audience & Length → Review).
+- **A run at a glance** (`pages/run/Overview.tsx`): under the run's title, lookup chips (stages, approach, length,
+  scenes, clips built, waiting for you, open requests, started) and a clips-per-scene stacked bar chart (built, in
+  progress, needs you, not started: solid, grey, hatched, outline; a legend and a tooltip on every segment).
+- Less text: section descriptions on the template steps and Home cut to short labels.
+- **Old previews deleted**: the 210 option pictures drawn on the Standard template (`previews/dark`, `previews/light`),
+  their routes (`/previews/{mode}/…`, `/previews/full/{mode}/…`, `POST /api/look/preview`) and the `all`/`one`
+  commands. `generate_preview.py warm` pre-renders every option of every element in every starter's look, in both
+  modes, at 854×480 and 2560×1440, into the cache the website reads (same names, so they open at once).
+
+## 0.23.1 — 2026-11-24
+Previews true to the look, and full screen in 80% of the window.
+- **True colours**: every option in Build Your Own is drawn in the user's own look (their starter, every element they
+  changed, their custom values), with only that element changed (`POST /api/look/options`,
+  `generate_preview.option_in_look`); before, every option was drawn on the Standard template. Only what would hide
+  the element is turned on (a grid to see grid colours, a border to see its colour, subtitles to see their style).
+- **Exact pixels**: previews are saved as lossless WebP; lossy WebP had shifted saturated colours (`#FC6255` came out
+  `#FD6257`). The starter pictures are re-rendered. A test checks a custom background to the exact value.
+- **Full screen**: the picture takes 80% of the window; the rest is frosted glass over the page. While the 2560×1440
+  render is made (the first time an option is opened, `GET /previews/custom/<name>` renders it from its recipe), the
+  preview shows softened under a note that thanks you for your patience; cards say "Rendering in Your Look…".
+
+## 0.23.0 — 2026-11-24
+Logging everywhere, Start a Run from the template, Claude's questions on every stage, Markdown, the full width.
+- **Logging** (`runtime-environment/faraday_logging.py`): one format for backend (`artifacts/logs/backend.log`: every
+  request, refusal, run created, template saved, approval, reshuffle, console turn), frontend (`services/log.ts` →
+  `POST /api/logs` → `frontend.log`: uncaught errors, React crashes, failed requests, actions, pages) and runtime
+  (each run's `logs/runtime.log`: commands the session calls and why they stopped, hook events; preview renders).
+  Runtime logging never writes to stderr (it would reach Claude's context). Level and folder from the environment.
+- **Start a Run starts with the template**: step 1 is the starter gallery and Build Your Own (shared with the Template
+  stage as `useTemplateEditor`); starting saves and approves it (`NewRunInput.look`, checked before anything is made),
+  so the run opens at the requirements. Approving a stage moves the page to the next one. `POST /api/look/still`
+  renders the whole look without a run.
+- **Claude on every stage** (`ClaudePanel`): Claude's last message (Markdown), its questions with one-click answers
+  (AskUserQuestion is captured as `question` console entries with `options`), a reply box, and Start Production before
+  the first turn. The session is told its last message shows there.
+- **Markdown** in and out: Write/Preview fields for the question, change requests, checkpoint notes and replies;
+  rendered for Claude's messages, the console, topics.md, content.md, the brief, change requests and notes
+  (`react-markdown` + `remark-gfm`; raw HTML never rendered). Run titles are their question as one Title Case line.
+- **Width**: the page uses up to 2400px (was 1440px), with a wider gutter; reading text keeps its measure.
+- **Title Case**: remaining labels (run titles, counts, checkpoint labels from the API, summary values).
+
+## 0.22.0 — 2026-11-24
+Template first, an optional deterministic reshuffle last, full screen at the delivery size, Title Case, Untitled UI icons.
+- **Stage order**: Template (look and sound) is the first stage, before the requirements. The driver hands it out
+  first; requirements cannot be approved before the template (`approvals.py`, `validation.validate_outline`).
+- **Reshuffle** (optional, after the final video): `video_settings.reshuffle(template, seed, groups)` picks new
+  variants for colours, fonts, background, grid or border from the seed alone (same seed, same look; never sizes, so
+  layouts hold; unreadable picks skipped). `workflow/reshuffle.py` applies it without Claude: each role's hex and the
+  font family are swapped in the built clips, the clips are re-keyed (still built), the template is approved, and the
+  previous `final.mp4` moves to `versions/`. `POST /api/runs/{run}/reshuffle` shows it (`apply: false`) or applies it.
+- **Full screen**: a lightbox on the same page that fills the window, sharpens to a 2560×1440 render
+  (`/previews/full/…`, rendered once and cached) and offers the browser's full screen; videos get a full screen button.
+- **Starter gallery**: each starter template as one 2560×1440 frame (`generate_preview.py starters`,
+  `/previews/starters/<name>.webp`), as the Template stage's first tab; Build Your Own is the element tree.
+- **Sharper text in previews**: `look_renderer.typeset` sets Text 4× larger and scales it down, fixing Pango's uneven
+  letter spacing at small sizes ("Sq uare"). All 210 option previews re-rendered.
+- **Icons**: Untitled UI Icons (`@untitledui/icons`, MIT), one meaning each: palette (template), clipboard
+  (requirements), dataflow (outline), pen (script), storyboard grid (scene plans), clapperboard (scenes), play
+  (final), shuffle (reshuffle). Progress steps with a ring on the current step and filled connectors.
+- **Title Case** for every heading, label, button, tab, step, badge and status (`titleCase()` for data labels);
+  sentences stay sentences.
+
+## 0.21.0 — 2026-11-24
+Frontend standardization, through a five-person review council (designer, React architect, interaction engineer,
+QA & accessibility, design systems) and two critique-refactor rounds. Report: `artifacts/reports/frontend-standardization.md`.
+- Structure: `app/` (routes, session), `services/` (one request core), `types/`, `hooks/` (`useApi`, `useAction`,
+  `useRuns`, `useRunFile`), `config/`, `components/{ui,layout,navigation,feedback,media}`, `pages/run/stages/`.
+  No circular imports; no prop-drilled error handler; nothing remounts after a write.
+- Tokens and contracts in `styles/tokens.css` (spacing on a 4px scale, radii, type roles, control heights, icons,
+  layout, elevation, layers, motion, media ratios) and four stylesheets that use them.
+- Run page in two panes: a rail (progress, vertical stages, console and change actions) and the stage, with an
+  approval bar when it waits for you. Underlined tabs; the template select and Save in the tab bar; the workflow's own
+  "next" text folded away. Home as a two-column hero; the wizard with a live summary.
+- Motion contract: fades and colour changes only (the drawer is the one slide), token durations, nothing scales or
+  bounces, and reduced motion turns it all off. The test enforces it instead of "no motion".
+- System messages: one `SystemMessage` for loading, empty, missing, pending, unavailable, offline, unsupported,
+  restricted, success and error — a game-style spaced label, a heading, one line, an action; told apart by label,
+  icon and border, never colour.
+- Media: `VideoPreview` (ratio-locked box, loading, buffering, error with retry, empty, duration), `AudioPreview`
+  (waveform from Web Audio, seek, volume, fallback scrubber), `ImagePreview` (ratio and fit presets, skeleton, broken
+  state, enlarge beside the radio, never inside it).
+- Accessibility: skip link that keeps the route, plain disclosures instead of misused tree roles, focus moves on page
+  and stage change, `document.title`, persistent live regions, errors in place with retry, keyboard-reachable
+  scrolling tables, control borders at 3.7:1, a reason shown for a disabled Approve, the console's keys explained.
+- Fixes: stale responses for another run, a lost last console line, a failed sign-out shown, a failed re-read after a
+  write shown as out of date.
+
+## 0.20.0 — 2026-11-24
+Look & sound: the template kit, one settings source, a preview for every option, and a React website.
+- **Template kit** added as given at `runtime-environment/template_kit/` (22 elements in `elements.json`, 7 starter
+  templates); it replaces the 3 old starters (moved to `artifacts/trash/templates-0.19/`). The kit's Python is kept
+  but not run: everything below is our own code, reading the kit's JSON.
+- **`video_settings.py`** (look) and **`audio_settings.py`** (sound): resolve the run's `template.json`, check it
+  (every element set, known options, custom values, text contrast ≥ 4.5:1) and are the one source the pipeline
+  reads: TASK.md's TEMPLATE block (colour roles, font, sizes, safe area), the voice for the brief's provider and the
+  speaking rate, the clip key, and `drawing()` — everything the renderer draws.
+- **`look_renderer.py`**: our Manim drawing of a look: backdrop (solid, gradient, glow, texture; 7 grids), 6
+  borders, text and maths in the template's font and sizes, a still subtitle line (7 styles, 6 positions, 7
+  highlight modes). The scene harness now draws the backdrop and border behind every clip (`self.content()` clears
+  the clips' own objects); the layout probe ignores them. Previews and videos come from the same code.
+- **`generate_preview.py`**: `fonts` (the templates' OFL fonts from Google Fonts, registered per process — nothing
+  installed system-wide), `all` (every element × option × mode: 210 previews in `runtime-environment/previews/`,
+  2.9 MB, about 45 s), `one` (one option or the user's own value), `still` (the whole chosen look), `voice`.
+- **Q&A first, then the look**: requirements, then the template checkpoint, then generation. Delivery stays
+  2560×1440 at 120 fps (the template's `frame` is not offered); subtitles are previewed, burned in later.
+- **Website rebuilt in React** (Vite + TypeScript, `frontend/src/`, built into `frontend/dist/` and served by
+  FastAPI; `npm run dev` for live reload). Same pages, still black and white with no motion (tests scan the source).
+  **Look & sound** is a tree (Look → mode, background, grid, colour, type, border; Sound → narration, subtitles):
+  every option is a card with its preview in the chosen mode only, the starter's value preselected (`default` /
+  `changed` / `custom`), a custom value for background colour, accent colour, text font, voice and speed (rendered
+  when entered), Hear for each voice and speed, Preview the whole look, Save. No Claude call anywhere in it.
+- **Website redesign** (React Aria Components, Untitled UI's shapes, still black and white): a one-tier header; pages
+  Home, Start a run (a three-step wizard), Ongoing, Previous runs (searchable, with progress bars), and a run page with
+  breadcrumbs, a progress bar, a seven-stage stepper and each stage's own view with sub-stage tabs (Requirements:
+  brief · topics · content; Look & sound: look · sound · whole look; Outline; Script: script · accuracy · critique;
+  Plans: plans · critiques · accuracy; Scenes: one tab per scene with its player; Final: video · media checks — each
+  with its checkpoint, approved with an explicit "I accept these open problems" checkbox). The console is a side
+  drawer, asking for a change a modal; video players, an audio player, image previews in a modal, colour and gradient
+  pickers (a custom background can be a two-colour gradient: `custom.background_color=#top,#bottom`), a subtitles
+  toggle, empty states. `RunSummary.stages_approved`; briefs from before 0.20 still read (their voice and font are
+  dropped).
+- API: `GET /api/look`, `GET|POST /api/runs/{run}/look`, `POST …/look/still`, `POST …/look/voice`,
+  `GET /previews/{mode}/{element}/{option}.webp`, `POST /api/look/preview`, `GET /assets/*`.
+- Contracts: `VideoTemplate` is now starter name + `elements` + `overrides` + assembly fields; `Brief` loses
+  `voice`, `engine`, `font`; `Preferences` loses `palette`, `background`, `font`, `voice_rate_percent`
+  (`new --voice/--engine/--font` removed); `ClipTask.look` replaces `background`. clip-builder.md changed: every
+  clip key changes. CI sets up Node 22 and builds the website before the tests.
+
 ## 0.19.0 — 2026-11-24
 Model policy: Haiku talks, Opus builds, Sonnet critiques and does audio.
 - **Run session → Haiku** (`claude-haiku-5-5`): the user's conversation (website console), refining requirements

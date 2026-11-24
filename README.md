@@ -22,10 +22,11 @@ Voice credentials (AWS Polly or Google Cloud TTS) and details: `docs/guides/depl
 uv run text-2-shorts new "<topic>" --objective "…" --approach zoom --minutes 2 --audience "…" --tts polly --voice Matthew
 uv run text-2-shorts open artifacts/runs/<id>     # interactive Claude Code session for this run, inside its jail
 ```
-The run session works through the stages below and asks you at every checkpoint (requirements · template · CP0 outline · CP1 script ·
-CP2 scene visual plans · CP3 each scene's preview · CP4 final video). Re-running `text-2-shorts open` resumes from where the run stopped.
+The run session works through the stages below and asks you at every checkpoint (template · requirements · CP0 outline · CP1 script ·
+CP2 scene visual plans · CP3 each scene's preview · CP4 final video), then offers an optional reshuffle of the look. Re-running `text-2-shorts open` resumes from where the run stopped.
 `uv run text-2-shorts status artifacts/runs/<id>` shows approvals, every stage, scene and clip status and the next steps from anywhere.
-**Faraday is used from its website only.** `uv run text-2-shorts serve` opens it at http://127.0.0.1:8765 (FastAPI):
+**Faraday is used from its website only.** Build it once (`cd frontend && npm ci && npm run build`), then
+`uv run text-2-shorts serve` opens it at http://127.0.0.1:8765 (FastAPI; `npm run dev` in `frontend/` gives live reload on :5173):
 start a run there, talk to the run's Claude Code session in its console (each message is one turn of the same session,
 in the same jail), approve checkpoints and ask for changes. The website and the command line share the same code. Sign in with "Continue with Claude":
 it uses the Claude account your Claude Code is signed in to (`claude auth login` if it is not). Then: every run, where it stands, what happens next,
@@ -43,7 +44,8 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 
 | Stage | Output | Gate → checkpoint | Guidance (by path) |
 |---|---|---|---|
-| 1 Requirements | `brief.json` (objectives, audience, style, approach: zoom · arc · linear fixed, or creative; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; `template.json` from a starter template + the user's tweaks (`template_preview.svg`); optional `preferences.json` | schemas → **requirements** checkpoint, then **template** checkpoint | `requirements.md`, `topic-list.md` |
+| 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery, or Build Your Own: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
+| 1 Requirements | `brief.json` (objectives, audience, style, approach: zoom · arc · linear fixed, or creative; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; optional `preferences.json` | schemas → **requirements** checkpoint | `requirements.md`, `topic-list.md` |
 | 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by the approach's model (`backend/schemas/outline_models/`) | segment order, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-linear.md` · `outline-arc.md` · `outline-zoom.md` (generated from `runtime-environment/prompts/script_prompts/`); creative: `narrative-structures.md` |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
 | 4 Visual + audio plans | per scene `plan.json`: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
@@ -56,13 +58,13 @@ recap of the previous scene's final image.
 
 ```mermaid
 flowchart TD
-    U(["User request"]) --> R
+    U(["User request"]) -->|"template.json (template checkpoint, first)"| R
     subgraph R["1 · Requirements"]
         B["brief.json — topic · objectives · audience · style<br/>approach: zoom · arc · linear · creative"]
         T["topics.md (request modifier) → content.md"]
         B --> T
     end
-    R -->|"requirements checkpoint · template.json (template checkpoint) · preferences.json"| O
+    R -->|"requirements checkpoint · preferences.json"| O
     subgraph O["2 · Outline"]
         OL["outline.json — the approach's prompt and model<br/>segments: type · timing · talking points · visual plan"]
     end
@@ -112,7 +114,10 @@ runtime-environment/                  the execution environment, defined once (d
   agents/script-critic.md         subagent: one critique round of the script per change the user asks for at CP1
   agents/plan-critic.md           subagent: one scored critique round of a scene plan (≤ 3 per scene)
   agents/video-critic.md          subagent: one scored critique round of a scene preview (≤ 3 per scene)
-  templates/                      starter templates (standards.md look, chalkboard, paper-light)
+  template_kit/                   look-and-sound kit: elements.json, 7 starter templates, gallery of every option
+  video_settings.py · audio_settings.py   the template's look and sound — the one source clips and narration use
+  look_renderer.py                our Manim drawing of a look: previews and the backdrop behind every clip
+  generate_preview.py             previews: starters (previews/starters/), options in the user's look, the whole look, a voice sample
   agents/audio-refactorer.md      subagent: re-times a scene's SSML to its built video
   hooks/hooks.json                SessionStart → status + next batch; PostToolUse → log + validate what was written
   settings.json                   session sandbox (bubblewrap, fails closed) + permissions (secrets unreadable)
@@ -153,7 +158,7 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
 | `text-2-shorts` command | What it does (deterministic) |
 |---|---|
 | `validate <run> brief\|topics\|content\|outline\|preferences\|script\|script-critique\|script-review\|plan\|plan-review\|plan-critique\|video-critique\|changes` | schema + rules for what the session wrote |
-| `templates` · `template <run> <name> [--set key=value]` | the starter templates · writes `template.json` (with standing preferences and the user's tweaks) and `template_preview.svg` |
+| `templates` · `template <run> <name> [--set element=variant \| custom.element=value \| key=value]` | the starter templates · writes `template.json` (the website's Template stage does the same) |
 | `next <run> [--json]` | the exact next batch: who does what (you, a subagent, a command, the user), for which target, reading which files; one clip at a time |
 | `preview <run> sNN` | the whole scene at 720p30 with audio, `sync.json` (spoken vs shown time per beat, audio fit, builders' CHANGES.md), contact sheets |
 | `hash <run> script\|sNN [plan\|video]` · `doc <Names>` | the version id a critique round records · Manim 0.20.1 API cards for planners and critics |
@@ -169,6 +174,16 @@ Settings: `TEXT_2_SHORTS_FPS` (final frame rate, 60–120, default 120), `TEXT_2
 (`polly` default, or `google`), `POLLY_ENGINE`, `POLLY_VOICE`, `GOOGLE_VOICE`.
 
 ## Logs and observability
+One format for all three parts (`runtime-environment/faraday_logging.py`): `time level component logger  message`,
+files rotated at 5 MB (three kept). `TEXT_2_SHORTS_LOG_LEVEL` (default `INFO`) and `TEXT_2_SHORTS_LOG_DIR` (default
+`artifacts/logs/`) change them.
+- **Backend** → `artifacts/logs/backend.log` (and the terminal): every request with its status and time, every refused
+  request with its problems, runs created, templates saved, approvals, reshuffles, console turns and Claude Code exits.
+- **Frontend** → `artifacts/logs/frontend.log`: the browser batches info and above to `POST /api/logs` (uncaught errors,
+  crashes while drawing, failed requests, every action and page opened); everything also goes to the browser console.
+- **Runtime environment** → `artifacts/runs/<id>/logs/runtime.log`: each `text-2-shorts` command the run session calls,
+  why it stopped, every hook event (writes, validations, subagents); `artifacts/logs/runtime.log` for preview renders.
+  Never on stderr, which would reach Claude's context.
 - `artifacts/runs/<id>/log.jsonl`: one row per tool call the session makes (`ts`, `tool`, `detail`), written by the hook.
 - `artifacts/runs/<id>/state.json`: approvals, each clip's status, open findings and key, and the session transcripts.
 - `uv run text-2-shorts report artifacts/runs/<id>`: tokens used by the run's sessions and subagents (net input, cache read/write,
@@ -177,7 +192,7 @@ Settings: `TEXT_2_SHORTS_FPS` (final frame rate, 60–120, default 120), `TEXT_2
 ## Repository
 Full map, every module's responsibility and where each kind of change belongs: [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md).
 ```
-frontend/              the web UI (black and white, Geist): runs, where each stands, what is next, previews, final video
+frontend/              the website in React (src/ → dist/), black and white: runs, Template (look and sound), console, approvals, final video, Reshuffle
 backend/app/           the `text-2-shorts` command: cli.py (entry), config.py (every setting), commands/ (handlers),
                        workflow/ (the staged workflow's logic), sandbox.py, narration.py, utilities.py
 backend/schemas/       Pydantic contracts for every file and payload (one module per domain) + json/ exports

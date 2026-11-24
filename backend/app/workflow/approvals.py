@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from schemas.interaction import CheckpointDecision
@@ -34,10 +35,12 @@ def approval_problems(run: Path, target: str) -> list[str]:
 
 def stage_problems(run: Path, target: str) -> list[str]:
     plans = load_scene_plans(run)
+    if target == "template":  # the first stage: the look and sound, chosen before anything is written
+        return validate_template(run)
     if target == "requirements":
+        if problem := stage_approval_problem(run, "template"):
+            return [problem]
         return validate_brief(run) + validate_topics(run) + validate_content(run)
-    if target == "template":
-        return [problem] if (problem := stage_approval_problem(run, "requirements")) else validate_template(run)
     if target == "outline":
         return validate_topics(run) + validate_content(run) + validate_outline(run)
     if target == "script":
@@ -90,12 +93,16 @@ def checkpoint_target(name: str) -> str:
     return name if name in (*STAGE_FINGERPRINTS, "final") or name.startswith("start:") else f"scene:{name}"
 
 
+log = logging.getLogger(__name__)
+
+
 def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = False) -> CheckpointDecision:
     """The user's approval, bound to the fingerprint of exactly what they approved, and recorded as a decision.
     Open problems refuse it (ApprovalBlocked) unless the user accepts them (force=True, recorded as forced)."""
     target = checkpoint_target(name)
     problems = approval_problems(run, target)
     if problems and not force:
+        log.warning("%s: %s blocked — %s", run.name, target, "; ".join(problems)[:1500])
         raise ApprovalBlocked(target, problems)
     plans = load_scene_plans(run)
     if target in STAGE_FINGERPRINTS:
@@ -107,6 +114,7 @@ def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = Fals
         approved_fingerprint = fingerprint(run, scope) if scope else None
     entry = Approval(at=now_text(), fingerprint=approved_fingerprint)
     update_state(run, lambda state: state.approved.__setitem__(target, entry))
+    log.info("%s: %s approved%s", run.name, target, " with open problems" if problems else "")
     return record_decision(
         run,
         target.removeprefix("scene:"),

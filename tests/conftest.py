@@ -14,6 +14,15 @@ sys.path.insert(0, str(TOOLS_DIRECTORY))
 sys.path.insert(0, str(REPOSITORY_ROOT / "backend" / "schemas"))
 
 
+@pytest.fixture(scope="session", autouse=True)
+def logs_in_a_temporary_folder(tmp_path_factory):
+    """Tests never write into artifacts/logs."""
+    import faraday_logging
+
+    faraday_logging.LOG_DIRECTORY = tmp_path_factory.mktemp("logs")
+    return faraday_logging.LOG_DIRECTORY
+
+
 @pytest.fixture(scope="session")
 def api_index(tmp_path_factory):
     """Built once per session from the INSTALLED manim (requires manim==0.20.1)."""
@@ -49,9 +58,6 @@ def write_brief(run, **fields):
         "approach": "linear",
         "minutes": 1,
         "tts": "polly",
-        "voice": "Matthew",
-        "engine": "neural",
-        "font": None,
         **fields,
     }
     (run / "brief.json").write_text(json.dumps(brief))
@@ -138,12 +144,12 @@ def make_outline(*segment_seconds, approach="Classic Linear Narrative"):
     }
 
 
-def confirm_requirements(run, template="standard-dark"):
-    """The requirements checkpoint, then a template chosen and approved."""
+def confirm_requirements(run, template="standard"):
+    """A template chosen and approved (the first stage), then the requirements checkpoint."""
 
-    approve(run, "requirements")
     templates.choose_template(run, template, [])
     approve(run, "template")
+    approve(run, "requirements")
 
 
 def approved_outline(run, script_scene_seconds):

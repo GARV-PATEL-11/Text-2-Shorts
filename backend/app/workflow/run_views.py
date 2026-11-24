@@ -32,10 +32,14 @@ def created_text(run: Path) -> str:
 def run_summary(run: Path) -> RunSummary:
     """One row of the run list; a run an older workflow version made is listed as not readable."""
     brief = load_brief(run)
-    readable, stage = brief is not None, "made by an older version"
+    readable, stage, approved = brief is not None, "made by an older version", 0
     if readable:
         try:
             stage = next_actions(run).stage
+            statuses = compute_statuses(run)
+            scenes = [status for key, status in statuses.items() if len(key) == 3 and key.startswith("s")]
+            approved = sum(statuses.get(name) == "approved" for name in CHECKPOINT_ORDER)
+            approved += bool(scenes) and all(status == "approved" for status in scenes)
         except (ValidationError, ValueError, KeyError) as error:
             readable, stage = False, f"cannot be read: {type(error).__name__}"
     return RunSummary(
@@ -45,6 +49,7 @@ def run_summary(run: Path) -> RunSummary:
         stage=stage,
         has_final=(run / "final.mp4").exists(),
         readable=readable,
+        stages_approved=approved,
     )
 
 
@@ -53,14 +58,14 @@ LABELS = {
     "template": "Template",
     "outline": "Outline (CP0)",
     "script": "Script (CP1)",
-    "plan": "Scene plans (CP2)",
-    "final": "Final video (CP4)",
+    "plan": "Scene Plans (CP2)",
+    "final": "Final Video (CP4)",
 }
 
 
 def checkpoint_label(target: str) -> str:
     if target.startswith("start:"):
-        return f"Start scene {target.removeprefix('start:')}"
+        return f"Start Scene {target.removeprefix('start:')}"
     return LABELS.get(target, f"Scene {target} (CP3)")
 
 

@@ -23,9 +23,19 @@ At the root: `README.md`, `CHANGELOG.md`, `pyproject.toml` + `uv.lock` (dependen
 
 | File | Responsibility |
 |---|---|
-| `index.html` | The page shell: bar, main area, footer; loads Geist and Geist Mono (the fonts of armakuni.com) |
-| `styles.css` | Fraunces for headings, Geist to read, Fira Code (Retina, 450) for the terminal-style interaction layer (console, forms, panels). A black page with night-2 cards, white type and white pill buttons, greys only (armakuni.com's dark tokens); no transitions or animations (tests enforce both) |
-| `app.js` | Hash routes `#/signin`, `#/` (runs and the `faraday new` form) and `#/runs/<run>` (header, console, approvals, scenes, final, changes); DOM nodes only (never HTML strings) |
+| `index.html`, `vite.config.ts`, `tsconfig.json`, `package.json` | React 19 + Vite + TypeScript. `npm ci && npm run build` → `dist/` (served by FastAPI); `npm run dev` → live reload on :5173, API proxied to :8765 |
+| `src/main.tsx` | Mount; imports the five stylesheets in order |
+| `src/app/` | `App.tsx` (session, frame, route table), `routes.ts` (hash routes, `navigate`, `useHashRoute`: focus and scroll on page change), `session.tsx` (account, sign-in/out, `fail`) |
+| `src/services/` | `http.ts` (one request core: `load`, `loadText`, `send`, `streamTurn`; `ApiError`, `SignedOut`), `runs.ts` (paths: `runPath`, `mediaUrl`, `runHash`, `starterPreview`), `log.ts` (the frontend's logging → `POST /api/logs`) |
+| `src/types/api.ts` | The API's Pydantic contracts as TypeScript types |
+| `src/hooks/` | `useApi` (cancellable, kept while reloading), `useAction` (busy + one message per write), `useRuns`, `useRunFile` |
+| `src/config/` | `stages.tsx` (the seven stages, where a run is), `media.ts` (aspect-ratio presets, waveform limits) |
+| `src/components/ui/` | `Button` + `LinkButton`, `fields` (Field, SelectField, Checkbox, Toggle, RadioCards), `Tabs`, `pickers` (colour, gradient), `icons` (Untitled UI), `text` (`titleCase`), `Markdown` (+ `plainText`, `runTitle`), `MarkdownField` in `fields` |
+| `src/components/layout/`, `navigation/` | `Shell` (one-tier header, footer, skip link), `Page`/`PageHeader`/`Section`/`SectionHeader`; `Breadcrumbs`, `ProgressSteps` (horizontal, vertical) |
+| `src/components/feedback/` | `SystemMessage` (every non-content state: 11 kinds, told apart by label, icon and border), `Notice` (persistent live regions), `ProgressBar`, `StatusPill`, `Overlay` (Modal, Drawer) |
+| `src/components/media/` | `ImagePreview` (`MediaImage`, `ExpandImage`), `VideoPreview`, `AudioPreview` (waveform): one box model with loading, empty and unavailable states |
+| `src/pages/` | `Home`, `NewRun`, `RunList`, `SignIn`; `run/` — `RunPage` (rail + stage), `ClaudePanel` (what Claude says and asks, with a reply), `context.tsx`, `Console`, `ChangeModal`, `CheckpointPanel`, `review.tsx`, `stages/` (`StageTabs`, `look/` (Template: `useTemplateEditor`, shared with Start a Run), `Requirements`, `Writing`, `Production`, `Reshuffle`) |
+| `src/styles/` | `tokens.css` (every colour, space, radius, type role, height, icon, width, layer and duration), `base.css`, `layout.css`, `components.css`, `motion.css` (the motion contract). Black, white and greys only; tests scan them |
 
 Served by `text-2-shorts serve` at `http://127.0.0.1:8765`. The user can approve checkpoints (with notes, or anyway
 with open problems, recorded as forced), record change requests and mark them applied or declined. These go through the
@@ -54,7 +64,8 @@ the logic they share.
 | `workflow/ledger.py` | `state.json` (`RunState`) under a lock, JSONL files, checkpoint decisions |
 | `workflow/change_requests.py` | Change requests: `record_change_request()`, resolve, route to the stage that applies them, block checkpoints |
 | `workflow/preferences.py` | Standing preferences and the speech settings they control |
-| `workflow/templates.py` | Template library, `template.json` + overrides, preview, video style and font |
+| `workflow/templates.py` | Choosing and saving `template.json` (starter + element choices + custom values), the Look & sound catalogue; look and sound come from `video_settings` / `audio_settings` |
+| `workflow/reshuffle.py` | The optional last stage: a seeded reshuffle of the look applied without Claude (clips recoloured and re-keyed, old final kept in `versions/`) |
 | `workflow/artifacts.py` | Typed loaders: brief, topics, outline, script, plans, audio index, gate results, sync report, final report |
 | `workflow/fingerprints.py` | What approvals and clip builds depend on |
 | `workflow/checkpoints.py` | Checkpoint gates; scenes in series |
@@ -122,7 +133,13 @@ Code transcripts are formats this project does not own.
 | `agents/*.md` | One file per subagent: script-writer, scene-planner and clip-builder (Opus: builders and refactors); critics, accuracy-reviewer, audio-refactorer (Sonnet). The session itself runs on Haiku |
 | `skills/text-2-shorts-produce/` | The workflow skill; `references/` = one guide per stage, read by path |
 | `skills/manim-ce-0-20-1-reference/` | Manim topic cards; `scripts/` link to `backend/tools/` |
-| `templates/*.json` | Starter video templates (logic: `backend/app/workflow/templates.py`) |
+| `template_kit/` | The template kit as given: `elements.json` (22 look-and-sound elements and their options), `templates/*.json` (7 starters), `gallery/*.png` (every option rendered, dark and light), its Python (`template_kit.py`, `gallery.py`, `narration.py`, `install_fonts.py`, `example_scene.py`; not run by the pipeline yet) |
+| `faraday_logging.py` | Logging for backend, frontend and runtime in one format: `configure(component, run)`, `channel("frontend")` |
+| `video_settings.py` | The look from `template.json`: background, colour roles, font, text sizes, safe area; checks (contrast); the TEMPLATE block of every TASK.md |
+| `audio_settings.py` | The sound from `template.json`: voice per provider, speaking rate, pauses, narration tone |
+| `look_renderer.py` | Our Manim drawing of a look (backdrop, grids, borders, text, maths, a subtitle line): previews and the backdrop behind every clip |
+| `generate_preview.py` | Fonts; the starter stills; every option drawn in the user's look (`option_in_look`, lossless, cached; `warm` pre-renders each starter's in both modes); the whole look; a voice sample |
+| `previews/starters/<name>.webp` | Each starter template as one 2560×1440 frame (the Template gallery). Option previews are drawn in the user's own look and cached in `~/.cache/text-2-shorts/previews` (`generate_preview.py warm` pre-renders every starter's) |
 | `prompts/` | The topic-list and outline prompts as Python, exported to `references/` by `export_references.py` |
 
 ## A run workspace (`artifacts/runs/<id>/`)
@@ -142,4 +159,4 @@ Code transcripts are formats this project does not own.
 
 A setting: `backend/app/config.py`. A new file or payload: a contract in `backend/schemas/` first. A
 new command: a handler in `backend/app/commands/`, logic in `backend/app/workflow/`, the parser entry in
-`backend/app/cli.py`. A new screen: `frontend/app.js`, fed by a view model in `backend/schemas/api.py`.
+`backend/app/cli.py`. A new screen: a component in `frontend/src/`, fed by a view model in `backend/schemas/api.py` (typed in `src/api.ts`).

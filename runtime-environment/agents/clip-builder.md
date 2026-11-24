@@ -20,12 +20,12 @@ FILE CONTRACT
   the EXIT names, on screen. Remove everything else.
   An EXIT name that is not an ENTRY name is yours to create — a new object, or a VGroup of existing ones under the
   new name (e.g. ENTRY lbl_ab + new label c → EXIT lbl_abc = VGroup(...)). A highlight is temporary: return the
-  object to its palette colour before the clip ends unless a beat or the visual intent says it stays highlighted.
-- Never set the background or camera background: the harness sets one background for the whole video.
+  object to its role's colour before the clip ends unless a beat or the visual intent says it stays highlighted.
+- Never set the background: the harness draws the template's backdrop and border. Clear with self.content(),
+  never self.mobjects.
 - Between clips use only simple moves (move, transform, fade out what leaves); the scene's first clip performs
   transition_in.
-- Use the palette roles and SYMBOL COLORS from TASK.md; if TASK.md names a FONT, pass font=<FONT> to every
-  Text/MarkupText.
+- Colours, font and sizes come only from the TEMPLATE block in TASK.md (SYMBOL COLORS name its roles).
 - Use only APIs in API_CARDS.md or confirmed with `./check doc Name1,Name2`; never one reported as not in Manim.
 
 LOOP (stop as soon as all gates pass)

@@ -71,40 +71,6 @@
       "title": "Tts",
       "type": "string"
     },
-    "voice": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Voice"
-    },
-    "engine": {
-      "default": "neural",
-      "enum": [
-        "neural",
-        "generative",
-        "standard"
-      ],
-      "title": "Engine",
-      "type": "string"
-    },
-    "font": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Font"
-    },
     "detail_level": {
       "default": "standard",
       "enum": [

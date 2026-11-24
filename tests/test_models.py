@@ -66,3 +66,10 @@ def test_cache_key_is_stable_and_input_sensitive():
 def test_extra_fields_rejected():
     with pytest.raises(ValidationError):
         media.GateFinding.model_validate({"severity": "ERROR", "code": "X", "message": "m", "surprise": 1})
+
+
+def test_a_brief_written_before_the_template_owned_the_voice_still_reads():
+    from schemas.requirements import Brief
+
+    older = Brief.model_validate({"requirement": "t", "voice": "Matthew", "engine": "neural", "font": None})
+    assert older.requirement == "t" and "voice" not in older.model_dump()

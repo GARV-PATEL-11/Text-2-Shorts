@@ -29,10 +29,11 @@ def validate_preferences(run: Path) -> list[str]:
 
 
 def clip_speech(run: Path, ssml: str, pairs) -> str:
-    """The SSML the voice speaks: symbols by name, [pause] at the preferred length, at the preferred rate."""
-    preferences = load_preferences(run)
-    speech = narration.speakable_ssml(ssml, pairs, pause_ms=preferences.pause_ms)
-    if preferences.voice_rate_percent != 100:
-        speech = speech.replace("<speak>", f'<speak><prosody rate="{preferences.voice_rate_percent}%">', 1)
+    """The SSML the voice speaks: symbols by name, [pause] at the preferred length, at the template's speaking rate."""
+    from app.workflow.templates import sound
+
+    speech = narration.speakable_ssml(ssml, pairs, pause_ms=load_preferences(run).pause_ms)
+    if (rate := sound(run)["rate_percent"]) != 100:
+        speech = speech.replace("<speak>", f'<speak><prosody rate="{rate}%">', 1)
         speech = speech[: speech.rindex("</speak>")] + "</prosody></speak>"
     return speech

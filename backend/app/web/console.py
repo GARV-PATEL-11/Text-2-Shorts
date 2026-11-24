@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import fcntl
 import json
+import logging
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -21,6 +22,7 @@ from app.utilities import now_text, read_jsonl
 from app.workflow.ledger import append_jsonl, load_state, update_state
 
 CONSOLE_FILE = "console.jsonl"
+log = logging.getLogger(__name__)
 
 
 def claude_turn_command(run: Path, message: str, session_id: str | None) -> list[str]:
@@ -66,6 +68,17 @@ def entries_from_event(event: dict) -> list[ConsoleEntry]:
         for part in (event.get("message") or {}).get("content") or []:
             if part.get("type") == "text" and part.get("text", "").strip():
                 shown.append(ConsoleEntry(at=now_text(), role="claude", text=part["text"].strip()))
+            elif part.get("type") == "tool_use" and part.get("name") == "AskUserQuestion":
+                for asked in (part.get("input") or {}).get("questions") or []:  # shown on the stage page, answerable
+                    header = f"**{asked['header']}** — " if asked.get("header") else ""
+                    shown.append(
+                        ConsoleEntry(
+                            at=now_text(),
+                            role="question",
+                            text=header + str(asked.get("question", "")),
+                            options=[str(option.get("label", "")) for option in asked.get("options") or []],
+                        )
+                    )
             elif part.get("type") == "tool_use":
                 shown.append(
                     ConsoleEntry(
@@ -88,6 +101,7 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
         return entry
 
     yield keep(ConsoleEntry(at=now_text(), role="you", text=message))
+    log.info("%s: console turn started (%d characters)", run.name, len(message))
     command = claude_turn_command(run, message, load_state(run).console_session)
     process = subprocess.Popen(command, cwd=run, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     assert process.stdout is not None
@@ -101,8 +115,11 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
             update_state(run, lambda state, session_id=session_id: setattr(state, "console_session", session_id))
         for entry in entries_from_event(event):
             yield keep(entry)
-    if process.wait() != 0:
+    if process.wait() == 0:
+        log.info("%s: console turn finished", run.name)
+    else:
         tail = (process.stderr.read() if process.stderr else "")[-600:].strip()
+        log.error("%s: Claude Code stopped (exit %s): %s", run.name, process.returncode, tail)
         yield keep(
             ConsoleEntry(at=now_text(), role="error", text=f"Claude Code stopped (exit {process.returncode}). {tail}")
         )

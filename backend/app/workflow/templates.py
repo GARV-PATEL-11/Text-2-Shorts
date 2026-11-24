@@ -1,31 +1,31 @@
-"""Template selection and management: the starter library in runtime-environment/templates/, template.json with
-the user's overrides, its preview, and the resulting video style and font."""
+"""The run's template.json: chosen from the starter library (runtime-environment/template_kit/templates/), one
+variant per element, a few elements set to the user's own value. What it means for the picture and the voice is
+resolved by runtime-environment/video_settings.py and audio_settings.py — the one source for both."""
 
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
 
+import audio_settings
+import generate_preview
+import video_settings
 from pydantic import ValidationError
+from schemas.api import LookCatalogue, LookElement, LookOption, LookTemplate, LookView
 from schemas.requirements import VideoTemplate
 
-from app.config import TEMPLATES_DIRECTORY, VIDEO_STYLE
-from app.utilities import format_validation_errors, read_json, write_json
+from app.utilities import format_validation_errors, write_json
 from app.workflow.artifacts import load_brief
-from app.workflow.preferences import load_preferences
 
 
 def template_names() -> list[str]:
-    return sorted(path.stem for path in TEMPLATES_DIRECTORY.glob("*.json"))
+    return video_settings.starter_names()
 
 
 def starter_templates() -> list[VideoTemplate]:
-    """The template library (runtime-environment/templates/), each validated."""
-    return [
-        VideoTemplate.model_validate_json((TEMPLATES_DIRECTORY / f"{name}.json").read_text())
-        for name in template_names()
-    ]
+    return [VideoTemplate.model_validate(video_settings.starter(name)) for name in template_names()]
 
 
 def load_template(run: Path) -> VideoTemplate | None:
@@ -35,94 +35,158 @@ def load_template(run: Path) -> VideoTemplate | None:
         return None
 
 
-def validate_template(run: Path) -> list[str]:
-    try:
-        VideoTemplate.model_validate_json((run / "template.json").read_text())
-    except FileNotFoundError:
-        return ["template.json does not exist: choose one (`text-2-shorts templates`, then `template . <name>`)"]
-    except ValidationError as validation_error:
-        return format_validation_errors(validation_error)
-    music = VideoTemplate.model_validate_json((run / "template.json").read_text()).music
-    return [f"music {music} not found (relative to the run folder)"] if music and not (run / music).is_file() else []
+def current_template(run: Path) -> dict:
+    """The run's template, or the default starter until one is chosen."""
+    template = load_template(run)
+    return template.model_dump() if template else video_settings.starter(video_settings.DEFAULT_TEMPLATE)
 
 
-def manim_hex(colour: str) -> str:
-    import manim  # only for the preview swatch
-
-    constant = getattr(manim, colour, None)
-    return constant.to_hex() if hasattr(constant, "to_hex") else colour
-
-
-def choose_template(run: Path, name: str, overrides: list[str]) -> Path:
-    """template.json = a starter template + standing preferences + the user's `key=value` overrides (dotted keys
-    reach into palette and type_scale; values are JSON when they parse), and template_preview.svg to show the user."""
-    if name not in template_names():
-        sys.exit(f"no template {name}: choose one of {', '.join(template_names())}")
-    template = read_json(TEMPLATES_DIRECTORY / f"{name}.json")
-    preferences = load_preferences(run)  # standing preferences fill the starter; the user's overrides come last
-    template["palette"] = template.get("palette", {}) | preferences.palette
-    template["background"] = preferences.background or template["background"]
-    template["font"] = template.get("font") or preferences.font
-    for override in overrides:
-        key, _, text = override.partition("=")
-        try:
-            value = json.loads(text)
-        except json.JSONDecodeError:
-            value = text
-        *parents, leaf = key.split(".")
-        target = template
-        for parent in parents:
-            target = target.setdefault(parent, {})
-        target[leaf] = value
+def template_problems(template: dict, run: Path) -> list[str]:
     try:
         chosen = VideoTemplate.model_validate(template)
     except ValidationError as validation_error:
-        sys.exit("template.json would be invalid:\n" + "\n".join(format_validation_errors(validation_error)))
+        return format_validation_errors(validation_error)
+    errors = video_settings.problems(chosen.model_dump())
     if chosen.music and not (run / chosen.music).is_file():
-        sys.exit(f"music {chosen.music} not found: the user's own file, relative to the run folder")
-    write_json(run / "template.json", chosen.model_dump())
-    chips = "".join(
-        f'<rect x="{40 + i * 200}" y="230" width="160" height="90" rx="10" fill="{manim_hex(colour)}"/>'
-        f'<text x="{120 + i * 200}" y="350" fill="{manim_hex(chosen.palette.get("text", "WHITE"))}" '
-        f'font-size="{chosen.type_scale["caption"]}" text-anchor="middle">{role}</text>'
-        for i, (role, colour) in enumerate(chosen.palette.items())
-    )
-    font = f' font-family="{chosen.font}"' if chosen.font else ""
-    (run / "template_preview.svg").write_text(
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"{font}>'
-        f'<rect width="1280" height="720" fill="{chosen.background}"/>'
-        f'<text x="40" y="100" fill="{manim_hex(chosen.palette.get("text", "WHITE"))}" '
-        f'font-size="{chosen.type_scale["title"]}">{chosen.name}: title</text>'
-        f'<text x="40" y="170" fill="{manim_hex(chosen.palette.get("text", "WHITE"))}" '
-        f'font-size="{chosen.type_scale["body"]}">Body text · {chosen.density} · {chosen.scene_transition}</text>'
-        f"{chips}</svg>\n"
-    )
+        errors.append(f"music {chosen.music} not found: the user's own file, relative to the run folder")
+    return errors
+
+
+def validate_template(run: Path) -> list[str]:
+    if not (run / "template.json").exists():
+        return ["template.json does not exist: choose one on the website (Look & sound) or `template . <name>`"]
+    try:
+        return template_problems(json.loads((run / "template.json").read_text()), run)
+    except json.JSONDecodeError as error:
+        return [f"template.json is not JSON: {error}"]
+
+
+def build_template(name: str, choices: dict[str, str], custom: dict[str, str], extra: dict) -> dict:
+    """A starter template with the user's variant choices, custom values (as overrides) and assembly settings."""
+    template = video_settings.starter(name) | extra
+    template["elements"] = template["elements"] | choices
+    mode = template["elements"].get("theme_mode", "dark")
+    template["overrides"] = {
+        element: video_settings.custom_override(element, value, mode) for element, value in custom.items()
+    }
+    return template
+
+
+def save_template(run: Path, template: dict) -> list[str]:
+    """Write template.json when it is valid; else its problems (nothing written)."""
+    if errors := template_problems(template, run):
+        return errors
+    write_json(run / "template.json", VideoTemplate.model_validate(template).model_dump())
+    logging.getLogger(__name__).info("%s: template %s saved", run.name, template.get("name"))
+    return []
+
+
+def choose_template(run: Path, name: str, settings: list[str]) -> Path:
+    """`text-2-shorts template . <name> [--set element=variant | custom.element=value | key=value …]`."""
+    if name not in template_names():
+        sys.exit(f"no template {name}: choose one of {', '.join(template_names())}")
+    choices, custom, extra = {}, {}, {}
+    for setting in settings:
+        key, _, text = setting.partition("=")
+        if key.startswith("custom."):
+            custom[key.removeprefix("custom.")] = text
+        elif key in video_settings.ELEMENTS:
+            choices[key] = text
+        else:
+            try:
+                extra[key] = json.loads(text)
+            except json.JSONDecodeError:
+                extra[key] = text
+    if errors := save_template(run, build_template(name, choices, custom, extra)):
+        sys.exit("template.json would be invalid:\n" + "\n".join(errors))
     return run / "template.json"
 
 
-def template_line(run: Path) -> str:
-    """The chosen template's look and motion, for the clip-builder."""
-    template = load_template(run)
-    if template is None:
-        return "none (standards.md)"
-    return (
-        f"{template.name} — type scale {json.dumps(template.type_scale)}; animation: {template.animation_style}; "
-        f"density: {template.density}; composition: {template.composition}; pacing: {template.pacing}"
+def look(run: Path) -> dict:
+    """What clips take from the template: background, colour roles, font, sizes, safe area."""
+    return video_settings.settings(current_template(run))
+
+
+def drawing(run: Path) -> dict:
+    """What the scene harness draws behind every clip (backdrop, grid, border) and with what (look_renderer.py)."""
+    return video_settings.drawing(current_template(run))
+
+
+def look_brief(run: Path) -> str:
+    return video_settings.brief(current_template(run))
+
+
+def sound(run: Path) -> dict:
+    """What narration takes from the template, for the brief's provider: voice, rate, pauses, tone."""
+    brief = load_brief(run)
+    return audio_settings.settings(current_template(run), brief.tts if brief else "polly")
+
+
+HIDDEN = {"frame"}  # the delivery format is ours (1440p120), not a template choice
+
+
+def catalogue() -> LookCatalogue:
+    """Every starter template and every element the user can set (the website's Look & sound tree)."""
+    library = video_settings.library()
+    return LookCatalogue(
+        templates=[
+            LookTemplate(name=name, description=starter["description"], elements=starter["elements"])
+            for name in template_names()
+            if (starter := video_settings.starter(name))
+        ],
+        elements=[
+            LookElement(
+                id=name,
+                label=name.replace("_", " ").capitalize(),
+                group=library[name]["group"],
+                kind="visual" if name in video_settings.VISUAL else "sound",
+                description=library[name].get("description", ""),
+                options=[
+                    LookOption(id=variant["id"], label=variant["label"], detail=option_detail(name, variant))
+                    for variant in library[name]["variants"].values()
+                ],
+                custom=video_settings.CUSTOM.get(name),
+                previewed=name in generate_preview.PREVIEWED,
+            )
+            for name in video_settings.ELEMENTS
+            if name not in HIDDEN
+        ],
     )
 
 
-def video_style(run: Path) -> dict:
-    """The standard palette and background < the user's standing preferences < the chosen template."""
-    preferences, template = load_preferences(run), load_template(run)
-    return {
-        **VIDEO_STYLE,
-        **preferences.palette,
-        **({"background": preferences.background} if preferences.background else {}),
-        **(template.palette | {"background": template.background} if template else {}),
-    }
+def option_detail(element: str, variant: dict) -> str:
+    """What a sound option means beyond its name."""
+    if element == "voice":
+        return f"Polly {variant['polly']['voice_id']} · Google {variant['google']['neural2']}"
+    if element == "speaking_speed":
+        return f"{round(variant['rate'] * 100)}% · about {round(variant['base_wpm'] * variant['rate'])} words a minute"
+    if element == "narration_tone":
+        return variant["script_rules"]
+    return ""
 
 
-def video_font(run: Path) -> str | None:
-    brief = load_brief(run)
-    template = load_template(run)
-    return (brief.font if brief else None) or (template.font if template else None) or load_preferences(run).font
+def look_view(run: Path) -> LookView:
+    template = current_template(run)
+    mode = template["elements"].get("theme_mode", "dark")
+    return LookView(
+        template=template["name"],
+        elements=template["elements"],
+        custom={
+            element: video_settings.custom_value(element, override, mode)
+            for element, override in template.get("overrides", {}).items()
+        },
+        saved=(run / "template.json").exists(),
+    )
+
+
+def chosen_template(run: Path, name: str, choices: dict[str, str], custom: dict[str, str]) -> dict:
+    """A website choice as a template: the assembly settings already saved (transitions, music) carry over."""
+    if name not in template_names():
+        raise ValueError(f"no template {name}: choose one of {', '.join(template_names())}")
+    saved = load_template(run)
+    extra = (
+        saved.model_dump(include={"scene_transition", "transition_seconds", "music", "music_volume_db"})
+        if saved
+        else {}
+    )
+    return build_template(name, choices, {element: value for element, value in custom.items() if value.strip()}, extra)

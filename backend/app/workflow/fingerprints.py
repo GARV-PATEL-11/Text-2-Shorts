@@ -11,7 +11,7 @@ from app.config import CLIP_BUILDER_AGENT_PATH
 from app.utilities import content_hash, read_json
 from app.workflow.artifacts import load_scene_plans
 from app.workflow.change_requests import requests_for
-from app.workflow.templates import template_line, video_font, video_style
+from app.workflow.templates import look
 
 
 def requirements_fingerprint(run: Path) -> str | None:
@@ -64,9 +64,7 @@ def clip_key(run: Path, plan: ScenePlan, clip) -> str:
         clip.model_dump(exclude={"ssml", "sound_effects"}),
         plan.color_roles,
         [(r.id, r.kind, r.text) for r in requests_for(run, plan.scene_id, clip.clip_id)],
-        video_style(run),
-        video_font(run),
-        template_line(run),
+        look(run),  # the template's background, colour roles, font, sizes and safe area
         CLIP_BUILDER_AGENT_PATH.read_text() if CLIP_BUILDER_AGENT_PATH.exists() else "",
     )
 

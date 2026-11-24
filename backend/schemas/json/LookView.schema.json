@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "description": "The run's look and sound as chosen so far (the default starter until one is saved).",
+  "properties": {
+    "template": {
+      "title": "Template",
+      "type": "string"
+    },
+    "elements": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Elements",
+      "type": "object"
+    },
+    "custom": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Custom",
+      "type": "object"
+    },
+    "saved": {
+      "default": false,
+      "description": "template.json exists",
+      "title": "Saved",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "template",
+    "elements"
+  ],
+  "title": "LookView",
+  "type": "object"
+}

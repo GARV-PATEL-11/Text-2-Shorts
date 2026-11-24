@@ -80,11 +80,8 @@ def test_no_llm_orchestration_in_app():
 def test_standards_reference_matches_the_code():
 
     text = (REFERENCES_DIRECTORY / "standards.md").read_text()
-    assert (
-        config.VIDEO_STYLE["background"] in text
-        and f"{config.VOICE_LEAD_IN_SECONDS} s" in text
-        and f"{config.END_HOLD_SECONDS} s" in text
-    )
+    assert f"{config.VOICE_LEAD_IN_SECONDS} s" in text and f"{config.END_HOLD_SECONDS} s" in text
+    assert "video_settings" in text  # colours, fonts, sizes and background: the template, not a fixed list
 
 
 def test_provision_creates_the_run_workspace(tmp_path):

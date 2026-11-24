@@ -1,0 +1,28 @@
+{
+  "name": "blueprint",
+  "description": "Engineering drawing: navy gradient, graph paper, technical type, corner brackets.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p60",
+    "background_type": "gradient_grid",
+    "background_color": "navy",
+    "grid_type": "graph_paper",
+    "grid_color": "auto",
+    "grid_opacity": "soft",
+    "primary_palette": "classic",
+    "secondary_palette": "steel",
+    "accent_color": "gold",
+    "text_font": "ibm_plex_sans",
+    "math_font": "latin_modern",
+    "typography": "standard",
+    "border_style": "corners",
+    "border_color": "secondary",
+    "voice": "us_male_deep",
+    "speaking_speed": "natural",
+    "narration_tone": "conversational",
+    "subtitles": "on",
+    "subtitle_style": "lecture",
+    "caption_position": "bottom_center",
+    "word_highlighting": "box_current"
+  }
+}

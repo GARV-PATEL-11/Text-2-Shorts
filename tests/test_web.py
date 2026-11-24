@@ -14,6 +14,7 @@ from schemas.api import ClaudeAccount
 from test_workflow import two_scenes_after_cp2
 
 FRONTEND = REPOSITORY_ROOT / "frontend"
+SOURCE = FRONTEND / "src"  # React + TypeScript; built into frontend/dist/ (served)
 BASE = "http://127.0.0.1:8765"
 ORIGIN = {"Origin": BASE}
 ACCOUNT = ClaudeAccount(email="someone@example.com", organization="Example Org", plan="team", method="claude.ai")
@@ -214,12 +215,17 @@ def test_the_frontend_is_served_and_loads_the_reference_fonts(web):
     assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
     assert "family=Geist" in page.text and "Fira+Code" in page.text  # Geist to read, Fira Code to interact
     assert "<title>Faraday" in page.text and "Curiosity, Illustrated" in page.text  # the brand
-    assert client.get("/styles.css").headers["content-type"].startswith("text/css")
-    assert client.get("/app.js").headers["content-type"].startswith("text/javascript")
+    assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', page.text)  # the React build's hashed bundles
+    kinds = {client.get(asset).headers["content-type"].split(";")[0] for asset in assets}
+    assert {"text/css", "text/javascript"} <= kinds, kinds
+    assert client.get("/assets/../index.html").status_code == 404
 
 
 def test_the_frontend_is_black_with_white_and_grey_only():
-    styles = (FRONTEND / "styles.css").read_text()
+    styles = "\n".join(path.read_text() for path in sorted((SOURCE / "styles").glob("*.css")))
+    for path in SOURCE.rglob("*.ts*"):  # no colour hides in the components either
+        colours = {colour.lower() for colour in re.findall(r"#[0-9a-fA-F]{6}\b", path.read_text())}
+        assert colours <= NEUTRALS, (path.name, colours - NEUTRALS)
     colours = {colour.lower() for colour in re.findall(r"#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b", styles)}
     assert colours <= NEUTRALS, colours - NEUTRALS
     for arguments in re.findall(r"\b(?:rgba?|hsla?)\(([^)]*)\)", styles):  # alpha only on black, white or night
@@ -230,16 +236,35 @@ def test_the_frontend_is_black_with_white_and_grey_only():
     assert all(".btn" in selector or "button" in selector for selector, _ in grounds), grounds  # white: buttons only
 
 
-def test_the_frontend_has_no_motion():
-    for path in [*FRONTEND.glob("*.css"), *FRONTEND.glob("*.js"), FRONTEND / "index.html"]:
+def test_motion_follows_the_contract_and_stops_when_reduced():
+    """Fades and colour changes in token durations; the drawer is the one slide; nothing scales or bounces; reduced
+    motion collapses every duration to 0 (styles/motion.css, styles/tokens.css)."""
+    styles = {
+        path.name: re.sub(r"/\*.*?\*/", "", path.read_text(), flags=re.DOTALL)
+        for path in (SOURCE / "styles").glob("*.css")
+    }
+    everything = "\n".join(styles.values())
+    assert (
+        "prefers-reduced-motion: reduce" in styles["tokens.css"]
+        and "prefers-reduced-motion: reduce" in styles["motion.css"]
+    )
+    assert not re.search(r"transition\s*:\s*all|transition-property\s*:\s*all", everything)
+    assert not re.search(r"scale\(|bounce|spring", everything)
+    durations = re.findall(r"(?:transition(?:-duration)?|animation)\s*:([^;]*);", everything)
+    endless = [value for value in durations if "var(--motion-" not in value and value.strip() != "none"]
+    assert all(value.strip().endswith("infinite") for value in endless), endless  # only waiting indicators loop
+    for name, body in re.findall(r"@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^}]*\})*[^}]*)\}", everything):
+        properties = set(re.findall(r"([a-z-]+)\s*:", body))
+        assert properties <= {"opacity", "transform"}, (name, properties)
+    for path in [*SOURCE.rglob("*.ts*"), FRONTEND / "index.html"]:
         text = path.read_text()
-        assert not re.search(r"@keyframes|animation\s*:(?!\s*none)|transition\s*:(?!\s*none)", text), path.name
         assert "scroll-behavior: smooth" not in text and ".animate(" not in text, path.name
 
 
 def test_the_frontend_never_writes_html_from_run_data_unescaped():
-    script = (FRONTEND / "app.js").read_text()
-    assert "innerHTML" not in script and "insertAdjacentHTML" not in script
+    for path in SOURCE.rglob("*.ts*"):  # React escapes text; nothing may bypass it
+        script = path.read_text()
+        assert "dangerouslySetInnerHTML" not in script and "innerHTML" not in script, path.name
 
 
 # ── the website as the only interface: starting runs, and the console to the run's Claude Code session ────
@@ -271,12 +296,36 @@ def test_a_run_is_started_from_the_website(web, monkeypatch):
     assert response.status_code == 409 and "ffmpeg missing" in response.json()["error"]
 
 
+def test_start_a_run_begins_with_the_template_which_is_saved_and_approved(web, monkeypatch):
+    from app.workflow import ledger, run_workspace
+    from conftest import environment_report
+
+    runs, client = web
+    signed_in(client)
+    monkeypatch.setattr(run_workspace, "environment_check", environment_report)
+    monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
+    new = {"requirement": "Why do **tides** happen?", "minutes": 2, "look": {"template": "paper", "elements": {}}}
+    unreadable = {**new, "look": {"template": "standard", "custom": {"background_color": "#ffffff"}}}
+    refused = client.post("/api/runs", json=unreadable, headers=ORIGIN)
+    assert refused.status_code == 409 and not list(runs.iterdir())  # refused before any run is made
+    created = client.post("/api/runs", json=new, headers=ORIGIN)
+    assert created.status_code == 201, created.text
+    run = runs / created.json()["id"]
+    assert json.loads((run / "template.json").read_text())["name"] == "paper"
+    assert "template" in ledger.load_state(run).approved  # the first stage is done: the run opens at requirements
+    still = client.post("/api/look/still", json={"template": "paper"}, headers=ORIGIN)  # no run needed
+    assert still.status_code == 200, still.text
+    assert client.get(still.json()["url"]).headers["content-type"] == "image/webp"
+
+
 FAKE_CLAUDE = """
 import json, sys
 print(json.dumps({"type": "system", "subtype": "init", "session_id": "session-1"}), flush=True)
 say = lambda content: print(json.dumps({"type": "assistant", "message": {"content": content}}), flush=True)
 say([{"type": "text", "text": "Reading the brief."}])
 say([{"type": "tool_use", "name": "Write", "input": {"file_path": "/x/run/topics.md", "content": "1. a"}}])
+say([{"type": "tool_use", "name": "AskUserQuestion", "input": {"questions": [
+    {"header": "Length", "question": "How long?", "options": [{"label": "2 min"}, {"label": "3 min"}]}]}}])
 print(json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "content": "ok"}]}}), flush=True)
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "done"}), flush=True)
 """
@@ -309,8 +358,10 @@ def test_the_console_relays_messages_to_the_runs_claude_code_session(web, monkey
         ("you", "Start producing the video."),
         ("claude", "Reading the brief."),
         ("tool", "Write topics.md"),
+        ("question", "**Length** — How long?"),  # shown on the stage page, answerable with one click
         ("system", "Turn finished."),
     ]
+    assert entries[3]["options"] == ["2 min", "3 min"]
     client.post(path, json={"message": "Go on."}, headers=ORIGIN)
     assert calls == [("Start producing the video.", None), ("Go on.", "session-1")]  # the same session, resumed
     history = client.get(path).json()["entries"]
@@ -342,3 +393,130 @@ def test_a_console_turn_is_the_run_session_in_its_jail():  # Haiku: the user's c
     assert first[first.index("--model") + 1] == SESSION_MODEL and "--plugin-dir" in first
     resumed = sandbox.console_claude_arguments("next", "session-1")
     assert resumed[resumed.index("--resume") + 1] == "session-1"
+
+
+# ── look & sound ──────────────────────────────────────────────────────────────────────────────────────────
+
+
+def test_the_look_and_sound_tree_starts_on_defaults_saves_choices_and_custom_values(web, monkeypatch):
+    runs, client = web
+    run = runs / "20261124-130000-look"
+    write_brief(run, objectives=["understand the topic"])  # the question round done, no template yet
+    signed_in(client)
+    catalogue = client.get("/api/look").json()
+    elements = {element["id"]: element for element in catalogue["elements"]}
+    assert len(catalogue["templates"]) == 7 and "frame" not in elements  # the delivery format is ours
+    assert elements["background_color"]["custom"] == "colour or gradient" and elements["grid_type"]["custom"] is None
+    assert elements["grid_type"]["previewed"] and not elements["voice"]["previewed"]
+    assert {element["kind"] for element in elements.values()} == {"visual", "sound"}
+    look = client.get(f"/api/runs/{run.name}/look").json()  # nothing chosen yet: the default starter
+    assert look["template"] == "standard" and look["saved"] is False and look["elements"]["voice"]
+    assert elements["voice"]["options"][0]["detail"].startswith("Polly")
+
+    choice = {"template": "paper", "elements": {"accent_color": "coral"}, "custom": {"text_font": "Lato"}}
+    saved = client.post(f"/api/runs/{run.name}/look", json=choice, headers=ORIGIN).json()
+    assert saved["saved"] and saved["elements"]["accent_color"] == "coral" and saved["custom"] == {"text_font": "Lato"}
+    unreadable = {"template": "standard", "custom": {"background_color": "#ffffff"}}
+    refused = client.post(f"/api/runs/{run.name}/look", json=unreadable, headers=ORIGIN)
+    assert refused.status_code == 409 and any("contrast" in problem for problem in refused.json()["problems"])
+
+    from app import narration
+
+    spoken = []
+    monkeypatch.setattr(
+        narration, "create_speech_synthesizer", lambda sound: lambda text: spoken.append((sound, text)) or (b"mp3", [])
+    )
+    sample = client.post(
+        f"/api/runs/{run.name}/look/voice", json={**choice, "elements": {"speaking_speed": "slow"}}, headers=ORIGIN
+    )
+    assert sample.status_code == 200 and (run / "look_voice_sample.mp3").read_bytes() == b"mp3"
+    sound, text = spoken[0]
+    assert sound["voice"] and 'rate="90%"' in text  # the voice and speed chosen, before saving
+
+
+def test_the_look_can_be_previewed_as_one_rendered_frame(web):
+    runs, client = web
+    run = runs / "20261124-140000-still"
+    write_brief(run, objectives=["understand the topic"])
+    signed_in(client)
+    still = client.post(f"/api/runs/{run.name}/look/still", json={"template": "blueprint"}, headers=ORIGIN)
+    assert still.status_code == 200, still.text
+    assert (run / "look_preview.webp").read_bytes()[8:12] == b"WEBP"
+    assert client.get(still.json()["url"].split("?")[0]).headers["content-type"] == "image/webp"
+
+
+def test_a_custom_value_is_drawn_in_the_users_look_with_its_options(web):
+    _, client = web
+    signed_in(client)
+    look = {"template": "paper", "elements": {}, "custom": {"accent_color": "#123456"}}
+    answer = client.post("/api/look/options", json={"look": look, "element": "accent_color"}, headers=ORIGIN).json()
+    custom = next(picture for picture in answer["pictures"] if picture["option"] == "__custom__")
+    assert client.get(custom["url"]).headers["content-type"] == "image/webp"
+    unreadable = {"template": "standard", "elements": {}, "custom": {"background_color": "#ffffff"}}
+    answer = client.post("/api/look/options", json={"look": unreadable, "element": "background_color"}, headers=ORIGIN)
+    custom = next(picture for picture in answer.json()["pictures"] if picture["option"] == "__custom__")
+    assert custom["url"] is None  # white text on white: no picture, the card says why
+
+
+def test_a_reshuffle_is_shown_before_it_is_applied_and_the_same_seed_gives_the_same_look(web):
+    runs, client = web
+    run = runs / "20261124-150000-reshuffle"
+    write_brief(run, objectives=["understand the topic"])
+    signed_in(client)
+    wanted = {"seed": 7, "groups": ["colours", "fonts"]}
+    refused = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN)
+    assert refused.status_code == 409  # nothing to reshuffle before the template is chosen
+    client.post(f"/api/runs/{run.name}/look", json={"template": "standard"}, headers=ORIGIN)
+    first = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN).json()
+    again = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN).json()
+    assert first == again and first["changes"] and not first["applied"]
+    assert {change["element"] for change in first["changes"]} <= {
+        "primary_palette", "secondary_palette", "accent_color", "text_font", "math_font"
+    }  # fmt: skip
+    assert client.get(f"/api/runs/{run.name}/look").json()["elements"] != first["look"]["elements"]  # not saved yet
+    bad = client.post(f"/api/runs/{run.name}/reshuffle", json={"seed": 7, "groups": ["sizes"]}, headers=ORIGIN)
+    assert bad.status_code == 400  # this API answers invalid input with 400
+
+
+def test_starter_templates_and_options_have_full_size_pictures(web):
+    _, client = web
+    signed_in(client)
+    starter = client.get("/previews/starters/paper.webp")
+    assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
+    assert client.get("/previews/starters/nope.webp").status_code == 404
+    assert client.get("/previews/custom/0123456789abcdef0123.webp").status_code == 404  # nothing to render it from
+
+
+def test_the_browser_reports_into_frontend_log_and_requests_are_logged(web, logs_in_a_temporary_folder, caplog):
+    import logging
+
+    _, client = web
+    batch = {"entries": [{"level": "error", "message": "TypeError in LookTree", "page": "#/new", "details": "at x"}]}
+    with caplog.at_level(logging.INFO, logger="app.web"):
+        assert client.post("/api/logs", json=batch, headers=ORIGIN).status_code == 204
+        assert client.get("/api/runs").status_code == 401
+    written = (logs_in_a_temporary_folder / "frontend.log").read_text()
+    assert "ERROR" in written and "frontend" in written and "[#/new] TypeError in LookTree — at x" in written
+    assert any("GET /api/runs → 401" in record.getMessage() for record in caplog.records)
+    too_many = {"entries": [{"level": "info", "message": "x"}] * 51}
+    assert client.post("/api/logs", json=too_many, headers=ORIGIN).status_code == 400
+
+
+def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
+    import io
+
+    from PIL import Image
+
+    _, client = web
+    signed_in(client)
+    look = {"template": "standard", "elements": {"grid_opacity": "faint"}, "custom": {"background_color": "#123456"}}
+    answer = client.post("/api/look/options", json={"look": look, "element": "accent_color"}, headers=ORIGIN)
+    assert answer.status_code == 200, answer.text
+    pictures = answer.json()["pictures"]
+    assert len(pictures) >= 3 and all(picture["url"] for picture in pictures)
+    image = Image.open(io.BytesIO(client.get(pictures[0]["url"]).content)).convert("RGB")
+    assert image.getpixel((427, 300)) == (0x12, 0x34, 0x56)  # the user's own background, to the exact value (lossless)
+    full = client.get(pictures[0]["full"])  # 2560×1440, rendered when first opened
+    assert full.status_code == 200 and Image.open(io.BytesIO(full.content)).size == (2560, 1440)
+    unknown = client.post("/api/look/options", json={"look": look, "element": "voice"}, headers=ORIGIN)
+    assert unknown.status_code == 404

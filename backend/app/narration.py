@@ -16,8 +16,6 @@ import re
 from collections.abc import Set as AbstractSet
 from xml.etree import ElementTree
 
-from schemas.requirements import Brief
-
 LETTERS = dict(
     zip(
         "abcdefghijklmnopqrstuvwxyz",
@@ -263,13 +261,12 @@ def phrase_times(
 # ── synthesis: the voice provider the user chose (AWS Polly or Google Cloud TTS) ──────────────────────────────
 
 
-def create_speech_synthesizer(brief: Brief):
-    """The narration synthesiser the user chose for this video: AWS Polly or Google Cloud TTS."""
-    return (
-        create_google_synthesizer(brief.voice)
-        if brief.tts == "google"
-        else create_polly_synthesizer(brief.voice, brief.engine)
-    )
+def create_speech_synthesizer(sound: dict):
+    """The narration synthesiser for this video: the provider from the brief, the voice from the template
+    (`templates.sound`)."""
+    if sound["provider"] == "google":
+        return create_google_synthesizer(sound["voice"])
+    return create_polly_synthesizer(sound["voice"], sound["engine"])
 
 
 def create_polly_synthesizer(voice: str, engine: str):

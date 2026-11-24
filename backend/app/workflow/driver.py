@@ -120,6 +120,30 @@ def next_actions(run: Path) -> ActionBatch:
             return [refactor, record, critic] if kind == "video" else [refactor, critic]
         return []
 
+    # the look and sound come first: the user chooses them on the website, before Claude does anything
+    if errors := validate_template(run):
+        return batch(
+            "1 template",
+            [
+                {
+                    "do": "ask_user",
+                    "what": "the user chooses the look and sound in the website's Look & sound tree (a starter "
+                    "template; anything left alone keeps its default) — or, if they ask you, `text-2-shorts template "
+                    ". <name> [--set element=variant | custom.element=value]` — " + errors[0],
+                }
+            ],
+        )
+    if stage_approval_problem(run, "template"):
+        return batch(
+            "1 template",
+            [
+                {
+                    "do": "ask_user",
+                    "what": "template checkpoint: show template.json (starter, changed elements, custom values); "
+                    "on approval `text-2-shorts approve . template`",
+                }
+            ],
+        )
     if errors := validate_brief(run):
         return batch(
             "1 requirements",
@@ -183,28 +207,6 @@ def next_actions(run: Path) -> ActionBatch:
                     "what": "requirements checkpoint: show brief.json (approach = script type, length, audience, "
                     "detail level, depth, complexity, visual and audio expectations), topics.md and content.md; on "
                     "approval `text-2-shorts approve . requirements`",
-                }
-            ],
-        )
-    if errors := validate_template(run):
-        return batch(
-            "1 template",
-            [
-                {
-                    "do": "ask_user",
-                    "what": "choose the template: show `text-2-shorts templates`; then `text-2-shorts template . "
-                    "<name> [--set key=value …]` (their tweaks) — " + errors[0],
-                }
-            ],
-        )
-    if stage_approval_problem(run, "template"):
-        return batch(
-            "1 template",
-            [
-                {
-                    "do": "ask_user",
-                    "what": "template checkpoint: open template_preview.svg and show template.json; on approval "
-                    "`text-2-shorts approve . template`",
                 }
             ],
         )

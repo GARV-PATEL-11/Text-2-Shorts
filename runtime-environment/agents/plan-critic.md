@@ -29,14 +29,14 @@ whether a clip-builder can build it without guessing. You review; the scene-plan
 | P-B5 | constructability | Every object, animation and method exists in Manim 0.20.1 (checked with `doc`). Every `on_screen_math` string is valid LaTeX. |
 | P-B6 | constructability | Contracts chain: entry = previous exit; first entry and last exit empty; carried objects in `descriptions`. |
 | P-B7 | design | Fits the frame: at most 2 text blocks and 1 diagram, no overlap, nothing within 0.5 units of an edge. |
-| P-B8 | design | Palette roles and SYMBOL COLORS are kept: each symbol has one colour for the whole video. |
+| P-B8 | design | Colour roles and SYMBOL COLORS are kept: each symbol has one colour role for the whole video. |
 | P-B9 | design | From s02, `transition_in` re-creates the previous scene's final image, then clears it into this scene. |
 
 **Good to have (G): expected quality.**
 | Id | Aspect | The need |
 |---|---|---|
 | P-G1 | sync | Nothing moves during a pause; durations as in standards.md (Write 0.8–1.5 s, Transform 0.8–1.2 s, Fade 0.4–0.6 s). |
-| P-G2 | design | Template type scale, density and composition; nothing below 24; formulas 44 or 34. |
+| P-G2 | design | The template's colour roles and text sizes only; nothing hard-coded or off-template. |
 | P-G3 | design | Clip-to-clip moves stay simple. A continuing object never fades out and back in. |
 | P-G4 | clarity | What the narration is talking about is the most prominent thing on screen at that moment. |
 | P-G5 | clarity | On-screen text reinforces the narration (terms, formulas, captions) instead of transcribing it. |

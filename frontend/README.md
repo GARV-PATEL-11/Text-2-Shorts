@@ -1,6 +1,9 @@
 # frontend/
 
-Reserved for a user interface (for example a web page to review scene previews and approve checkpoints). There is
-no frontend code yet: today the user works through the `text-2-shorts` command and the Claude Code session
-(`runtime-environment/`). A frontend would talk to the backend only through the `text-2-shorts` commands and the
-run's files, whose contracts are the Pydantic models in `backend/schemas/`.
+Faraday's website: React 19 + Vite + TypeScript, black, white and greys only, no motion.
+
+    npm ci            install (once)
+    npm run build     type-check and build into dist/ — what `text-2-shorts serve` (FastAPI, :8765) serves
+    npm run dev       live reload on http://127.0.0.1:5173 (API, media and previews proxied to :8765)
+
+Every request and response is a Pydantic contract in `backend/schemas/api.py`, typed in `src/api.ts`.

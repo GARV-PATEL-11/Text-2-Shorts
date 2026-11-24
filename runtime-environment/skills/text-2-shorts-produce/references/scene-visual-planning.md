@@ -42,13 +42,15 @@ Clip rules
    bottom_center, bottom_left, bottom_right.
 7. manim_topics: from the topic cards only: clip-structure, mathtex-indexing, text-and-latex, positioning-layout,
    timing-and-sync, transforms, axes-and-graphs, camera, updaters-and-trackers, emphasis.
-8. *color_roles: one palette constant per math symbol and recurring object; reuse SYMBOL COLORS SO FAR exactly.
+8. *color_roles: one colour role (given, derived, focus, accent, …: the template's roles) per math symbol and
+   recurring object; reuse SYMBOL COLORS SO FAR exactly.
 9. Screen budget: at most 2 text blocks and 1 diagram at once; say in beats when things leave. Nothing moves
    during a [pause].
 10. Ids: clip_id = scene_id + "c" + two-digit index (s02c01, …); index starts at 1.
 11. The script scene's `on_screen_text` must appear in a clip (visual_intent, beats or on_screen_math); its
    `animations`, `audio_requirements` and `transition_requirements` shape the beats, SSML and transition_in.
-12. Template (`template.json`): use its type scale, animation style, density and composition; sound effects only
+12. Template (`template.json`, its rules: `video_settings` brief in TASK.md): its colour roles, font and text sizes;
+   layout, motion and density are yours. Sound effects only
    from the user's own files: `sound_effects: [{"file": "assets/…", "at": seconds, "volume_db": -6}]`.
 13. HUMAN FEEDBACK, when present, overrides the above for what it mentions.
 

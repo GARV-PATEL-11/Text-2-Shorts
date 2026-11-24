@@ -1,0 +1,87 @@
+{
+  "$defs": {
+    "LookOption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ],
+      "title": "LookOption",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One element of the tree: a variant per option, maybe a custom value, maybe a gallery sheet of every option.",
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "group": {
+      "title": "Group",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "visual",
+        "sound"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "options": {
+      "items": {
+        "$ref": "#/$defs/LookOption"
+      },
+      "title": "Options",
+      "type": "array"
+    },
+    "custom": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "what a custom value is (e.g. 'colour'); None = variants only",
+      "title": "Custom"
+    },
+    "gallery": {
+      "default": false,
+      "description": "/gallery/<id>.png shows every option, dark and light",
+      "title": "Gallery",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "group",
+    "kind",
+    "options"
+  ],
+  "title": "LookElement",
+  "type": "object"
+}

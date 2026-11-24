@@ -26,6 +26,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+artifacts/
+
 # PyInstaller
 #   Usually these files are written by a python script from a template
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -231,7 +233,6 @@ Runs/
 Artifacts/
 Logs/
 # Manim render output and Tex caches (scene folders, dev-package tests)
-media/
 media_final/
 media_probe/
 # Archives / local backups
@@ -239,3 +240,7 @@ media_probe/
 # Local-only Claude Code settings
 .claude/settings.local.json
 .superpowers/
+
+# Frontend: dependencies and the build (`npm ci && npm run build` in frontend/)
+frontend/node_modules/
+frontend/dist/

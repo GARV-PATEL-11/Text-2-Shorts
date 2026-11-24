@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/look/still: one frame in the chosen colours, font and sizes.",
+  "properties": {
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "e.g. the font is not installed and a default is shown",
+      "title": "Note"
+    }
+  },
+  "required": [
+    "url"
+  ],
+  "title": "LookStill",
+  "type": "object"
+}

@@ -1,0 +1,1451 @@
+{
+ "version": "3.0",
+ "aspect_ratio": "16:9",
+ "language": "English",
+ "notes": "Only standardised look-and-sound choices live here. Layout, motion, emphasis, line weights and on-screen density are decided by the planning agent per video.",
+ "elements": {
+  "theme_mode": {
+   "group": "mode",
+   "description": "Dark or light. Every colour element below carries a value for both modes.",
+   "variants": [
+    {
+     "id": "dark",
+     "label": "Dark"
+    },
+    {
+     "id": "light",
+     "label": "Light"
+    }
+   ]
+  },
+  "frame": {
+   "group": "canvas",
+   "description": "Resolution and frame rate. Always 16:9; the scene is 14.222 x 8 Manim units.",
+   "variants": [
+    {
+     "id": "draft_480p15",
+     "label": "Draft 480p 15fps",
+     "pixel_width": 854,
+     "pixel_height": 480,
+     "frame_rate": 15
+    },
+    {
+     "id": "hd_720p30",
+     "label": "HD 720p 30fps",
+     "pixel_width": 1280,
+     "pixel_height": 720,
+     "frame_rate": 30
+    },
+    {
+     "id": "fhd_1080p30",
+     "label": "Full HD 1080p 30fps",
+     "pixel_width": 1920,
+     "pixel_height": 1080,
+     "frame_rate": 30
+    },
+    {
+     "id": "fhd_1080p60",
+     "label": "Full HD 1080p 60fps",
+     "pixel_width": 1920,
+     "pixel_height": 1080,
+     "frame_rate": 60
+    },
+    {
+     "id": "uhd_4k30",
+     "label": "4K 30fps",
+     "pixel_width": 3840,
+     "pixel_height": 2160,
+     "frame_rate": 30
+    }
+   ]
+  },
+  "background_type": {
+   "group": "background",
+   "description": "How the backdrop is built from Manim primitives. fill: solid (camera background), linear (gradient Rectangle), radial (stacked translucent Ellipses). texture: random Dots, light on dark and dark on light.",
+   "variants": [
+    {
+     "id": "plain",
+     "label": "Plain",
+     "fill": "solid",
+     "grid": false,
+     "texture": false
+    },
+    {
+     "id": "plain_grid",
+     "label": "Plain + grid",
+     "fill": "solid",
+     "grid": true,
+     "texture": false
+    },
+    {
+     "id": "gradient",
+     "label": "Gradient",
+     "fill": "linear",
+     "grid": false,
+     "texture": false
+    },
+    {
+     "id": "gradient_grid",
+     "label": "Gradient + grid",
+     "fill": "linear",
+     "grid": true,
+     "texture": false
+    },
+    {
+     "id": "glow",
+     "label": "Centre glow",
+     "fill": "radial",
+     "grid": false,
+     "texture": false
+    },
+    {
+     "id": "textured",
+     "label": "Textured (chalk/paper)",
+     "fill": "solid",
+     "grid": false,
+     "texture": true
+    },
+    {
+     "id": "textured_grid",
+     "label": "Textured + grid",
+     "fill": "solid",
+     "grid": true,
+     "texture": true
+    }
+   ]
+  },
+  "background_color": {
+   "group": "background",
+   "description": "Base colour, gradient end (shade) and centre glow, for each mode.",
+   "variants": [
+    {
+     "id": "slate",
+     "label": "Slate",
+     "dark": {
+      "base": "#151a21",
+      "shade": "#0b0e13",
+      "glow": "#222a35"
+     },
+     "light": {
+      "base": "#f6f7f9",
+      "shade": "#e8ebf0",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "teal",
+     "label": "Deep teal",
+     "dark": {
+      "base": "#0e2733",
+      "shade": "#071820",
+      "glow": "#163d4e"
+     },
+     "light": {
+      "base": "#eef5f6",
+      "shade": "#dce9ec",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "green",
+     "label": "Board green",
+     "dark": {
+      "base": "#1f3329",
+      "shade": "#13211a",
+      "glow": "#284236"
+     },
+     "light": {
+      "base": "#eff4ef",
+      "shade": "#dfe9df",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "navy",
+     "label": "Navy",
+     "dark": {
+      "base": "#102a4c",
+      "shade": "#081a31",
+      "glow": "#183c69"
+     },
+     "light": {
+      "base": "#edf2fa",
+      "shade": "#dbe4f2",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "indigo",
+     "label": "Indigo night",
+     "dark": {
+      "base": "#14162a",
+      "shade": "#07080f",
+      "glow": "#22264a"
+     },
+     "light": {
+      "base": "#f2f2f9",
+      "shade": "#e3e3f1",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "neutral",
+     "label": "Neutral",
+     "dark": {
+      "base": "#141414",
+      "shade": "#080808",
+      "glow": "#262626"
+     },
+     "light": {
+      "base": "#ffffff",
+      "shade": "#eceff3",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "warm",
+     "label": "Warm paper",
+     "dark": {
+      "base": "#211c16",
+      "shade": "#14110d",
+      "glow": "#332b22"
+     },
+     "light": {
+      "base": "#f4efe4",
+      "shade": "#e9e0cd",
+      "glow": "#fffaf0"
+     }
+    }
+   ]
+  },
+  "grid_type": {
+   "group": "grid",
+   "description": "Grid geometry (Manim Lines/Dots/NumberPlane). Drawn only when the background type includes a grid.",
+   "variants": [
+    {
+     "id": "dots",
+     "label": "Dot grid",
+     "kind": "dots",
+     "spacing": 0.5,
+     "dot_radius": 0.014
+    },
+    {
+     "id": "square",
+     "label": "Square grid",
+     "kind": "square",
+     "spacing": 0.5,
+     "stroke_width": 1.0
+    },
+    {
+     "id": "graph_paper",
+     "label": "Graph paper",
+     "kind": "graph_paper",
+     "major": 1.0,
+     "minor": 0.25,
+     "major_stroke": 1.4,
+     "minor_stroke": 0.6,
+     "minor_opacity_ratio": 0.4
+    },
+    {
+     "id": "number_plane",
+     "label": "Coordinate plane",
+     "kind": "number_plane",
+     "spacing": 1.0,
+     "stroke_width": 1.0,
+     "axis_stroke": 2.0,
+     "axis_opacity_ratio": 2.0,
+     "faded_line_ratio": 2
+    },
+    {
+     "id": "isometric",
+     "label": "Isometric",
+     "kind": "isometric",
+     "spacing": 0.6,
+     "stroke_width": 0.8
+    },
+    {
+     "id": "polar",
+     "label": "Polar",
+     "kind": "polar",
+     "ring_spacing": 1.0,
+     "spokes": 12,
+     "stroke_width": 0.9
+    },
+    {
+     "id": "ruled",
+     "label": "Ruled notebook",
+     "kind": "ruled",
+     "spacing": 0.6,
+     "stroke_width": 1.0,
+     "margin_line_x": 1.4
+    }
+   ]
+  },
+  "grid_color": {
+   "group": "grid",
+   "description": "Grid line colour, taken from the active mode's palette.",
+   "variants": [
+    {
+     "id": "auto",
+     "label": "Auto (white on dark, black on light)",
+     "source": "auto"
+    },
+    {
+     "id": "secondary",
+     "label": "Secondary palette",
+     "source": "role",
+     "role": "secondary"
+    },
+    {
+     "id": "outline",
+     "label": "Outline",
+     "source": "role",
+     "role": "outline"
+    },
+    {
+     "id": "given",
+     "label": "Primary (given)",
+     "source": "role",
+     "role": "given"
+    },
+    {
+     "id": "accent",
+     "label": "Accent",
+     "source": "role",
+     "role": "accent"
+    }
+   ]
+  },
+  "grid_opacity": {
+   "group": "grid",
+   "description": "Line/dot opacity; graph-paper minor lines and plane axes scale from it.",
+   "variants": [
+    {
+     "id": "whisper",
+     "label": "Whisper",
+     "opacity": 0.06
+    },
+    {
+     "id": "faint",
+     "label": "Faint",
+     "opacity": 0.1
+    },
+    {
+     "id": "subtle",
+     "label": "Subtle",
+     "opacity": 0.15
+    },
+    {
+     "id": "soft",
+     "label": "Soft",
+     "opacity": 0.22
+    },
+    {
+     "id": "visible",
+     "label": "Visible",
+     "opacity": 0.3
+    }
+   ]
+  },
+  "primary_palette": {
+   "group": "colour",
+   "description": "Content roles: text, focus (what is discussed now), given (inputs), derived (results), warning. Each variant has a dark and a light set; theme_mode picks one.",
+   "variants": [
+    {
+     "id": "classic",
+     "label": "Classic",
+     "dark": {
+      "text": "#FFFFFF",
+      "focus": "#FFFF00",
+      "given": "#58C4DD",
+      "derived": "#83C167",
+      "warning": "#FC6255"
+     },
+     "light": {
+      "text": "#1B1B1B",
+      "focus": "#B04A00",
+      "given": "#1F5F99",
+      "derived": "#2E7D32",
+      "warning": "#C0392B"
+     }
+    },
+    {
+     "id": "chalk_pastel",
+     "label": "Chalk pastel",
+     "dark": {
+      "text": "#F2F2EE",
+      "focus": "#FFEA94",
+      "given": "#9CDCEB",
+      "derived": "#A6CF8C",
+      "warning": "#FF8080"
+     },
+     "light": {
+      "text": "#2B2B2B",
+      "focus": "#A0521A",
+      "given": "#2C6E8F",
+      "derived": "#3F7A2E",
+      "warning": "#B03A2E"
+     }
+    },
+    {
+     "id": "ink",
+     "label": "Ink",
+     "dark": {
+      "text": "#F5F5F5",
+      "focus": "#FF6B5B",
+      "given": "#6FB3E0",
+      "derived": "#7CC47F",
+      "warning": "#FF8A80"
+     },
+     "light": {
+      "text": "#1B1B1B",
+      "focus": "#C0392B",
+      "given": "#1F5F99",
+      "derived": "#2E7D32",
+      "warning": "#8E2B3A"
+     }
+    },
+    {
+     "id": "neon",
+     "label": "Neon",
+     "dark": {
+      "text": "#E6E6F0",
+      "focus": "#FFE600",
+      "given": "#00D1FF",
+      "derived": "#39FF88",
+      "warning": "#FF5C85"
+     },
+     "light": {
+      "text": "#14141F",
+      "focus": "#C2006B",
+      "given": "#0067A3",
+      "derived": "#007F43",
+      "warning": "#C8102E"
+     }
+    },
+    {
+     "id": "okabe_ito",
+     "label": "Colour-blind safe (Okabe-Ito)",
+     "dark": {
+      "text": "#FFFFFF",
+      "focus": "#F0E442",
+      "given": "#56B4E9",
+      "derived": "#22B58C",
+      "warning": "#F0782A"
+     },
+     "light": {
+      "text": "#000000",
+      "focus": "#C04F00",
+      "given": "#0072B2",
+      "derived": "#00775A",
+      "warning": "#A3366F"
+     }
+    },
+    {
+     "id": "earth",
+     "label": "Earth",
+     "dark": {
+      "text": "#F3EDE2",
+      "focus": "#F2C14E",
+      "given": "#7FB7BE",
+      "derived": "#A3C585",
+      "warning": "#E07A5F"
+     },
+     "light": {
+      "text": "#2B2118",
+      "focus": "#A4471A",
+      "given": "#2F6F7A",
+      "derived": "#4F6E25",
+      "warning": "#A23B2A"
+     }
+    },
+    {
+     "id": "mono_red",
+     "label": "Mono + red",
+     "dark": {
+      "text": "#F5F5F5",
+      "focus": "#FF5A66",
+      "given": "#BDBDBD",
+      "derived": "#E0E0E0",
+      "warning": "#FF8A3D"
+     },
+     "light": {
+      "text": "#111111",
+      "focus": "#D62839",
+      "given": "#3A3A3A",
+      "derived": "#1D3557",
+      "warning": "#9E0016"
+     }
+    }
+   ]
+  },
+  "secondary_palette": {
+   "group": "colour",
+   "description": "Supporting roles: secondary (labels, notes), surface (panel fill, used at low opacity), outline (dividers, panel borders), dim (de-emphasised items).",
+   "variants": [
+    {
+     "id": "neutral_grey",
+     "label": "Neutral grey",
+     "dark": {
+      "secondary": "#BBBBBB",
+      "surface": "#FFFFFF",
+      "outline": "#8C8C8C",
+      "dim": "#6E6E6E"
+     },
+     "light": {
+      "secondary": "#5A5A5A",
+      "surface": "#000000",
+      "outline": "#8A8A8A",
+      "dim": "#A8A8A8"
+     }
+    },
+    {
+     "id": "cool_slate",
+     "label": "Cool slate",
+     "dark": {
+      "secondary": "#A9B8C9",
+      "surface": "#CFE0F5",
+      "outline": "#7D90A8",
+      "dim": "#5D6E84"
+     },
+     "light": {
+      "secondary": "#4A5A6E",
+      "surface": "#1E3A5F",
+      "outline": "#7D90A8",
+      "dim": "#A9B8C9"
+     }
+    },
+    {
+     "id": "warm_stone",
+     "label": "Warm stone",
+     "dark": {
+      "secondary": "#C9BBA8",
+      "surface": "#F5E6CF",
+      "outline": "#9C8C78",
+      "dim": "#6E6252"
+     },
+     "light": {
+      "secondary": "#6B5B48",
+      "surface": "#5C4422",
+      "outline": "#9C8C78",
+      "dim": "#BFB3A2"
+     }
+    },
+    {
+     "id": "sage",
+     "label": "Sage",
+     "dark": {
+      "secondary": "#B5C7B0",
+      "surface": "#DDEFD8",
+      "outline": "#8FA389",
+      "dim": "#64765F"
+     },
+     "light": {
+      "secondary": "#55654F",
+      "surface": "#2F4A2A",
+      "outline": "#8FA389",
+      "dim": "#B5C7B0"
+     }
+    },
+    {
+     "id": "steel",
+     "label": "Steel blue",
+     "dark": {
+      "secondary": "#9DB4CF",
+      "surface": "#BFD7F2",
+      "outline": "#6F8BAD",
+      "dim": "#4F6A8C"
+     },
+     "light": {
+      "secondary": "#4F6A8C",
+      "surface": "#1F4E85",
+      "outline": "#6F8BAD",
+      "dim": "#9FB4CC"
+     }
+    },
+    {
+     "id": "plum",
+     "label": "Plum",
+     "dark": {
+      "secondary": "#C3B1CF",
+      "surface": "#E8DAF2",
+      "outline": "#9A86A8",
+      "dim": "#6F5E7C"
+     },
+     "light": {
+      "secondary": "#5E4A6E",
+      "surface": "#4A2A63",
+      "outline": "#9A86A8",
+      "dim": "#BFAFCB"
+     }
+    },
+    {
+     "id": "sand",
+     "label": "Sand",
+     "dark": {
+      "secondary": "#D6C7A1",
+      "surface": "#FFF3D1",
+      "outline": "#AD9F7A",
+      "dim": "#7D7155"
+     },
+     "light": {
+      "secondary": "#6E6240",
+      "surface": "#6A5418",
+      "outline": "#AD9F7A",
+      "dim": "#CFC4A4"
+     }
+    }
+   ]
+  },
+  "accent_color": {
+   "group": "colour",
+   "description": "One brand/highlight colour (role 'accent'), also used for word highlighting unless the subtitle style says otherwise.",
+   "variants": [
+    {
+     "id": "amber",
+     "label": "Amber",
+     "dark": {
+      "accent": "#F0AC5F"
+     },
+     "light": {
+      "accent": "#A55A00"
+     }
+    },
+    {
+     "id": "coral",
+     "label": "Coral",
+     "dark": {
+      "accent": "#FF7F6B"
+     },
+     "light": {
+      "accent": "#C2412D"
+     }
+    },
+    {
+     "id": "violet",
+     "label": "Violet",
+     "dark": {
+      "accent": "#C3A6FF"
+     },
+     "light": {
+      "accent": "#6A3FB5"
+     }
+    },
+    {
+     "id": "teal",
+     "label": "Teal",
+     "dark": {
+      "accent": "#5CD0B3"
+     },
+     "light": {
+      "accent": "#0B7A65"
+     }
+    },
+    {
+     "id": "magenta",
+     "label": "Magenta",
+     "dark": {
+      "accent": "#FF5FC8"
+     },
+     "light": {
+      "accent": "#B0177E"
+     }
+    },
+    {
+     "id": "lime",
+     "label": "Lime",
+     "dark": {
+      "accent": "#C6F05A"
+     },
+     "light": {
+      "accent": "#4F7A00"
+     }
+    },
+    {
+     "id": "gold",
+     "label": "Gold",
+     "dark": {
+      "accent": "#FFD166"
+     },
+     "light": {
+      "accent": "#8A6A00"
+     }
+    }
+   ]
+  },
+  "text_font": {
+   "group": "type",
+   "description": "Google Fonts family rendered by Pango (Manim Text). install_fonts.py downloads all of them.",
+   "variants": [
+    {
+     "id": "inter",
+     "label": "Inter",
+     "category": "sans",
+     "family": "Inter",
+     "fallbacks": [
+      "Helvetica",
+      "Arial",
+      "DejaVu Sans"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "source_sans",
+     "label": "Source Sans 3",
+     "category": "sans",
+     "family": "Source Sans 3",
+     "fallbacks": [
+      "Source Sans Pro",
+      "DejaVu Sans"
+     ],
+     "title_weight": "SEMIBOLD",
+     "body_weight": "NORMAL",
+     "code_family": "Source Code Pro"
+    },
+    {
+     "id": "ibm_plex_sans",
+     "label": "IBM Plex Sans",
+     "category": "technical",
+     "family": "IBM Plex Sans",
+     "fallbacks": [
+      "DejaVu Sans"
+     ],
+     "title_weight": "SEMIBOLD",
+     "body_weight": "NORMAL",
+     "code_family": "IBM Plex Mono"
+    },
+    {
+     "id": "atkinson",
+     "label": "Atkinson Hyperlegible",
+     "category": "accessible",
+     "family": "Atkinson Hyperlegible",
+     "fallbacks": [
+      "Verdana",
+      "DejaVu Sans"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "merriweather",
+     "label": "Merriweather",
+     "category": "serif",
+     "family": "Merriweather",
+     "fallbacks": [
+      "Georgia",
+      "DejaVu Serif"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "Source Code Pro"
+    },
+    {
+     "id": "patrick_hand",
+     "label": "Patrick Hand",
+     "category": "handwritten",
+     "family": "Patrick Hand",
+     "fallbacks": [
+      "Comic Neue",
+      "DejaVu Sans"
+     ],
+     "title_weight": "NORMAL",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "jetbrains_mono",
+     "label": "JetBrains Mono",
+     "category": "monospace",
+     "family": "JetBrains Mono",
+     "fallbacks": [
+      "DejaVu Sans Mono"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    }
+   ]
+  },
+  "math_font": {
+   "group": "type",
+   "description": "LaTeX preamble for MathTex/Tex. The kit test-compiles the chosen one at startup.",
+   "variants": [
+    {
+     "id": "computer_modern",
+     "label": "Computer Modern (default)",
+     "preamble": "",
+     "tex_packages": []
+    },
+    {
+     "id": "latin_modern",
+     "label": "Latin Modern",
+     "preamble": "\\usepackage{lmodern}",
+     "tex_packages": [
+      "lm"
+     ]
+    },
+    {
+     "id": "palatino",
+     "label": "Palatino",
+     "preamble": "\\usepackage{mathpazo}",
+     "tex_packages": [
+      "psnfss"
+     ]
+    },
+    {
+     "id": "times",
+     "label": "Times (mathptmx)",
+     "preamble": "\\usepackage{mathptmx}",
+     "tex_packages": [
+      "psnfss"
+     ]
+    },
+    {
+     "id": "utopia",
+     "label": "Utopia (Fourier)",
+     "preamble": "\\usepackage{fourier}",
+     "tex_packages": [
+      "fourier"
+     ]
+    },
+    {
+     "id": "euler",
+     "label": "Euler (hand-drawn feel)",
+     "preamble": "\\usepackage{eulervm}",
+     "tex_packages": [
+      "eulervm"
+     ]
+    },
+    {
+     "id": "cm_bright",
+     "label": "CM Bright (sans maths)",
+     "preamble": "\\usepackage{cmbright}",
+     "tex_packages": [
+      "cmbright",
+      "hfbright"
+     ]
+    }
+   ]
+  },
+  "typography": {
+   "group": "type",
+   "description": "Type scale in Manim font_size units.",
+   "variants": [
+    {
+     "id": "compact",
+     "label": "Compact",
+     "sizes": {
+      "title": 42,
+      "heading": 34,
+      "body": 28,
+      "label": 21,
+      "caption": 18,
+      "math": 36
+     },
+     "line_spacing": 0.85
+    },
+    {
+     "id": "standard",
+     "label": "Standard",
+     "sizes": {
+      "title": 48,
+      "heading": 38,
+      "body": 32,
+      "label": 24,
+      "caption": 22,
+      "math": 42
+     },
+     "line_spacing": 0.9
+    },
+    {
+     "id": "comfortable",
+     "label": "Comfortable",
+     "sizes": {
+      "title": 54,
+      "heading": 42,
+      "body": 34,
+      "label": 27,
+      "caption": 24,
+      "math": 46
+     },
+     "line_spacing": 1.0
+    },
+    {
+     "id": "large",
+     "label": "Large",
+     "sizes": {
+      "title": 62,
+      "heading": 48,
+      "body": 38,
+      "label": 30,
+      "caption": 26,
+      "math": 52
+     },
+     "line_spacing": 1.0
+    },
+    {
+     "id": "lecture_xl",
+     "label": "Lecture XL",
+     "sizes": {
+      "title": 72,
+      "heading": 56,
+      "body": 44,
+      "label": 34,
+      "caption": 30,
+      "math": 60
+     },
+     "line_spacing": 1.05
+    }
+   ]
+  },
+  "border_style": {
+   "group": "border",
+   "description": "Frame border drawn from Manim primitives; inset is how far content must stay inside it (Manim units).",
+   "variants": [
+    {
+     "id": "none",
+     "label": "None",
+     "kind": "none",
+     "inset": 0.0
+    },
+    {
+     "id": "hairline",
+     "label": "Hairline frame",
+     "kind": "rect",
+     "margin": 0.18,
+     "width": 1.5,
+     "corner_radius": 0.0,
+     "inset": 0.35
+    },
+    {
+     "id": "double",
+     "label": "Double frame",
+     "kind": "double",
+     "margin": 0.16,
+     "gap": 0.08,
+     "width": 1.5,
+     "corner_radius": 0.0,
+     "inset": 0.45
+    },
+    {
+     "id": "rounded",
+     "label": "Rounded inset",
+     "kind": "rect",
+     "margin": 0.22,
+     "width": 3.0,
+     "corner_radius": 0.3,
+     "inset": 0.45
+    },
+    {
+     "id": "corners",
+     "label": "Corner brackets",
+     "kind": "corners",
+     "margin": 0.22,
+     "width": 4.0,
+     "length": 0.7,
+     "inset": 0.4
+    },
+    {
+     "id": "dashed",
+     "label": "Dashed frame",
+     "kind": "dashed",
+     "margin": 0.2,
+     "width": 2.0,
+     "dashes": 120,
+     "inset": 0.4
+    },
+    {
+     "id": "letterbox",
+     "label": "Top & bottom bars",
+     "kind": "bars",
+     "height": 0.32,
+     "opacity": 0.9,
+     "inset": 0.4
+    }
+   ]
+  },
+  "border_color": {
+   "group": "border",
+   "description": "Palette role used for the border (letterbox bars use it as a fill).",
+   "variants": [
+    {
+     "id": "outline",
+     "label": "Outline",
+     "role": "outline"
+    },
+    {
+     "id": "secondary",
+     "label": "Secondary",
+     "role": "secondary"
+    },
+    {
+     "id": "accent",
+     "label": "Accent",
+     "role": "accent"
+    },
+    {
+     "id": "focus",
+     "label": "Focus",
+     "role": "focus"
+    },
+    {
+     "id": "background_shade",
+     "label": "Background shade",
+     "role": "__shade__"
+    }
+   ]
+  },
+  "voice": {
+   "group": "narration",
+   "description": "English narrator: the same person-type on both providers. Polly neural and Google Neural2 return exact word timings; Polly generative and Google Chirp 3 HD sound richer but highlighting is estimated.",
+   "variants": [
+    {
+     "id": "us_female_warm",
+     "label": "US female, warm",
+     "language_code": "en-US",
+     "polly": {
+      "voice_id": "Joanna",
+      "engine": "neural",
+      "newscaster": true
+     },
+     "google": {
+      "neural2": "en-US-Neural2-F",
+      "chirp3_hd": "en-US-Chirp3-HD-Aoede"
+     }
+    },
+    {
+     "id": "us_male_steady",
+     "label": "US male, steady",
+     "language_code": "en-US",
+     "polly": {
+      "voice_id": "Matthew",
+      "engine": "neural",
+      "newscaster": true
+     },
+     "google": {
+      "neural2": "en-US-Neural2-D",
+      "chirp3_hd": "en-US-Chirp3-HD-Charon"
+     }
+    },
+    {
+     "id": "us_female_bright",
+     "label": "US female, bright",
+     "language_code": "en-US",
+     "polly": {
+      "voice_id": "Ruth",
+      "engine": "neural",
+      "newscaster": false
+     },
+     "google": {
+      "neural2": "en-US-Neural2-H",
+      "chirp3_hd": "en-US-Chirp3-HD-Leda"
+     }
+    },
+    {
+     "id": "us_male_deep",
+     "label": "US male, deep",
+     "language_code": "en-US",
+     "polly": {
+      "voice_id": "Stephen",
+      "engine": "neural",
+      "newscaster": false
+     },
+     "google": {
+      "neural2": "en-US-Neural2-J",
+      "chirp3_hd": "en-US-Chirp3-HD-Orus"
+     }
+    },
+    {
+     "id": "gb_female",
+     "label": "British female",
+     "language_code": "en-GB",
+     "polly": {
+      "voice_id": "Amy",
+      "engine": "neural",
+      "newscaster": true
+     },
+     "google": {
+      "neural2": "en-GB-Neural2-A",
+      "chirp3_hd": "en-GB-Chirp3-HD-Aoede"
+     }
+    },
+    {
+     "id": "gb_male",
+     "label": "British male",
+     "language_code": "en-GB",
+     "polly": {
+      "voice_id": "Brian",
+      "engine": "neural",
+      "newscaster": false
+     },
+     "google": {
+      "neural2": "en-GB-Neural2-B",
+      "chirp3_hd": "en-GB-Chirp3-HD-Charon"
+     }
+    },
+    {
+     "id": "in_female",
+     "label": "Indian English female",
+     "language_code": "en-IN",
+     "polly": {
+      "voice_id": "Kajal",
+      "engine": "neural",
+      "newscaster": false
+     },
+     "google": {
+      "neural2": "en-IN-Neural2-A",
+      "chirp3_hd": "en-IN-Chirp3-HD-Aoede"
+     }
+    }
+   ]
+  },
+  "speaking_speed": {
+   "group": "narration",
+   "description": "Rate (Polly prosody %, Google speaking_rate) and pause after each sentence.",
+   "variants": [
+    {
+     "id": "slow",
+     "label": "Slow",
+     "rate": 0.9,
+     "sentence_pause_ms": 550,
+     "base_wpm": 150
+    },
+    {
+     "id": "relaxed",
+     "label": "Relaxed",
+     "rate": 0.95,
+     "sentence_pause_ms": 450,
+     "base_wpm": 150
+    },
+    {
+     "id": "natural",
+     "label": "Natural",
+     "rate": 1.0,
+     "sentence_pause_ms": 350,
+     "base_wpm": 150
+    },
+    {
+     "id": "brisk",
+     "label": "Brisk",
+     "rate": 1.08,
+     "sentence_pause_ms": 280,
+     "base_wpm": 150
+    },
+    {
+     "id": "fast",
+     "label": "Fast",
+     "rate": 1.15,
+     "sentence_pause_ms": 220,
+     "base_wpm": 150
+    }
+   ]
+  },
+  "narration_tone": {
+   "group": "narration",
+   "description": "How the script is written (rules for the script model; sentence length is enforced). Documentary/formal use Polly's newscaster style on voices that have it.",
+   "variants": [
+    {
+     "id": "friendly_teacher",
+     "label": "Friendly teacher",
+     "max_sentence_words": 20,
+     "script_rules": "Speak to one learner as 'you'; use 'we' when working things out. One idea per sentence. Name what is on screen before explaining it.",
+     "polly_newscaster": false
+    },
+    {
+     "id": "documentary",
+     "label": "Calm documentary",
+     "max_sentence_words": 24,
+     "script_rules": "Third person, measured and vivid. No questions to the viewer. Let visuals breathe: short sentences between animations.",
+     "polly_newscaster": true
+    },
+    {
+     "id": "energetic",
+     "label": "Energetic",
+     "max_sentence_words": 14,
+     "script_rules": "Short punchy sentences, active verbs, one surprising hook per section. Never more than one exclamation per section.",
+     "polly_newscaster": false
+    },
+    {
+     "id": "formal_academic",
+     "label": "Formal academic",
+     "max_sentence_words": 26,
+     "script_rules": "Precise terminology, define each term once, no slang or contractions. State assumptions before results.",
+     "polly_newscaster": true
+    },
+    {
+     "id": "storyteller",
+     "label": "Storyteller",
+     "max_sentence_words": 22,
+     "script_rules": "Frame each idea as a small story or problem someone faced. Build tension, then reveal the result on screen.",
+     "polly_newscaster": false
+    },
+    {
+     "id": "conversational",
+     "label": "Conversational",
+     "max_sentence_words": 18,
+     "script_rules": "Natural spoken English with contractions. Think aloud, admit where things are tricky, keep jargon out unless shown.",
+     "polly_newscaster": false
+    },
+    {
+     "id": "encouraging",
+     "label": "Encouraging",
+     "max_sentence_words": 16,
+     "script_rules": "Assume a beginner. Praise progress, warn before hard steps, recap after each section in one sentence.",
+     "polly_newscaster": false
+    }
+   ]
+  },
+  "subtitles": {
+   "group": "subtitles",
+   "description": "Burned-in subtitles on or off. An .srt sidecar is always written.",
+   "variants": [
+    {
+     "id": "on",
+     "label": "On",
+     "burn_in": true
+    },
+    {
+     "id": "off",
+     "label": "Off (sidecar .srt only)",
+     "burn_in": false
+    }
+   ]
+  },
+  "subtitle_style": {
+   "group": "subtitles",
+   "description": "Burned-in subtitle look. text_color 'auto' = the palette's text colour for the mode; outline 'auto' = black under light text, white under dark text. Boxes are fixed fills so they read on either mode.",
+   "variants": [
+    {
+     "id": "clean_bar",
+     "label": "Clean bar",
+     "font_size": 30,
+     "weight": "NORMAL",
+     "text_color": "#FFFFFF",
+     "box": {
+      "color": "#000000",
+      "opacity": 0.62
+     },
+     "outline": null,
+     "max_chars_per_line": 46,
+     "max_lines": 2,
+     "uppercase": false,
+     "corner_radius": 0.08,
+     "padding": 0.18,
+     "highlight_role": "accent"
+    },
+    {
+     "id": "outline",
+     "label": "Outlined",
+     "font_size": 32,
+     "weight": "BOLD",
+     "text_color": "auto",
+     "box": null,
+     "outline": {
+      "color": "auto",
+      "width": 6
+     },
+     "max_chars_per_line": 42,
+     "max_lines": 2,
+     "uppercase": false,
+     "corner_radius": 0.08,
+     "padding": 0.18,
+     "highlight_role": "accent"
+    },
+    {
+     "id": "pill",
+     "label": "Rounded pill",
+     "font_size": 30,
+     "weight": "SEMIBOLD",
+     "text_color": "#FFFFFF",
+     "box": {
+      "color": "#111111",
+      "opacity": 0.85
+     },
+     "outline": null,
+     "max_chars_per_line": 40,
+     "max_lines": 1,
+     "uppercase": false,
+     "corner_radius": 0.3,
+     "padding": 0.22,
+     "highlight_role": "accent"
+    },
+    {
+     "id": "minimal",
+     "label": "Minimal",
+     "font_size": 26,
+     "weight": "NORMAL",
+     "text_color": "auto",
+     "box": null,
+     "outline": null,
+     "max_chars_per_line": 56,
+     "max_lines": 2,
+     "uppercase": false,
+     "corner_radius": 0.08,
+     "padding": 0.18,
+     "highlight_role": "focus"
+    },
+    {
+     "id": "bold_social",
+     "label": "Bold social",
+     "font_size": 40,
+     "weight": "BOLD",
+     "text_color": "auto",
+     "box": null,
+     "outline": {
+      "color": "auto",
+      "width": 8
+     },
+     "max_chars_per_line": 24,
+     "max_lines": 1,
+     "uppercase": true,
+     "corner_radius": 0.08,
+     "padding": 0.18,
+     "highlight_role": "focus"
+    },
+    {
+     "id": "lecture",
+     "label": "Lecture two-line",
+     "font_size": 28,
+     "weight": "NORMAL",
+     "text_color": "#F5F5F5",
+     "box": {
+      "color": "#1A1A1A",
+      "opacity": 0.9
+     },
+     "outline": null,
+     "max_chars_per_line": 52,
+     "max_lines": 2,
+     "uppercase": false,
+     "corner_radius": 0.04,
+     "padding": 0.18,
+     "highlight_role": "accent"
+    },
+    {
+     "id": "high_contrast",
+     "label": "High contrast",
+     "font_size": 34,
+     "weight": "BOLD",
+     "text_color": "#FFFFFF",
+     "box": {
+      "color": "#000000",
+      "opacity": 1.0
+     },
+     "outline": null,
+     "max_chars_per_line": 40,
+     "max_lines": 2,
+     "uppercase": false,
+     "corner_radius": 0.0,
+     "padding": 0.18,
+     "highlight_role": "focus"
+    }
+   ]
+  },
+  "caption_position": {
+   "group": "subtitles",
+   "description": "Where burned-in subtitles sit. reserve = fraction of frame height kept clear of content.",
+   "variants": [
+    {
+     "id": "bottom_center",
+     "label": "Bottom centre",
+     "anchor": "bottom",
+     "x_align": "center",
+     "edge_offset": 0.25,
+     "width_fraction": 0.9,
+     "reserve": 0.14
+    },
+    {
+     "id": "bottom_raised",
+     "label": "Bottom, raised (player-safe)",
+     "anchor": "bottom",
+     "x_align": "center",
+     "edge_offset": 0.6,
+     "width_fraction": 0.86,
+     "reserve": 0.18
+    },
+    {
+     "id": "top_center",
+     "label": "Top centre",
+     "anchor": "top",
+     "x_align": "center",
+     "edge_offset": 0.25,
+     "width_fraction": 0.9,
+     "reserve": 0.14
+    },
+    {
+     "id": "lower_left",
+     "label": "Lower-left third",
+     "anchor": "bottom",
+     "x_align": "left",
+     "edge_offset": 0.35,
+     "width_fraction": 0.6,
+     "reserve": 0.15
+    },
+    {
+     "id": "lower_right",
+     "label": "Lower-right third",
+     "anchor": "bottom",
+     "x_align": "right",
+     "edge_offset": 0.35,
+     "width_fraction": 0.6,
+     "reserve": 0.15
+    },
+    {
+     "id": "adaptive",
+     "label": "Adaptive (avoid content)",
+     "anchor": "bottom",
+     "x_align": "center",
+     "edge_offset": 0.25,
+     "width_fraction": 0.9,
+     "reserve": 0.0,
+     "avoid_content": true
+    }
+   ]
+  },
+  "word_highlighting": {
+   "group": "subtitles",
+   "description": "How the spoken word is tracked in burned-in subtitles.",
+   "variants": [
+    {
+     "id": "none",
+     "label": "None",
+     "mode": "none"
+    },
+    {
+     "id": "karaoke_fill",
+     "label": "Karaoke fill",
+     "mode": "karaoke"
+    },
+    {
+     "id": "current_color",
+     "label": "Current word colour",
+     "mode": "current_color"
+    },
+    {
+     "id": "underline_current",
+     "label": "Underline current",
+     "mode": "underline"
+    },
+    {
+     "id": "box_current",
+     "label": "Box current",
+     "mode": "box",
+     "box_opacity": 0.35
+    },
+    {
+     "id": "progressive_reveal",
+     "label": "Progressive reveal",
+     "mode": "reveal"
+    },
+    {
+     "id": "dim_past",
+     "label": "Dim spoken words",
+     "mode": "dim_past",
+     "dim_opacity": 0.45
+    }
+   ]
+  }
+ }
+}

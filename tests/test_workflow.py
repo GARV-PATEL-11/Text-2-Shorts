@@ -209,7 +209,7 @@ def test_new_turns_the_requirements_into_a_valid_brief():
     )
     brief = run_workspace.brief_from_arguments(arguments)
     assert brief.objectives == ["explain why orbits are ellipses", "use the third law"]
-    assert brief.style == "story-driven" and brief.approach == "creative" and brief.voice
+    assert brief.style == "story-driven" and brief.approach == "creative" and brief.tts == "polly"
     assert isinstance(brief, Brief)  # validated on the way in
 
 
@@ -387,8 +387,11 @@ def test_a_clip_does_not_go_stale_when_another_clip_of_its_scene_changes(tmp_pat
 
 def test_next_hands_out_the_exact_next_batch(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
+    assert driver.next_actions(tmp_path).stage == "1 template"  # the look comes first, on the website
+    templates.choose_template(tmp_path, "standard", [])
+    approve(tmp_path, "template")
     batch = driver.next_actions(tmp_path)
-    assert batch.stage.startswith("1") and batch.actions[0].file == "topics.md"
+    assert batch.stage == "1 requirements" and batch.actions[0].file == "topics.md"
     assert any(path.endswith("references/topic-list.md") for path in batch.actions[0].read)
     write_requirements(tmp_path)
     assert "approve . requirements" in driver.next_actions(tmp_path).actions[0].what
@@ -521,8 +524,8 @@ def test_checkpoint_decisions_record_how_the_user_decided(tmp_path):
     )
     decisions = ledger.load_decisions(tmp_path)
     assert [(d.checkpoint, d.decision) for d in decisions] == [
-        ("requirements", "approved"),
         ("template", "approved"),
+        ("requirements", "approved"),
         ("outline", "approved"),
         ("script", "changes_requested"),
         ("script", "approved_with_notes"),
@@ -538,38 +541,25 @@ def test_a_visual_request_for_a_clip_is_resolved_when_the_clip_is_rebuilt(tmp_pa
     assert request.status == "applied" and "rebuilt" in request.note
 
 
-def test_standing_preferences_shape_every_stage(tmp_path):
+def test_standing_preferences_and_the_template_shape_every_stage(tmp_path):
     from app import narration
     from schemas.plans import ScenePlan
 
     plans = two_scenes_after_cp2(tmp_path)
     plan = ScenePlan.model_validate(plans[0])
     key_before = fingerprints.clip_key(tmp_path, plan, plan.clips[0])
-    write_json_file(
-        tmp_path / "preferences.json",
-        {
-            "tone": "warm",
-            "palette": {"focus": "ORANGE"},
-            "background": "#101820",
-            "voice_rate_percent": 90,
-            "pause_ms": 800,
-            "confirm_each_scene": True,
-        },
-    )
+    write_json_file(tmp_path / "preferences.json", {"tone": "warm", "pause_ms": 800, "confirm_each_scene": True})
     assert preferences.validate_preferences(tmp_path) == []
-    templates.choose_template(tmp_path, "standard-dark", [])  # standing preferences fill the template when chosen
+    templates.choose_template(tmp_path, "standard", ["accent_color=coral", "speaking_speed=slow"])
     approve(tmp_path, "template")
     assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) != key_before  # new look → rebuild
-    style = templates.video_style(tmp_path)
-    assert style["focus"] == "ORANGE" and style["background"] == "#101820" and style["text"] == "WHITE"
     speech = preferences.clip_speech(tmp_path, '<speak>Look [pause] here</speak>', set())
-    assert speech == '<speak><prosody rate="90%">Look <break time="800ms"/> here</prosody></speak>'
+    assert speech == '<speak><prosody rate="90%">Look <break time="800ms"/> here</prosody></speak>'  # slow = 90%
     assert narration.ssml_problems(speech) == []
     batch = driver.next_actions(tmp_path)  # confirm_each_scene: ask before producing s01
     assert batch.actions[0].do == "ask_user" and "start:s01" in batch.actions[0].what
-    write_json_file(tmp_path / "preferences.json", {"voice_rate_percent": 300, "palette": {"glow": "RED"}})
-    errors = " | ".join(preferences.validate_preferences(tmp_path))
-    assert "voice_rate_percent" in errors and "glow" in errors
+    write_json_file(tmp_path / "preferences.json", {"palette": {"focus": "RED"}})  # the template owns colours now
+    assert preferences.validate_preferences(tmp_path)
 
 
 def test_one_script_critique_iteration_runs_for_each_change_request_at_cp1(tmp_path):
@@ -723,34 +713,44 @@ def test_requirements_capture_depth_and_expectations_and_are_confirmed_at_their_
     write_brief(tmp_path)
     write_requirements(tmp_path)
     write_json_file(tmp_path / "outline.json", make_outline(30, 30))
-    assert any("requirements" in error for error in validation.validate_outline(tmp_path))  # confirmed first
+    assert any("template" in error for error in validation.validate_outline(tmp_path))  # the look comes first
+    assert "Look & sound" in driver.next_actions(tmp_path).actions[0].what
+    with pytest.raises(SystemExit, match="template"):  # and requirements cannot be approved before it
+        approve(tmp_path, "requirements")
+    templates.choose_template(tmp_path, "standard", [])
+    approve(tmp_path, "template")
     assert driver.next_actions(tmp_path).actions[0].do == "ask_user"
-    approve(tmp_path, "requirements")
-    assert any("template" in error for error in validation.validate_outline(tmp_path))  # then the template
+    assert any("requirements" in error for error in validation.validate_outline(tmp_path))  # then the requirements
 
 
-def test_a_template_is_chosen_from_the_library_customised_previewed_and_approved(tmp_path):
-    assert {"standard-dark", "chalkboard", "paper-light"} <= set(templates.template_names())
-    write_brief(tmp_path)
+def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path):
+    assert {"standard", "chalkboard", "paper", "blueprint"} <= set(templates.template_names())
+    write_brief(tmp_path, objectives=["understand the topic"])
     write_requirements(tmp_path)
-    approve(tmp_path, "requirements")
-    assert "text-2-shorts templates" in driver.next_actions(tmp_path).actions[0].what
+    assert "Look & sound" in driver.next_actions(tmp_path).actions[0].what  # the first stage
     with pytest.raises(SystemExit, match="nope"):
         templates.choose_template(tmp_path, "nope", [])
-    with pytest.raises(SystemExit, match="density"):
-        templates.choose_template(tmp_path, "paper-light", ["density=enormous"])
-    templates.choose_template(tmp_path, "paper-light", ["palette.focus=ORANGE", "transition_seconds=0.8"])
+    with pytest.raises(SystemExit, match="grid_type"):
+        templates.choose_template(tmp_path, "paper", ["grid_type=hexagons"])  # not a variant
+    with pytest.raises(SystemExit, match="contrast"):  # the user's own colour, unreadable under white text
+        templates.choose_template(tmp_path, "standard", ["custom.background_color=#ffffff"])
+    templates.choose_template(
+        tmp_path,
+        "paper",
+        ["accent_color=coral", "custom.text_font=Lato", "custom.voice=Joanna", "transition_seconds=0.8"],
+    )
     template = json.loads((tmp_path / "template.json").read_text())
-    assert (template["name"], template["palette"]["focus"], template["transition_seconds"]) == (
-        "paper-light",
-        "ORANGE",
+    assert (template["name"], template["elements"]["accent_color"], template["transition_seconds"]) == (
+        "paper",
+        "coral",
         0.8,
     )
-    assert template["background"] in (tmp_path / "template_preview.svg").read_text()
-    write_json_file(tmp_path / "preferences.json", {"palette": {"focus": "PINK", "given": "TEAL"}})
-    style = templates.video_style(tmp_path)  # standard < preferences < template
-    assert (style["focus"], style["given"], style["background"]) == ("ORANGE", "BLUE_D", template["background"])
+    view = templates.look_view(tmp_path)  # the website reads back exactly what was chosen
+    assert view.saved and view.custom == {"text_font": "Lato", "voice": "Joanna"}
+    assert templates.look(tmp_path)["font"] == "Lato" and templates.sound(tmp_path)["voice"] == "Joanna"
+    assert "font=\"Lato\"" in templates.look_brief(tmp_path)  # what every clip's TASK.md says
     approve(tmp_path, "template")
+    approve(tmp_path, "requirements")
     write_json_file(tmp_path / "outline.json", make_outline(30, 30))
     assert validation.validate_outline(tmp_path) == []
 
@@ -817,9 +817,9 @@ def test_sound_effects_and_music_come_from_the_users_own_files(tmp_path):
     (tmp_path / "assets" / "pop.mp3").write_bytes(b"x")
     assert validation.validate_plan(tmp_path, "s01") == []
     with pytest.raises(SystemExit, match="music"):
-        templates.choose_template(tmp_path, "standard-dark", ["music=assets/song.mp3"])
+        templates.choose_template(tmp_path, "standard", ["music=assets/song.mp3"])
     (tmp_path / "assets" / "song.mp3").write_bytes(b"x")
-    templates.choose_template(tmp_path, "standard-dark", ["music=assets/song.mp3"])
+    templates.choose_template(tmp_path, "standard", ["music=assets/song.mp3"])
     assert templates.validate_template(tmp_path) == []
 
 
@@ -850,3 +850,88 @@ def test_outline_and_script_are_built_and_refactored_by_the_script_writer_never_
     session_writes = re.findall(r'"file": "([^"]+)"|file="([^"]+)"', source)
     built = {"outline.json", "script.json", "scenes/*/plan.json"}
     assert not built & {name for pair in session_writes for name in pair}, session_writes
+
+
+def test_every_starter_template_is_usable_in_dark_and_light_mode():
+    import video_settings
+
+    for name in templates.template_names():
+        for mode in ("dark", "light"):
+            template = video_settings.starter(name)
+            template["elements"]["theme_mode"] = mode
+            assert video_settings.problems(template) == [], (name, mode)
+            assert video_settings.settings(template)["background"].startswith("#")
+
+
+def test_a_custom_background_can_be_one_colour_or_a_gradient(tmp_path):
+    write_brief(tmp_path)
+    templates.choose_template(
+        tmp_path, "standard", ["background_type=gradient", "custom.background_color=#101820,#000000"]
+    )
+    assert templates.look_view(tmp_path).custom == {"background_color": "#101820,#000000"}  # read back as entered
+    assert templates.drawing(tmp_path)["background"]["shade"] == "#000000"  # the gradient's bottom
+    with pytest.raises(SystemExit, match="RRGGBB"):
+        templates.choose_template(tmp_path, "standard", ["custom.background_color=#101820,black"])
+
+
+def test_a_reshuffle_is_deterministic_recolours_built_clips_and_keeps_them_built(tmp_path):
+    import video_settings
+    from app.workflow import reshuffle
+    from schemas.plans import ScenePlan
+
+    starter = video_settings.starter("standard")
+    first = video_settings.reshuffle(starter, 7, ["colours", "fonts"])
+    assert first == video_settings.reshuffle(starter, 7, ["fonts", "colours"])  # same seed → same look
+    assert first != video_settings.reshuffle(starter, 8, ["colours", "fonts"])
+    assert first["elements"]["typography"] == starter["elements"]["typography"]  # sizes, so layouts, never change
+    assert video_settings.problems(first) == []
+    with pytest.raises(ValueError, match="sizes"):
+        video_settings.reshuffle(starter, 7, ["sizes"])
+
+    before = {"roles": {"text": "#FFFFFF", "focus": "#FFD54F"}, "font": "Inter"}
+    after = {"roles": {"text": "#111111", "focus": "#2962FF"}, "font": "Lato"}
+    code = 'Text("a", color="#ffd54f", font="Inter"); Dot(color="#FFFFFF"); keep="#FFD54F80"; other="#123456"'
+    assert reshuffle.recolour(code, before, after) == (
+        'Text("a", color="#2962FF", font="Lato"); Dot(color="#111111"); keep="#FFD54F80"; other="#123456"'
+    )
+
+    plans = [ScenePlan.model_validate(plan) for plan in two_scenes_after_cp2(tmp_path)]
+    clip = plans[0].clips[0]
+    clip_file = tmp_path / "scenes" / "s01" / "clips" / f"clip_{clip.index:02d}.py"
+    clip_file.parent.mkdir(parents=True, exist_ok=True)
+    text_colour = templates.look(tmp_path)["roles"]["text"]
+    clip_file.write_text(f'Text("x", color="{text_colour}")')
+    ledger.update_state(
+        tmp_path,
+        lambda state: state.clips.__setitem__(
+            clip.clip_id, ClipBuild(status="READY", key=fingerprints.clip_key(tmp_path, plans[0], clip))
+        ),
+    )
+    (tmp_path / "final.mp4").write_bytes(b"old")
+    look_before, code_before = templates.look(tmp_path), clip_file.read_text()
+    assert reshuffle.apply(tmp_path, 7, ["colours"]) == []
+    assert clip_file.read_text() == reshuffle.recolour(code_before, look_before, templates.look(tmp_path))
+    build = ledger.load_state(tmp_path).clips[clip.clip_id]
+    assert build.key == fingerprints.clip_key(tmp_path, plans[0], clip)  # still built: no Claude rebuild
+    assert (tmp_path / "versions" / "final-before-reshuffle-7.mp4").read_bytes() == b"old"
+    assert ledger.is_approval_current(
+        ledger.load_state(tmp_path), "template", fingerprints.template_fingerprint(tmp_path)
+    )
+
+
+def test_runtime_commands_log_into_the_run_and_never_to_stderr(tmp_path, capsys):
+    import logging
+
+    import faraday_logging
+
+    path = faraday_logging.configure("runtime", tmp_path, console=False)
+    logging.getLogger("app.cli").warning("approve stopped: CP0 is not approved")
+    assert path == tmp_path / "logs" / "runtime.log"
+    assert "WARNING runtime  app.cli  approve stopped" in path.read_text()
+    assert capsys.readouterr().err == ""  # the session's context stays clean
+    blocked = tmp_path / "file"
+    blocked.write_text("")
+    assert faraday_logging.configure("runtime", blocked, console=False) is None  # unwritable: skipped, not fatal
+    for handler in list(logging.getLogger().handlers):
+        if getattr(handler, "_faraday", False):
+            logging.getLogger().removeHandler(handler)

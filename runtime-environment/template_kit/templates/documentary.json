@@ -1,0 +1,28 @@
+{
+  "name": "documentary",
+  "description": "Cinematic explainer: letterbox bars, warm glow, serif type, calm British narration, no burned-in captions.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "uhd_4k30",
+    "background_type": "glow",
+    "background_color": "warm",
+    "grid_type": "polar",
+    "grid_color": "outline",
+    "grid_opacity": "whisper",
+    "primary_palette": "earth",
+    "secondary_palette": "sand",
+    "accent_color": "amber",
+    "text_font": "merriweather",
+    "math_font": "palatino",
+    "typography": "comfortable",
+    "border_style": "letterbox",
+    "border_color": "background_shade",
+    "voice": "gb_male",
+    "speaking_speed": "relaxed",
+    "narration_tone": "documentary",
+    "subtitles": "off",
+    "subtitle_style": "pill",
+    "caption_position": "bottom_raised",
+    "word_highlighting": "progressive_reveal"
+  }
+}

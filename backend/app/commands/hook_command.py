@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
+import faraday_logging
 from pydantic import ValidationError
 from schemas.run_state import LogEntry
 from schemas.session import HookEvent, HookOutput, SessionStartContext
@@ -40,7 +42,10 @@ def handle_hook_command(arguments) -> None:
     run = find_run_directory(hook_event.cwd, tool_input.file_path)
     if run is None:
         return  # not inside a run workspace
+    faraday_logging.configure("runtime", run, console=False)  # stderr would reach Claude: the run's file only
+    log = logging.getLogger("app.hook")
     if hook_event.hook_event_name == "SessionStart":
+        log.info("session started: %s", hook_event.transcript_path)
         transcript_path = hook_event.transcript_path
         if transcript_path:
             update_state(run, lambda state: transcript_path in state.sessions or state.sessions.append(transcript_path))
@@ -86,6 +91,7 @@ def handle_hook_command(arguments) -> None:
         else:
             message = f"{tool}: {detail}"
         row.shown = message + (f" — INVALID: {'; '.join(errors)}" if errors else "")
+        (log.warning if errors else log.info)("%s", row.shown[:2000])
         append_jsonl(run, "log.jsonl", row)
         if errors:
             print(f"{written_path.name} is invalid — fix it:\n" + "\n".join(errors), file=sys.stderr)

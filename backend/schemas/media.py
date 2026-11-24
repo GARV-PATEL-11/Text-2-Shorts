@@ -35,7 +35,9 @@ class ClipTask(Strict):
     exit: list[str] = Field(default_factory=list)
     api_index: str
     beats: int = Field(..., ge=0)
-    background: str = ""
+    look: dict = Field(
+        default_factory=dict, description="the template's drawing (video_settings.drawing): backdrop, border, …"
+    )
 
 
 class GateFinding(Strict):

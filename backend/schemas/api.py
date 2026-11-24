@@ -48,6 +48,9 @@ class RunSummary(Strict):
     topic: str
     created: str = Field(..., description="YYYY-MM-DD HH:MM, from the folder name")
     stage: str = Field(..., description="the stage the next batch belongs to, or why the run cannot be read")
+    stages_approved: int = Field(
+        0, ge=0, le=7, description="of the 7 the website shows: the 6 checkpoints, and all scenes as one"
+    )
     has_final: bool
     readable: bool = Field(True, description="False when an older version of the workflow made it")
 
@@ -132,6 +135,25 @@ class NewRunInput(Strict):
     minutes: float = Field(2, gt=0, le=12)
     audience: str = Field("curious beginners", max_length=300)
     tts: Literal["polly", "google"] = "polly"
+    look: LookInput | None = Field(
+        None, description="the template chosen in Start a Run's first step (saved and approved)"
+    )
+
+
+class BrowserLogEntry(Strict):
+    """One thing the browser reports: an error, a failed request, an action."""
+
+    level: Literal["debug", "info", "warn", "error"]
+    message: str = Field(..., max_length=2000)
+    at: str = Field("", max_length=40, description="the browser's time")
+    page: str = Field("", max_length=300, description="the route it happened on")
+    details: str = Field("", max_length=4000)
+
+
+class BrowserLogBatch(Strict):
+    """POST /api/logs: what the browser has to report, in batches (frontend.log)."""
+
+    entries: list[BrowserLogEntry] = Field(..., min_length=1, max_length=50)
 
 
 class ConsoleInput(Strict):
@@ -144,11 +166,111 @@ class ConsoleEntry(Strict):
     """One line of the console (console.jsonl): what the user said, what Claude said or did, or what happened."""
 
     at: str
-    role: Literal["you", "claude", "tool", "system", "error"]
-    text: str
+    role: Literal["you", "claude", "question", "tool", "system", "error"]
+    text: str = Field(..., description="Markdown")
+    options: list[str] = Field(default_factory=list, description="a question's choices, answered with one click")
 
 
 class ConsoleView(Strict):
     busy: bool
     kickoff: str = Field("", description="the message that starts (or resumes) production")
     entries: list[ConsoleEntry] = Field(default_factory=list)
+
+
+class LookOption(Strict):
+    id: str
+    label: str
+    detail: str = Field("", description="what it means beyond its name (voice ids, rate, tone rules)")
+
+
+class LookElement(Strict):
+    """One element of the tree: a variant per option, maybe a custom value, maybe a gallery sheet of every option."""
+
+    id: str
+    label: str
+    group: str
+    kind: Literal["visual", "sound"]
+    description: str = ""
+    options: list[LookOption]
+    custom: str | None = Field(None, description="what a custom value is (e.g. 'colour'); None = variants only")
+    previewed: bool = Field(False, description="every option has a picture: /previews/<mode>/<id>/<option>.webp")
+
+
+class LookTemplate(Strict):
+    name: str
+    description: str = ""
+    elements: dict[str, str]
+
+
+class LookCatalogue(Strict):
+    """GET /api/look: the starter templates and every element the user can set."""
+
+    templates: list[LookTemplate]
+    elements: list[LookElement]
+
+
+class LookInput(Strict):
+    """POST /api/runs/<run>/look (and …/look/voice): a starter template, the elements changed, custom values."""
+
+    template: str = Field(..., min_length=1)
+    elements: dict[str, str] = Field(default_factory=dict, description="element → variant; others keep the default")
+    custom: dict[str, str] = Field(default_factory=dict, description="element → the user's own value")
+
+
+class ReshuffleInput(Strict):
+    """POST /api/runs/<run>/reshuffle: which groups to reshuffle, with which seed; apply=False only shows it."""
+
+    seed: int = Field(..., ge=0, le=2**31 - 1, description="the same seed always gives the same look")
+    groups: list[Literal["colours", "fonts", "background", "grid", "border"]] = Field(..., min_length=1)
+    apply: bool = False
+
+
+class ReshuffleChange(Strict):
+    element: str
+    before: str
+    after: str
+
+
+class ReshuffleView(Strict):
+    """The reshuffled look (as a LookInput, for the still preview) and what changed; applied when it was saved."""
+
+    look: LookInput
+    changes: list[ReshuffleChange]
+    applied: bool
+
+
+class LookView(Strict):
+    """The run's look and sound as chosen so far (the default starter until one is saved)."""
+
+    template: str
+    elements: dict[str, str]
+    custom: dict[str, str] = Field(default_factory=dict)
+    saved: bool = Field(False, description="template.json exists")
+
+
+class VoiceSample(Strict):
+    url: str
+
+
+class LookOptionsInput(Strict):
+    """POST /api/look/options: every option of one element, drawn in the user's own look."""
+
+    look: LookInput
+    element: str = Field(..., min_length=1, max_length=40)
+
+
+class LookOptionPicture(Strict):
+    option: str = Field(..., description="a variant id, or __custom__ for the user's own value")
+    url: str | None = Field(None, description="854×480, lossless; None when this option would make the text unreadable")
+    full: str | None = Field(None, description="2560×1440, rendered when first opened")
+
+
+class LookOptionPictures(Strict):
+    pictures: list[LookOptionPicture]
+
+
+class LookStill(Strict):
+    """POST /api/runs/<run>/look/still: one frame in the chosen colours, font and sizes."""
+
+    url: str
+    note: str | None = Field(None, description="e.g. the font is not installed and a default is shown")

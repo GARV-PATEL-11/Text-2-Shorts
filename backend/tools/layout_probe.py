@@ -112,7 +112,12 @@ def main():
             )
         else:
             center_x, center_y, half_width, half_height = 0.0, 0.0, half_safe_width, half_safe_height
-        visible_mobjects = [mobject for mobject in scene.mobjects if mobject is not frame and bounding_box(mobject)]
+        backdrop = getattr(scene, "_backdrop", [])  # the template's backdrop and border are not content
+        visible_mobjects = [
+            mobject
+            for mobject in scene.mobjects
+            if mobject is not frame and mobject not in backdrop and bounding_box(mobject)
+        ]
         zoomed = frame is not None and abs(frame.width - config.frame_width) > 1e-3
         # Zoomed-in camera: cropping shapes is intentional, cropped TEXT is still a defect.
         check = [leaf for mobject in visible_mobjects for leaf in text_leaves(mobject)] if zoomed else visible_mobjects

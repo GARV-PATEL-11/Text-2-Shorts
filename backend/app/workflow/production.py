@@ -34,14 +34,13 @@ from app.utilities import content_hash
 from app.workflow.artifacts import load_audio_index, load_brief, load_gate_result, load_script, load_sync_report
 from app.workflow.fingerprints import scene_video_hash
 from app.workflow.preferences import clip_speech
-from app.workflow.templates import video_style
+from app.workflow.templates import drawing, sound
 
 
 def voice_key(run: Path, spoken: str) -> str:
-    brief = load_brief(run)
-    if brief is None:
+    if load_brief(run) is None:
         raise SystemExit("brief.json is missing or invalid: `text-2-shorts validate . brief`")
-    return content_hash(spoken, brief.tts, brief.voice, brief.engine)
+    return content_hash(spoken, sound(run))
 
 
 def stale_audio(run: Path, plans: list[ScenePlan]) -> set[str]:
@@ -82,8 +81,8 @@ def render_scene_sections(run: Path, plan: ScenePlan, quality: str, fps: int | N
             str(scene_directory),
             str(scene_directory),
             "--setenv",
-            "TEXT_2_SHORTS_BACKGROUND",
-            video_style(run)["background"],
+            "TEXT_2_SHORTS_LOOK",
+            json.dumps(drawing(run)),
             PYTHON_EXECUTABLE,
             str(TOOLS_DIRECTORY / "scene_harness.py"),
             "render",

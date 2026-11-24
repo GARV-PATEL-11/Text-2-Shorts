@@ -1,0 +1,39 @@
+/* The motion contract. Allowed: colour, background, border, shadow and opacity changes; the drawer's slide and the
+   toggle thumb's step (translate only); the spinner's turn; the skeleton's pulse; the indeterminate bar's sweep.
+   Never: scale, bounce, overshoot, height or layout animation, `transition: all`. Every duration is a token, and
+   prefers-reduced-motion sets them all to 0 (tokens.css) and stops the endless ones here. */
+
+.button, .control, .search, .tabs__tab, .listbox__item, .card-choice, .run-card, .header__link, .breadcrumbs__link,
+.steps__icon, .steps__button, .journey__step, .choice__box, .toggle__track, .media__expand, .player__play, .tree summary, .disclosure__toggle {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-standard);
+}
+.toggle__thumb { transition: transform var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard); }
+.progress__fill { transition: width var(--motion-normal) var(--ease-standard); }
+.media img { transition: opacity var(--motion-normal) var(--ease-enter); }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes slide-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes turn { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+
+/* overlays: React Aria marks entering and exiting, and keeps them mounted until the exit animation ends */
+.overlay[data-entering], .modal[data-entering], .popover[data-entering] { animation: fade-in var(--motion-normal) var(--ease-enter); }
+.overlay[data-exiting], .modal[data-exiting], .popover[data-exiting] { animation: fade-out var(--motion-fast) var(--ease-exit) forwards; }
+.drawer[data-entering] { animation: slide-in var(--motion-slow) var(--ease-enter); }
+.drawer[data-exiting] { animation: slide-out var(--motion-normal) var(--ease-exit) forwards; }
+.overlay--drawer[data-exiting] { animation-duration: var(--motion-normal); }  /* the backdrop waits for the slide */
+
+/* waiting */
+.spinner { animation: turn 800ms linear infinite; }
+.media--loading, .media--rendering, .audio__skeleton { animation: pulse 1.6s var(--ease-standard) infinite; }
+.progress--indeterminate .progress__fill { animation: sweep 1.2s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; border-top-color: var(--mute); }
+  .media--loading, .media--rendering, .audio__skeleton, .progress--indeterminate .progress__fill { animation: none; }
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import subprocess
@@ -11,8 +12,6 @@ from pathlib import Path
 from schemas.requirements import Brief, EnvironmentReport
 
 from app.config import (
-    DEFAULT_GOOGLE_VOICE,
-    DEFAULT_POLLY_VOICE,
     PYTHON_EXECUTABLE,
     REPOSITORY_ROOT,
     RUN_ENVIRONMENT,
@@ -23,7 +22,6 @@ from app.config import (
 
 def brief_from_arguments(arguments) -> Brief:
     """Stage 1: the user's requirements as a validated `Brief` (raises ValidationError when they are not valid)."""
-    default_voice = DEFAULT_GOOGLE_VOICE if arguments.tts == "google" else DEFAULT_POLLY_VOICE
     return Brief.model_validate(
         {
             "requirement": arguments.requirement,
@@ -35,9 +33,6 @@ def brief_from_arguments(arguments) -> Brief:
             "pace": arguments.pace,
             "notes": arguments.notes,
             "tts": arguments.tts,
-            "voice": arguments.voice or default_voice,
-            "engine": arguments.engine,
-            "font": arguments.font,
         }
     )
 
@@ -73,24 +68,18 @@ def voice_credentials_problem(tts: str) -> str | None:
     return None
 
 
-def font_problem(font: str | None) -> str | None:
-    if not font:
-        return None
-    families = subprocess.run(["fc-list", ":", "family"], capture_output=True, text=True).stdout
-    installed = {name.strip().lower() for line in families.splitlines() for name in line.split(",")}
-    return None if font.lower() in installed else f"Font not installed: {font!r} — pick one from `fc-list : family`"
-
-
 def create_run(brief: Brief, runs_directory: Path = RUNS_DIRECTORY) -> Path:
     """A new run workspace for this brief, after the checks that would otherwise fail only at render time."""
     environment = environment_check()
     if environment.problems:
+        logging.getLogger(__name__).warning("run not created: %s", environment.problems)
         raise RunNotCreated(f"Preflight failed: {', '.join(environment.problems)}")
-    if problem := voice_credentials_problem(brief.tts) or font_problem(brief.font):
+    if problem := voice_credentials_problem(brief.tts):
         raise RunNotCreated(problem)
     slug = re.sub(r"[^a-z0-9]+", "-", brief.requirement.lower())[:40].strip("-")
     run = runs_directory / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
     provision_run_workspace(run, brief, environment)
+    logging.getLogger(__name__).info("run %s created", run.name)
     return run
 
 

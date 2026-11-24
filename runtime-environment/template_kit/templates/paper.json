@@ -1,0 +1,28 @@
+{
+  "name": "paper",
+  "description": "Print-like diagrams in dark ink on cream paper with a faint dot grid.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "textured_grid",
+    "background_color": "warm",
+    "grid_type": "dots",
+    "grid_color": "outline",
+    "grid_opacity": "subtle",
+    "primary_palette": "ink",
+    "secondary_palette": "warm_stone",
+    "accent_color": "coral",
+    "text_font": "source_sans",
+    "math_font": "palatino",
+    "typography": "standard",
+    "border_style": "hairline",
+    "border_color": "outline",
+    "voice": "gb_female",
+    "speaking_speed": "natural",
+    "narration_tone": "formal_academic",
+    "subtitles": "on",
+    "subtitle_style": "minimal",
+    "caption_position": "bottom_center",
+    "word_highlighting": "dim_past"
+  }
+}

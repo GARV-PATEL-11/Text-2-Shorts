@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "elements": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Elements",
+      "type": "object"
+    }
+  },
+  "required": [
+    "name",
+    "elements"
+  ],
+  "title": "LookTemplate",
+  "type": "object"
+}

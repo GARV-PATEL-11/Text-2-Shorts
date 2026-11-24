@@ -124,7 +124,7 @@ def render(task: ClipTask) -> bool:
         task.clip_name,
         "--quality",
         "m",  # drafts: 1280×720 at 30 fps (only the final delivery renders 1440p)
-        env={**os.environ, "TEXT_2_SHORTS_BACKGROUND": task.background},
+        env={**os.environ, "TEXT_2_SHORTS_LOOK": json.dumps(task.look)},
     )
     try:
         render_report = SceneRender.model_validate_json(process.stdout)

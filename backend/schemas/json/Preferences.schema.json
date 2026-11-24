@@ -8,57 +8,6 @@
       "title": "Tone",
       "type": "string"
     },
-    "palette": {
-      "additionalProperties": {
-        "type": "string"
-      },
-      "description": "palette role \u2192 Manim colour constant, overriding the standard palette",
-      "propertyNames": {
-        "enum": [
-          "text",
-          "focus",
-          "given",
-          "derived",
-          "warning",
-          "secondary"
-        ]
-      },
-      "title": "Palette",
-      "type": "object"
-    },
-    "background": {
-      "anyOf": [
-        {
-          "pattern": "^#[0-9a-fA-F]{6}$",
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Background"
-    },
-    "font": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "font family when brief.json names none",
-      "title": "Font"
-    },
-    "voice_rate_percent": {
-      "default": 100,
-      "maximum": 120,
-      "minimum": 80,
-      "title": "Voice Rate Percent",
-      "type": "integer"
-    },
     "pause_ms": {
       "default": 600,
       "description": "length of a [pause]",

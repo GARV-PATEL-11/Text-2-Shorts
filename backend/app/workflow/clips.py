@@ -29,7 +29,7 @@ from app.workflow.checkpoints import require_approval, require_earlier_scenes
 from app.workflow.critiques import review_notes
 from app.workflow.fingerprints import clip_key
 from app.workflow.ledger import load_state, update_state
-from app.workflow.templates import template_line, video_font, video_style
+from app.workflow.templates import drawing, look_brief
 
 
 def ensure_api_index() -> None:
@@ -79,7 +79,7 @@ def prepare_clip(run: Path, clip_id: str) -> Path:
         exit=clip.exit.persistent_objects,
         api_index=str(API_INDEX_PATH),
         beats=len(clip.beats),
-        background=video_style(run)["background"],
+        look=drawing(run),
     )
     (work_directory / "TASK.json").write_text(task.model_dump_json(indent=2))
     beat_times = audio.beat_times or [None] * len(clip.beats)  # word timings → when the voice says each phrase
@@ -101,10 +101,8 @@ def prepare_clip(run: Path, clip_id: str) -> Path:
         f"previous clip's object; when this clip runs alone it is built from the description): "
         f"{json.dumps(clip.entry.model_dump())}\n"
         f"EXIT (must be in self.reg and on screen at the end): {json.dumps(clip.exit.model_dump())}\n"
-        f"SYMBOL COLORS: {json.dumps(plan.color_roles)}   FONT: {video_font(run) or 'Manim default'}\n"
-        f"PALETTE ROLES (use these colours for the roles in standards.md): "
-        f"{json.dumps({k: v for k, v in video_style(run).items() if k != 'background'})}\n"
-        f"TEMPLATE: {template_line(run)}\n"
+        f"SYMBOL COLORS (symbol → colour role): {json.dumps(plan.color_roles)}\n"
+        f"{look_brief(run)}\n"
         f"ACCURACY NOTES (verified): {'; '.join(accuracy_notes) or 'none'}\n"
         f"HUMAN_FEEDBACK (change requests for this scene or clip):\n"
         f"{requests_text(requests_for(run, plan.scene_id, clip_id))}\n"

@@ -1,0 +1,14 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "url": {
+      "title": "Url",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url"
+  ],
+  "title": "VoiceSample",
+  "type": "object"
+}

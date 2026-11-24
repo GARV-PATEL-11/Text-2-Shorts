@@ -1,0 +1,79 @@
+/* Faraday's design tokens: every colour, size, space, radius, type role, layer and duration the app uses. Components
+   read these; no raw values elsewhere. Black, white and greys only — colour exists only inside user content. */
+
+:root {
+  /* colour */
+  --night: #0b0b0d;        /* the page */
+  --night-2: #17181c;      /* cards, fields, popovers */
+  --rule: #2a2b31;         /* dividers, card borders */
+  --field-line: #3a3b42;   /* quiet outlines (decorative only: 1.7:1) */
+  --check-line: #6a6b74;   /* control borders and inactive marks (3.7:1, passes for non-text) */
+  --mute: #a3a5ad;         /* secondary text (8:1) */
+  --fg-2: #d6d7dc;         /* body text on cards (13.7:1) */
+  --fg: #ffffff;           /* primary text, selected marks */
+  --white: #ffffff;        /* primary buttons */
+  --white-hover: #f0f0f2;
+  --scrim: rgba(0, 0, 0, 0.72);
+  --glass: rgba(11, 11, 13, 0.55);       /* frosted glass behind full screen pictures (with a blur) */
+  --glass-bar: rgba(11, 11, 13, 0.72);
+  --veil-1: rgba(255, 255, 255, 0.06);
+  --veil-2: rgba(255, 255, 255, 0.16);
+  --shade-1: rgba(0, 0, 0, 0.4);
+  --shade-2: rgba(0, 0, 0, 0.6);
+
+  /* space: a 4px scale */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px;
+  --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px;
+
+  /* shape */
+  --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px; --r-pill: 999px; --r-round: 50%;
+  --bw: 1px; --bw-strong: 2px;
+
+  /* type: family, then size / line height / weight per role */
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;   /* the brand and Home's headline only */
+  --sans: "Geist", "Helvetica Neue", Arial, sans-serif;      /* everything you read and press */
+  --mono: "Fira Code", ui-monospace, "SF Mono", Menlo, monospace;  /* ids, labels, the console */
+  --fs-display: clamp(40px, 4.6vw, 60px); --lh-display: 1.04;
+  --fs-h1: clamp(26px, 2.4vw, 32px);      --lh-h1: 1.2;
+  --fs-h2: 20px;  --lh-h2: 1.3;
+  --fs-h3: 16px;  --lh-h3: 1.4;
+  --fs-body: 16px; --lh-body: 1.55;
+  --fs-small: 14px; --lh-small: 1.45;
+  --fs-note: 13px; --lh-note: 1.4;
+  --fs-micro: 12px;
+  --fs-label: 11px; --ls-label: 0.12em;
+  --fw-regular: 400; --fw-medium: 500; --fw-semibold: 600; --fw-mono: 450;
+  --measure: 72ch;
+
+  /* controls and icons */
+  --h-sm: 32px; --h-md: 40px; --h-lg: 48px;
+  --icon-sm: 16px; --icon-md: 20px; --icon-lg: 24px;
+
+  /* layout */
+  --max: 2400px;                  /* wide enough to use the whole screen up to 2560px; text keeps --measure */
+  --gut: clamp(16px, 2.5vw, 48px);
+  --header-h: 60px;
+  --rail-w: 264px;
+  --stack: var(--s-4);
+  --card-pad: var(--s-5);
+
+  /* elevation and layers */
+  --ring: 0 0 0 3px var(--veil-2);
+  --elev-pop: 0 0 0 var(--bw) var(--field-line), 0 12px 32px var(--shade-2);
+  --z-sticky: 50; --z-header: 100; --z-overlay: 200; --z-skip: 300;
+
+  /* motion: fades and colour changes; nothing bounces or scales (motion.css) */
+  --motion-fast: 120ms;
+  --motion-normal: 200ms;
+  --motion-slow: 300ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  color-scheme: dark;
+}
+
+/* breakpoints (custom properties cannot be used in @media; these are the only two): 1100px · 640px */
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-normal: 0ms; --motion-slow: 0ms; }
+}

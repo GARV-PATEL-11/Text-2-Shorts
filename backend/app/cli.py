@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import sys
 from pathlib import Path
+
+import faraday_logging
 
 from app.commands.hook_command import handle_hook_command
 from app.commands.production_commands import (
@@ -25,7 +29,7 @@ from app.commands.workflow_commands import (
     handle_status_command,
     handle_validate_command,
 )
-from app.config import DEFAULT_POLLY_ENGINE, DEFAULT_TTS
+from app.config import DEFAULT_TTS
 from app.workflow.clips import prepare_clip
 from app.workflow.run_workspace import resolve_run_path
 from app.workflow.templates import choose_template, starter_templates
@@ -59,19 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--tts",
         choices=["polly", "google"],
         default=DEFAULT_TTS,
-        help="narration provider: AWS Polly or Google Cloud Text-to-Speech",
-    )
-    command_parser.add_argument(
-        "--engine",
-        choices=["neural", "generative", "standard"],
-        default=DEFAULT_POLLY_ENGINE,
-        help="Polly engine (ignored for Google)",
-    )
-    command_parser.add_argument(
-        "--font", help="font family for all Text (any name from `fc-list : family`); default: Manim's"
-    )
-    command_parser.add_argument(
-        "--voice", help="Polly: Matthew, Joanna, Ruth, Stephen … · Google: en-US-Neural2-D, en-US-Studio-O …"
+        help="narration provider: AWS Polly or Google Cloud Text-to-Speech (voice, speed and look: the template)",
     )
     command_parser.set_defaults(handler=handle_new_command)
 
@@ -90,7 +82,22 @@ def main() -> None:
     arguments = build_parser().parse_args()
     if getattr(arguments, "run", None):
         arguments.run = str(Path(arguments.run).resolve())
-    arguments.handler(arguments)
+    if arguments.subcommand == "serve":
+        faraday_logging.configure("backend")
+    elif arguments.subcommand != "hook":  # the hook finds its run itself; stderr would reach Claude's context
+        run = Path(arguments.run) if getattr(arguments, "run", None) and Path(arguments.run).is_dir() else None
+        faraday_logging.configure("runtime", run, console=False)
+    log = logging.getLogger("app.cli")
+    log.info("text-2-shorts %s", " ".join(sys.argv[1:])[:500])
+    try:
+        arguments.handler(arguments)
+    except SystemExit as stopped:
+        if stopped.code not in (None, 0):
+            log.warning("%s stopped: %s", arguments.subcommand, str(stopped.code)[:2000])
+        raise
+    except Exception:
+        log.exception("%s failed", arguments.subcommand)
+        raise
 
 
 def register_subcommands(subparsers) -> None:
@@ -123,7 +130,12 @@ def register_subcommands(subparsers) -> None:
         "template", lambda arguments: print(choose_template(Path(arguments.run), arguments.name, arguments.set))
     )
     command_parser.add_argument("name")
-    command_parser.add_argument("--set", action="append", default=[], help="key=value, e.g. palette.focus=ORANGE")
+    command_parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="element=variant · custom.element=value · key=value, e.g. accent_color=coral, custom.text_font=Lato",
+    )
     add_subcommand("final", handle_final_command, force=True)
     add_subcommand("status", handle_status_command)
     add_subcommand("report", handle_report_command)

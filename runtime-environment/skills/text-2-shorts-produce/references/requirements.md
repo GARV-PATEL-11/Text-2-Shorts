@@ -29,18 +29,22 @@ Steps
 5. Topics and content (topic-list.md): apply the request-modifier prompt to the request → `topics.md` (a numbered
    list), confirm it with the user, then write `content.md` — one `## <topic>` section per topic, in order, with
    correct educational content for the audience. This is the outline's `raw_content`.
-6. Standing preferences: if the user states a lasting preference (tone, colours, background, font, voice rate,
-   pause length, confirm each scene), write it to `preferences.json` (schema `Preferences`).
+6. Standing preferences: if the user states a lasting preference (tone, pause length, confirm each scene, quality
+   threshold), write it to `preferences.json` (schema `Preferences`). Colours, fonts, voice and speed are the
+   template's (step 8).
 
 7. Requirements checkpoint: show the user the brief (approach = the script type, length, audience, detail,
    depth, complexity, expectations), topics.md and content.md; on approval `text-2-shorts approve . requirements`.
-8. Template: show `text-2-shorts templates` (starter templates built from standards.md); the user picks one and
-   tweaks it: `text-2-shorts template . <name> --set palette.focus=ORANGE --set music=assets/song.mp3 …` writes
-   `template.json` (the final template specification: colours, typography, animation and transition style,
-   density, composition, pacing, music) and `template_preview.svg`. Music and sound effects are the user's own
-   files, put in the run folder (e.g. `assets/`). On approval `text-2-shorts approve . template`. The template
-   overrides preferences.json, which overrides the standard style.
+8. Template (look and sound) — the run's first stage, chosen before the requirements: the user picks it on the
+   website's Template stage (a gallery of starters, or Build Your Own): a starter template (7, from
+   `runtime-environment/template_kit/`), then any element changed (background, grid, palettes, accent, fonts, type
+   sizes, border, voice, speaking speed, narration tone, subtitles), five of them to their own value (background
+   colour, accent colour, text font, voice, speed). Untouched elements keep the starter's default; each element
+   shows every option rendered, and the voice can be heard before saving. If they ask you instead:
+   `text-2-shorts template . <name> --set accent_color=coral --set custom.text_font=Lato --set music=assets/song.mp3`.
+   Music and sound effects are the user's own files in the run folder (e.g. `assets/`). On approval
+   `text-2-shorts approve . template`.
 
 Done when `text-2-shorts validate . brief`, `… topics` and `… content` pass, the user agreed to objectives,
-audience, style, length and constraints, and both checkpoints (requirements, template) are approved. A request the product cannot do (another output format, another voice vendor) → say so and offer
+audience, style, length and constraints, and both checkpoints (template first, then requirements) are approved. A request the product cannot do (another output format, another voice vendor) → say so and offer
 the closest supported option.

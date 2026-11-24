@@ -1,12 +1,12 @@
 # Video standards and explanation style (apply to every scene and clip)
 
 VIDEO STANDARDS — identical for every scene and clip
-Frame: 16:9, 2560×1440 (Manim frame 14.2 × 8 units); keep 0.5 units clear of every edge. One background for the whole
-video (#0e2733, set by the harness — never set it in clip code).
-Palette roles (Manim colour constants): text WHITE · current focus/highlight YELLOW ·
-given quantities BLUE · derived results GREEN · mistakes/warnings RED ·
-secondary/dimmed GREY_B. Each math symbol keeps ONE colour for the whole video (SYMBOL COLORS).
-Type scale (font_size): title 48 · body 34 · label 28 · caption 24, never smaller. MathTex: main formula 44, inline 34.
+Frame: 16:9, 2560×1440 (Manim frame 14.2 × 8 units); keep 0.5 units clear of every edge. Drafts 1280×720 at 30 fps.
+The look comes from the run's template (template.json, resolved by runtime-environment/video_settings.py and written
+into every TASK.md): background (set by the harness — never in clip code), colour roles (text · focus = current
+highlight · given = known inputs · derived = results · warning · secondary · accent · outline · dim · surface, each a
+hex colour), the font and the text sizes (title · heading · body · label · caption · math). Never hard-code another
+colour, font or size. Each math symbol keeps ONE colour role for the whole video (SYMBOL COLORS).
 Zones: top_center = title or the running formula · center = main diagram · left_half/right_half = comparisons ·
 bottom_center = one-line caption. At most 2 text blocks and 1 diagram on screen at once.
 Timing: Write/Create 0.8–1.5 s · FadeIn/FadeOut 0.4–0.6 s · Transform 0.8–1.2 s · hold ≥ 0.8 s after a key result.

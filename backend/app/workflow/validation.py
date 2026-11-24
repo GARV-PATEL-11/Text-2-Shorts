@@ -116,7 +116,7 @@ def validate_outline(run: Path) -> list[str]:
     """Stage 2: outline.json against the approach's model (backend/schemas/outline_models) and the outline prompts'
     checkable rules: segment order and first/last type, 10–120 s per segment, transitions, and the visual-plan
     standard."""
-    for stage in ("requirements", "template"):  # the outline starts from confirmed requirements and a template
+    for stage in ("template", "requirements"):  # the outline starts from an approved look and confirmed requirements
         if problem := stage_approval_problem(run, stage):
             return [problem]
     brief = load_brief(run)

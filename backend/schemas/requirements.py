@@ -11,6 +11,16 @@ from schemas.base import Strict
 class Brief(Strict):
     """Stage 1 — the user's requirements, written by `text-2-shorts new` and confirmed with the user."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_settings_the_template_owns_now(cls, data):
+        """Briefs written before 0.20 carried the voice and font; the template owns them now (their runs stay readable)."""
+        return (
+            {key: value for key, value in data.items() if key not in ("voice", "engine", "font")}
+            if isinstance(data, dict)
+            else data
+        )
+
     requirement: str = Field(..., min_length=1, description="the topic and request in the user's words")
     objectives: list[str] = Field(default_factory=list, description="what the viewer should be able to do or explain")
     audience: str = "curious beginners"
@@ -23,9 +33,6 @@ class Brief(Strict):
     pace: Literal["slow", "medium", "fast"] = "medium"
     notes: str = Field("", description="constraints and anything else the user asked for")
     tts: Literal["polly", "google"] = "polly"
-    voice: str | None = None
-    engine: Literal["neural", "generative", "standard"] = "neural"
-    font: str | None = None
     detail_level: Literal["overview", "standard", "detailed"] = "standard"
     explanation_depth: Literal["intuitive", "conceptual", "rigorous"] = "conceptual"
     technical_complexity: Literal["beginner", "intermediate", "advanced"] = "beginner"
@@ -34,33 +41,20 @@ class Brief(Strict):
 
 
 class VideoTemplate(Strict):
-    """The video's look and feel (template.json): a starter template from runtime-environment/templates/ with the
-    user's overrides. Overrides preferences.json, which overrides the standard style."""
+    """The video's look and sound (template.json): one variant per element of
+    runtime-environment/template_kit/elements.json, from a starter template plus the user's choices; resolved by
+    runtime-environment/video_settings.py and audio_settings.py. The assembly fields are ours."""
 
-    name: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, description="the starter template it started from")
     description: str = ""
-    background: str = Field(..., pattern=r"^#[0-9a-fA-F]{6}$")
-    palette: dict[Literal["text", "focus", "given", "derived", "warning", "secondary"], str] = Field(
-        default_factory=dict, description="palette role → Manim colour constant"
+    elements: dict[str, str] = Field(..., description="element → variant id (template_kit/elements.json)")
+    overrides: dict[str, dict] = Field(
+        default_factory=dict, description="custom values merged into a variant (video_settings.CUSTOM)"
     )
-    font: str | None = None
-    type_scale: dict[Literal["title", "body", "label", "caption"], int] = Field(
-        {"title": 48, "body": 34, "label": 28, "caption": 24}, description="font_size per role (standards.md)"
-    )
-    animation_style: str = Field("smooth, unhurried moves; one motion at a time", min_length=1)
     scene_transition: Literal["cut", "fade", "crossfade"] = "fade"
     transition_seconds: float = Field(0.5, ge=0, le=2)
-    density: Literal["sparse", "balanced", "dense"] = "balanced"
-    composition: str = Field("one focal element, centred; supporting labels around it", min_length=1)
-    pacing: Literal["slow", "medium", "fast"] = "medium"
     music: str | None = Field(None, description="path to the user's own background music file (none = silence)")
     music_volume_db: float = Field(-24, ge=-40, le=0, description="music level under the voice")
-
-    @model_validator(mode="after")
-    def _readable_type(self):
-        if min(self.type_scale.values(), default=24) < 24:
-            raise ValueError("type_scale: nothing smaller than 24 (standards.md)")
-        return self
 
 
 class EnvironmentReport(Strict):
@@ -81,12 +75,6 @@ class Preferences(Strict):
     preferences.json, if any, by `text-2-shorts new`)."""
 
     tone: str = Field("", description="tone of voice for the script, e.g. 'warm, playful'")
-    palette: dict[Literal["text", "focus", "given", "derived", "warning", "secondary"], str] = Field(
-        default_factory=dict, description="palette role → Manim colour constant, overriding the standard palette"
-    )
-    background: str | None = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
-    font: str | None = Field(None, description="font family when brief.json names none")
-    voice_rate_percent: int = Field(100, ge=80, le=120)
     pause_ms: int = Field(600, ge=200, le=2000, description="length of a [pause]")
     confirm_each_scene: bool = Field(False, description="ask the user before each scene's production starts")
     quality_threshold: int = Field(

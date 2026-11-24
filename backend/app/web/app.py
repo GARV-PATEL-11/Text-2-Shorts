@@ -1,7 +1,7 @@
 """The FastAPI app behind `text-2-shorts serve`: the frontend, sign-in through Claude Code, and a JSON API over the
 runs whose requests and responses are the Pydantic contracts in schemas/api.py.
 
-    GET    /, /styles.css, /app.js            the frontend
+    GET    /, /assets/*                        the frontend (React, built into frontend/dist/)
     GET    /api/session                        SessionView
     POST   /api/session                        sign in with Claude Code's account → SessionView (+ cookie)
     DELETE /api/session                        sign out
@@ -13,6 +13,15 @@ runs whose requests and responses are the Pydantic contracts in schemas/api.py.
     POST   /api/runs/{run}/approve             ApproveInput → CheckpointDecision (409 + problems when blocked)
     POST   /api/runs/{run}/requests            ChangeRequestInput → TrackedRequest (201)
     POST   /api/runs/{run}/requests/{rNNN}     ResolveInput → TrackedRequest
+    GET    /api/look                           LookCatalogue: starter templates, every element and its options
+    GET    /api/runs/{run}/look                LookView: the run's look and sound (the default until saved)
+    POST   /api/runs/{run}/look                LookInput → LookView: template.json (409 + problems when unusable)
+    POST   /api/runs/{run}/look/still          LookInput → LookStill: the whole look as one frame, before saving
+    POST   /api/runs/{run}/look/voice          LookInput → VoiceSample: hear the voice before saving
+    GET    /previews/starters/{name}.webp      a starter template as one frame at 2560×1440
+    POST   /api/runs/{run}/reshuffle           ReshuffleInput → ReshuffleView: the optional last stage (apply re-keys clips)
+    POST   /api/look/still                     LookInput → LookStill: the whole look as one frame, without a run
+    POST   /api/look/options                   LookOptionsInput → every option of an element, drawn in the user's look
     GET    /media/{run}/{path}                 a file inside that run (Range supported, for seeking)
 Everything but the frontend files and /api/session needs a session. Writes go through the same workflow functions as
 the CLI. Only 127.0.0.1/localhost is served (no DNS rebinding); writes must be JSON from this page's own origin.
@@ -20,9 +29,15 @@ the CLI. Only 127.0.0.1/localhost is served (no DNS rebinding); writes must be J
 
 from __future__ import annotations
 
+import json
+import logging
 import re
+import subprocess
+import time
 from pathlib import Path
 
+import faraday_logging
+import generate_preview
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -30,38 +45,48 @@ from pydantic import ValidationError
 from schemas.api import (
     ApiError,
     ApproveInput,
+    BrowserLogBatch,
     ChangeRequestInput,
     ClaudeAccount,
     ConsoleInput,
     ConsoleView,
+    LookCatalogue,
+    LookInput,
+    LookOptionPicture,
+    LookOptionPictures,
+    LookOptionsInput,
+    LookStill,
+    LookView,
     NewRunInput,
+    ReshuffleChange,
+    ReshuffleInput,
+    ReshuffleView,
     ResolveInput,
     RunDetail,
     RunSummary,
     SessionView,
+    VoiceSample,
 )
 from schemas.interaction import CheckpointDecision, TrackedRequest
 from schemas.requirements import Brief
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.config import (
-    DEFAULT_GOOGLE_VOICE,
-    DEFAULT_POLLY_ENGINE,
-    DEFAULT_POLLY_VOICE,
-    REPOSITORY_ROOT,
-    RUNS_DIRECTORY,
-)
+from app.config import REPOSITORY_ROOT, RUNS_DIRECTORY
 from app.sandbox import KICKOFF_PROMPT
-from app.utilities import format_validation_errors
+from app.utilities import content_hash, format_validation_errors
 from app.web import auth, console
-from app.workflow import run_workspace
+from app.workflow import reshuffle, run_workspace, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
+from app.workflow.artifacts import load_brief
 from app.workflow.change_requests import load_requests, record_change_request, resolve_request
 from app.workflow.run_views import run_detail, run_summary
 
-FRONTEND_DIRECTORY = REPOSITORY_ROOT / "frontend"
-FRONTEND_FILES = {"index.html": "text/html", "styles.css": "text/css", "app.js": "text/javascript"}
+FRONTEND_DIRECTORY = REPOSITORY_ROOT / "frontend" / "dist"  # the React build: `npm ci && npm run build` in frontend/
+ASSET_NAME = re.compile(r"^[\w.-]+\.(js|css|woff2?|svg|png|webp)$")
 RUN_NAME = re.compile(r"^\w[\w.-]*$")
+VOICE_SAMPLE = (
+    "Here is how your narrator will sound. Square the short sides, add them, and you get the long side squared."
+)
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -73,9 +98,29 @@ class ApiProblem(Exception):
         self.status, self.error, self.problems = status, error, problems or []
 
 
+log = logging.getLogger("app.web")
+QUIET = ("/assets/", "/previews/", "/media/")  # static files: logged at DEBUG only
+
+
 def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     app = FastAPI(title="Text-2-Shorts", docs_url=None, redoc_url=None, openapi_url=None)
     sessions = auth.Sessions()
+    browser = faraday_logging.channel("frontend")
+    log.info("serving runs from %s", runs_directory)
+
+    @app.middleware("http")
+    async def request_log(request: Request, call_next):
+        started = time.perf_counter()
+        try:
+            response = await call_next(request)
+        except Exception:
+            log.exception("%s %s failed", request.method, request.url.path)
+            raise
+        quiet = request.url.path.startswith(QUIET) and response.status_code < 400
+        level = logging.ERROR if response.status_code >= 500 else logging.DEBUG if quiet else logging.INFO
+        log.log(level, "%s %s → %s (%.0f ms)", request.method, request.url.path, response.status_code,
+                (time.perf_counter() - started) * 1000)  # fmt: skip
+        return response
 
     # ── protections ────────────────────────────────────────────────────────────────────────────────────────
     @app.middleware("http")
@@ -93,7 +138,11 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])
 
     @app.exception_handler(ApiProblem)
-    async def on_problem(_: Request, problem: ApiProblem):
+    async def on_problem(request: Request, problem: ApiProblem):
+        (log.error if problem.status >= 500 else log.warning)(
+            "%s %s: %s %s%s", request.method, request.url.path, problem.status, problem.error,
+            f" — {'; '.join(problem.problems)[:1500]}" if problem.problems else "",
+        )  # fmt: skip
         return problem_response(problem)
 
     @app.exception_handler(RequestValidationError)
@@ -117,6 +166,17 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
         if not RUN_NAME.match(run) or ".." in run or not folder.is_dir():
             raise ApiProblem(404, f"no run {run}")
         return folder
+
+    @app.post("/api/logs", status_code=204)
+    def browser_logs(batch: BrowserLogBatch) -> Response:
+        """What the browser reports, into frontend.log (no session needed: the sign-in page reports too)."""
+        levels = {"debug": logging.DEBUG, "info": logging.INFO, "warn": logging.WARNING, "error": logging.ERROR}
+        for entry in batch.entries:
+            browser.log(
+                levels[entry.level], "%s%s%s", f"[{entry.page}] " if entry.page else "", entry.message,
+                f" — {entry.details}" if entry.details else "",
+            )  # fmt: skip
+        return Response(status_code=204)
 
     @app.get("/api/session", response_model=SessionView)
     def session(request: Request) -> SessionView:
@@ -157,18 +217,29 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
 
     @app.post("/api/runs", response_model=RunSummary, status_code=201, dependencies=[Depends(signed_in_account)])
     def start_run(new: NewRunInput) -> RunSummary:
+        """A new run; with `look`, its first stage (the template) is saved and approved as the user chose it."""
         brief = Brief.model_validate(
             {
-                **new.model_dump(),
+                **new.model_dump(exclude={"look"}),
                 "objectives": [objective for objective in new.objectives if objective.strip()],
-                "voice": DEFAULT_GOOGLE_VOICE if new.tts == "google" else DEFAULT_POLLY_VOICE,
-                "engine": DEFAULT_POLLY_ENGINE,
             }
         )
+        template = None
+        if new.look:  # checked before anything is created: a refused look leaves no half-made run
+            try:
+                template = templates.build_template(new.look.template, new.look.elements, new.look.custom, {})
+            except FileNotFoundError as unknown:
+                raise ApiProblem(404, f"no starter template {new.look.template}") from unknown
+            if problems := templates.video_settings.problems(template):
+                raise ApiProblem(409, "this look and sound cannot be used yet", problems)
         try:
-            return run_summary(run_workspace.create_run(brief, runs_directory))
+            folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
             raise ApiProblem(409, str(problem)) from problem
+        if template:
+            templates.save_template(folder, template)
+            approve_checkpoint(folder, "template", "chosen in Start a Run")
+        return run_summary(folder)
 
     @app.get("/api/runs/{run}/console", response_model=ConsoleView, dependencies=[Depends(signed_in_account)])
     def console_view(run: str) -> ConsoleView:
@@ -227,6 +298,188 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
             raise ApiProblem(404, str(missing)) from missing
         return next(request for request in load_requests(folder) if request.id == request_id)
 
+    # ── look & sound: the template tree ────────────────────────────────────────────────────────────────────
+    @app.get("/api/look", response_model=LookCatalogue, dependencies=[Depends(signed_in_account)])
+    def look_catalogue() -> LookCatalogue:
+        return templates.catalogue()
+
+    @app.get("/api/runs/{run}/look", response_model=LookView, dependencies=[Depends(signed_in_account)])
+    def run_look(run: str) -> LookView:
+        return templates.look_view(run_folder(run))
+
+    def chosen(folder: Path, look: LookInput) -> dict:
+        try:
+            return templates.chosen_template(folder, look.template, look.elements, look.custom)
+        except ValueError as unknown:
+            raise ApiProblem(404, str(unknown)) from unknown
+
+    def usable(folder: Path, look: LookInput) -> dict:
+        template = chosen(folder, look)
+        if problems := templates.template_problems(template, folder):
+            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+        return template
+
+    @app.post("/api/runs/{run}/look", response_model=LookView, dependencies=[Depends(signed_in_account)])
+    def save_look(run: str, look: LookInput) -> LookView:
+        folder = run_folder(run)
+        if problems := templates.save_template(folder, chosen(folder, look)):
+            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+        return templates.look_view(folder)
+
+    @app.post("/api/runs/{run}/look/voice", response_model=VoiceSample, dependencies=[Depends(signed_in_account)])
+    def voice_sample(run: str, look: LookInput) -> VoiceSample:
+        """A few seconds of the chosen voice at the chosen speed (calls Polly or Google with your credentials)."""
+        folder = run_folder(run)
+        template = usable(folder, look)
+        brief = load_brief(folder)
+        try:
+            generate_preview.voice_sample(template, brief.tts if brief else "polly", folder / "look_voice_sample.mp3")
+        except Exception as failed:  # credentials, network, an unknown voice id: say which
+            raise ApiProblem(502, f"the voice could not be synthesised: {failed}") from failed
+        return VoiceSample(url=f"/media/{run}/look_voice_sample.mp3?v={content_hash(template)[:8]}")
+
+    @app.post("/api/runs/{run}/look/still", response_model=LookStill, dependencies=[Depends(signed_in_account)])
+    def look_still(run: str, look: LookInput) -> LookStill:
+        """The whole chosen look as one frame, rendered by Manim exactly as clips get it (a few seconds)."""
+        folder = run_folder(run)
+        template = usable(folder, look)
+        (folder / "look_preview.json").write_text(json.dumps(template))
+        try:
+            generate_preview.render_in_subprocess(
+                ["still", str(folder / "look_preview.json"), str(folder / "look_preview.webp")]
+            )
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
+            raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
+        return LookStill(
+            url=f"/media/{run}/look_preview.webp?v={content_hash(template)[:8]}",
+            note=generate_preview.font_note(template),
+        )
+
+    @app.post("/api/runs/{run}/reshuffle", response_model=ReshuffleView, dependencies=[Depends(signed_in_account)])
+    def reshuffle_look(run: str, wanted: ReshuffleInput) -> ReshuffleView:
+        """A deterministic reshuffle of the saved look: shown (apply=False) or saved, clips recoloured (apply=True)."""
+        folder = run_folder(run)
+        if not (folder / "template.json").exists():
+            raise ApiProblem(409, "choose the look and sound first: there is nothing to reshuffle")
+        before = templates.current_template(folder)
+        if wanted.apply and (problems := reshuffle.apply(folder, wanted.seed, list(wanted.groups))):
+            raise ApiProblem(409, "this reshuffle cannot be used", problems)
+        after = (
+            templates.current_template(folder)
+            if wanted.apply
+            else reshuffle.proposal(folder, wanted.seed, list(wanted.groups))
+        )
+        mode = after["elements"].get("theme_mode", "dark")
+        return ReshuffleView(
+            look=LookInput(
+                template=after["name"],
+                elements=after["elements"],
+                custom={
+                    element: templates.video_settings.custom_value(element, override, mode)
+                    for element, override in after.get("overrides", {}).items()
+                },
+            ),
+            changes=[
+                ReshuffleChange(element=element, before=before["elements"][element], after=variant)
+                for element, variant in after["elements"].items()
+                if before["elements"].get(element) != variant
+            ],
+            applied=wanted.apply,
+        )
+
+    @app.post("/api/look/still", response_model=LookStill, dependencies=[Depends(signed_in_account)])
+    def any_look_still(look: LookInput) -> LookStill:
+        """The whole look as one 2560×1440 frame without a run (Start a Run's first step); cached."""
+        try:
+            template = templates.build_template(
+                look.template, look.elements, {k: v for k, v in look.custom.items() if v.strip()}, {}
+            )
+        except FileNotFoundError as unknown:
+            raise ApiProblem(404, f"no starter template {look.template}") from unknown
+        if problems := templates.video_settings.problems(template):
+            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+        path = generate_preview.still_path(template)
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            (path.parent / f"{path.stem}.json").write_text(json.dumps(template))
+            try:
+                generate_preview.render_in_subprocess(["still", str(path.parent / f"{path.stem}.json"), str(path)])
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
+                raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
+        return LookStill(url=f"/previews/custom/{path.name}", note=generate_preview.font_note(template))
+
+    @app.get("/previews/starters/{name}.webp", dependencies=[Depends(signed_in_account)])
+    def starter_preview(name: str) -> FileResponse:
+        """A starter template as one frame at 2560×1440 (generate_preview.py starters), rendered now if missing."""
+        if name not in templates.template_names():
+            raise ApiProblem(404, f"no starter template {name}")
+        path = generate_preview.starter_path(name)
+        if not path.exists():
+            try:
+                generate_preview.render_in_subprocess(["starters", "--only", name])
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
+                raise ApiProblem(502, f"the starter could not be rendered: {failed}") from failed
+        return FileResponse(path, media_type="image/webp")
+
+    @app.post("/api/look/options", response_model=LookOptionPictures, dependencies=[Depends(signed_in_account)])
+    def look_options(wanted: LookOptionsInput) -> LookOptionPictures:
+        """Every option of one element drawn in the user's own look (their colours, background, font), so what they
+        see is what their video gets. Rendered once per look in one process; the 2560×1440 ones when opened."""
+        library = templates.video_settings.library()
+        if wanted.element not in generate_preview.PREVIEWED:
+            raise ApiProblem(404, f"{wanted.element} has no picture")
+        look = wanted.look
+        custom = {element: value for element, value in look.custom.items() if value.strip()}
+        try:
+            base = templates.build_template(look.template, look.elements, custom, {})
+        except FileNotFoundError as unknown:
+            raise ApiProblem(404, f"no starter template {look.template}") from unknown
+        candidates = [(variant, {"variant": variant}) for variant in library[wanted.element]["variants"]]
+        if custom.get(wanted.element):
+            candidates.append(("__custom__", {"custom": custom[wanted.element]}))
+        pictures, jobs = [], []
+        for option, setting in candidates:
+            template = generate_preview.option_in_look(base, wanted.element, **setting)
+            if templates.video_settings.problems(template):
+                pictures.append(LookOptionPicture(option=option))
+                continue
+            small, full = generate_preview.custom_path(template), generate_preview.still_path(template)
+            if not small.exists():
+                jobs.append({"template": template, "path": str(small)})
+            if not full.exists():  # rendered by GET /previews/custom/<name> when the user opens it
+                full.parent.mkdir(parents=True, exist_ok=True)
+                (full.parent / f"{full.stem}.json").write_text(json.dumps(template))
+            pictures.append(
+                LookOptionPicture(
+                    option=option, url=f"/previews/custom/{small.name}", full=f"/previews/custom/{full.name}"
+                )
+            )
+        if jobs:
+            jobs_file = generate_preview.CUSTOM_DIRECTORY / f"jobs-{content_hash(jobs)[:12]}.json"
+            jobs_file.write_text(json.dumps(jobs))
+            try:
+                generate_preview.render_in_subprocess(["batch", str(jobs_file)])
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
+                raise ApiProblem(502, f"the previews could not be rendered: {failed}") from failed
+            finally:
+                jobs_file.unlink(missing_ok=True)
+        return LookOptionPictures(pictures=pictures)
+
+    @app.get("/previews/custom/{name}", dependencies=[Depends(signed_in_account)])
+    def custom_preview_image(name: str) -> FileResponse:
+        path = generate_preview.CUSTOM_DIRECTORY / name
+        if not re.fullmatch(r"[0-9a-f]{20}\.webp", name):
+            raise ApiProblem(404, "no such preview")
+        recipe = path.with_suffix(".json")
+        if not path.is_file() and recipe.is_file():  # a full-size picture asked for the first time: render it now
+            try:
+                generate_preview.render_in_subprocess(["still", str(recipe), str(path)])
+            except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
+                raise ApiProblem(502, f"the preview could not be rendered: {failed}") from failed
+        if not path.is_file():
+            raise ApiProblem(404, "no such preview")
+        return FileResponse(path, media_type="image/webp")
+
     @app.get("/media/{run}/{path:path}", dependencies=[Depends(signed_in_account)])
     def media(run: str, path: str) -> FileResponse:
         folder = run_folder(run).resolve()
@@ -236,14 +489,24 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
         return FileResponse(file)  # answers Range requests, so long videos can be seeked
 
     # ── the frontend ───────────────────────────────────────────────────────────────────────────────────────
-    def frontend_file(name: str) -> FileResponse:
-        return FileResponse(
-            FRONTEND_DIRECTORY / name, media_type=FRONTEND_FILES[name], headers={"Cache-Control": "no-store"}
-        )
+    @app.get("/", include_in_schema=False)
+    def frontend() -> Response:
+        index = FRONTEND_DIRECTORY / "index.html"
+        if not index.is_file():
+            return Response(
+                "The website is not built yet: run `npm ci && npm run build` in frontend/, then reload.",
+                status_code=503,
+                media_type="text/plain",
+            )
+        return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-store"})
 
-    app.get("/", include_in_schema=False)(lambda: frontend_file("index.html"))
-    app.get("/styles.css", include_in_schema=False)(lambda: frontend_file("styles.css"))
-    app.get("/app.js", include_in_schema=False)(lambda: frontend_file("app.js"))
+    @app.get("/assets/{name}", include_in_schema=False)
+    def frontend_asset(name: str) -> FileResponse:
+        asset = FRONTEND_DIRECTORY / "assets" / name
+        if not ASSET_NAME.match(name) or not asset.is_file():
+            raise ApiProblem(404, "no such file")
+        return FileResponse(asset, headers={"Cache-Control": "public, max-age=31536000, immutable"})  # hashed names
+
     return app
 
 

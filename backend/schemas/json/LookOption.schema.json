@@ -1,0 +1,19 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "label"
+  ],
+  "title": "LookOption",
+  "type": "object"
+}

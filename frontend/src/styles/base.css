@@ -1,0 +1,38 @@
+/* Base: the reset, the page ground, the type roles, focus. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { background: var(--night); scroll-padding-top: calc(var(--header-h) + var(--s-4)); }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  font: var(--fw-regular) var(--fs-body) / var(--lh-body) var(--sans); color: var(--fg); background: var(--night);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; overflow-x: clip;
+}
+#root { display: contents; }
+main { flex: 1; outline: none; }
+h1, h2, h3, h4 { margin: 0; font-weight: var(--fw-semibold); }
+p { margin: 0; max-width: var(--measure); }
+ul, ol { margin: 0; }
+img, svg { display: block; }
+svg { flex: none; }
+a { color: inherit; }
+code, .id { font: var(--fw-mono) 0.88em / inherit var(--mono); }
+code { color: var(--fg-2); }
+::selection { background: var(--fg); color: var(--night); }
+:focus-visible, [data-focus-visible] { outline: var(--bw-strong) solid var(--fg); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.skip { position: absolute; left: -9999px; z-index: var(--z-skip); }
+.skip:focus { left: var(--gut); top: var(--s-2); background: var(--night-2); padding: var(--s-2) var(--s-3); border-radius: var(--r-md); }
+
+.note { font-size: var(--fs-small); line-height: var(--lh-small); color: var(--mute); }
+.eyebrow { font: var(--fw-medium) var(--fs-label) / 1 var(--mono); letter-spacing: var(--ls-label); text-transform: uppercase; color: var(--mute); margin-bottom: var(--s-4); }
+.subhead { font: var(--fw-semibold) var(--fs-small) / var(--lh-small) var(--mono); color: var(--fg-2); }
+.score { margin-left: auto; font: var(--fw-semibold) var(--fs-body) / 1 var(--mono); }
+.narration { font-size: var(--fs-body); line-height: 1.75; color: var(--fg-2); }
+.narration--bridge { font-style: italic; color: var(--mute); }
+.document .md { white-space: normal; font-family: var(--sans); }
+.document { margin: 0; padding: var(--s-5); white-space: pre-wrap; font: var(--fw-mono) var(--fs-small) / 1.7 var(--mono); color: var(--fg-2); border: var(--bw) solid var(--rule); border-radius: var(--r-lg); }
+.points { padding-left: var(--s-5); font-size: var(--fs-small); color: var(--fg-2); display: grid; gap: var(--s-1); }
+.problems { padding-left: var(--s-5); font-size: var(--fs-small); color: var(--fg-2); display: grid; gap: var(--s-1); }
+.steps-list { padding-left: var(--s-5); display: grid; gap: var(--s-2); color: var(--fg-2); }

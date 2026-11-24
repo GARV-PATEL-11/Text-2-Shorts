@@ -9,7 +9,7 @@ current one passed `accept`.
 2. Clips, one at a time: `text-2-shorts task . sNNcMM` → **clip-builder** subagent, given only that folder's
    path → `text-2-shorts accept . sNNcMM`, then the next clip. The task folder holds the accepted earlier clips
    (scene/clips/), so the clip starts from their real end state; it takes inherited objects with
-   `self.entry(name, make)`. TASK.md carries the template (type scale, animation style, density, composition). Drafts render at 720p30. A clip that fails accept twice: show the user the
+   `self.entry(name, make)`. TASK.md carries the template's rules (colour roles, font, text sizes, safe area). Drafts render at 720p30. A clip that fails accept twice: show the user the
    findings and ask for a hint.
 3. Preview: `text-2-shorts preview . sNN` → `scenes/sNN/preview.mp4` (the whole scene with its opening transition,
    720p30, with audio), `sync.json` (the changes-made document: per beat when it is said vs shown, whether each
