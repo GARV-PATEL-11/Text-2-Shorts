@@ -580,6 +580,12 @@
       "title": "Final Checks",
       "type": "array"
     },
+    "final_checked": {
+      "default": false,
+      "description": "the media checks ran on this final video (a report exists)",
+      "title": "Final Checked",
+      "type": "boolean"
+    },
     "requests": {
       "items": {
         "$ref": "#/$defs/TrackedRequest"

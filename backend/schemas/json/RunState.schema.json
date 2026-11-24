@@ -116,6 +116,19 @@
       "description": "every stage, scene and clip \u2192 its status",
       "title": "Status",
       "type": "object"
+    },
+    "console_session": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the Claude Code session the website's console resumes",
+      "title": "Console Session"
     }
   },
   "title": "RunState",

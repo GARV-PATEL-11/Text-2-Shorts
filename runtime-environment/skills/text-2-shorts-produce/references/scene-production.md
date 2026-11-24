@@ -18,7 +18,7 @@ current one passed `accept`.
    previews again). A problem timing cannot fix (wrong or missing animation) → `text-2-shorts feedback . sNNcMM
    --text "…"` and rebuild that clip, then preview again.
 5. Video critic loop — at most 3 rounds, each scored 0–100 against `quality_threshold` (preferences.json, 85 by
-   default): **video-critic** subagent appends a round to `scenes/sNN/video_critique.json`. On "revise", route each
+   default; tiers, scoring and routing: critique-protocol.md): **video-critic** subagent appends a round to `scenes/sNN/video_critique.json`. On "revise", route each
    issue (sync → audio-refactorer; plan-match, render, design → feedback + clip rebuild), preview again, and append
    a ChangeRecord for the iteration to `scenes/sNN/changes.json` (issue, findings, modification, files, rendering,
    audio timing, sync, validation, score) — the hook writes the run's `changes.txt` from it; then the next round.

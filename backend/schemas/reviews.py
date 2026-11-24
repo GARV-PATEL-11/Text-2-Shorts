@@ -23,17 +23,44 @@ class ReviewReport(Strict):
     findings: list[ReviewFinding]
 
 
+Tier = Literal["basic", "good", "great"]
+TIER_OF_LETTER: dict[str, Tier] = {"B": "basic", "G": "good", "X": "great"}
+TIER_PENALTY: dict[str, int] = {"basic": 25, "good": 10, "great": 3}  # critique-protocol.md explains the tiers
+
+
 class CritiqueIssue(Strict):
+    """One defect, written so a refactorer can fix it without re-reviewing: which rule, where, what was seen, why it
+    matters, and the smallest fix."""
+
     target: str = Field(
         ..., pattern=r"^(script|s\d{2}(c\d{2})?)$", description="the whole script, or the scene or clip it is about"
+    )
+    criterion: str = Field(
+        ...,
+        pattern=r"^[SPV]-[BGX]\d{1,2}$",
+        description="the rubric line it breaks: S script · P plan · V video critic; B basic need · G good to have · "
+        "X great if followed; then its number (P-B3)",
+    )
+    tier: Tier = Field(
+        ..., description="basic: must always hold (blocks a pass) · good: expected quality · great: polish"
     )
     aspect: str = Field(
         ...,
         description="script: outline-fit · clarity · flow · pacing · speakability · tone; plan: clarity · sync · "
         "constructability · design; video: plan-match · sync · render · design",
     )
-    problem: str
-    fix: str
+    evidence: str = Field(
+        ..., min_length=1, description="what was seen and where: a quote, a beat, a frame time, a sync offset"
+    )
+    problem: str = Field(..., min_length=1, description="what is wrong, in one or two sentences")
+    impact: str = Field(..., min_length=1, description="what it does to the viewer, the build or the sync")
+    fix: str = Field(..., min_length=1, description="the smallest change that solves it")
+
+    @model_validator(mode="after")
+    def _criterion_names_its_tier(self):
+        if (named := TIER_OF_LETTER[self.criterion[2]]) != self.tier:
+            raise ValueError(f"{self.criterion} is a {named} criterion, not {self.tier}")
+        return self
 
 
 class CritiqueRound(Strict):
@@ -41,17 +68,31 @@ class CritiqueRound(Strict):
         ..., description="`text-2-shorts hash <run> script` or `… sNN plan|video`: the version reviewed"
     )
     verdict: Literal["pass", "revise"]
-    score: int | None = Field(
-        None, ge=0, le=100, description="plan and video rounds: the rubric score; pass = score ≥ quality_threshold"
+    score: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="100 − 25 per basic − 10 per good − 3 per great issue (floor 0); pass = no basic issue and "
+        "score ≥ quality_threshold",
     )
-    issues: list[CritiqueIssue] = Field(default_factory=list)
+    summary: str = Field(
+        ..., min_length=1, description="2–4 sentences: the verdict and why, the biggest risk, what already works"
+    )
+    strengths: list[str] = Field(default_factory=list, description="what works and must survive the refactor")
+    issues: list[CritiqueIssue] = Field(default_factory=list, description="most important first")
 
     @model_validator(mode="after")
-    def _revise_names_issues(self):
+    def _score_and_verdict_follow_the_issues(self):
+        expected = max(0, 100 - sum(TIER_PENALTY[issue.tier] for issue in self.issues))
+        if self.score != expected:
+            raise ValueError(
+                f"score {self.score} does not follow from the issues: 100 − 25 per basic − 10 per good − 3 per "
+                f"great = {expected}"
+            )
         if self.verdict == "revise" and not self.issues:
             raise ValueError("a 'revise' verdict must list the issues to fix")
-        if self.verdict == "pass" and self.issues:
-            raise ValueError("a 'pass' verdict has no open issues")
+        if self.verdict == "pass" and (open_basic := [i.criterion for i in self.issues if i.tier == "basic"]):
+            raise ValueError(f"basic needs are open ({', '.join(open_basic)}): the verdict is 'revise'")
         return self
 
 

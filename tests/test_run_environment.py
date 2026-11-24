@@ -440,3 +440,18 @@ def test_every_write_and_command_is_shown_to_the_user(tmp_path):
         }
     )
     assert "clip-builder" in json.loads(result.stdout)["systemMessage"]
+
+
+def test_each_critic_has_a_tiered_rubric_the_validator_accepts():
+    """Every rubric row in a critic's agent file is a criterion id its critique rounds may cite."""
+    from app.workflow import critiques
+
+    for kind, prefix in critiques.CRITERION_PREFIX.items():
+        text = (RUN_ENVIRONMENT / "agents" / f"{critiques.CRITICS[kind]}.md").read_text()
+        rows = re.findall(r"^\| ([A-Z]-[A-Z]\d{1,2}) \| ([\w-]+) \|", text, re.MULTILINE)
+        ids = [criterion for criterion, _ in rows]
+        assert ids and len(ids) == len(set(ids)), kind
+        assert {criterion[0] for criterion in ids} == {prefix}, kind
+        assert {criterion[2] for criterion in ids} == {"B", "G", "X"}, kind  # basic, good to have, great
+        assert {aspect for _, aspect in rows} <= critiques.ASPECTS[kind], kind
+    assert (REFERENCES_DIRECTORY / "critique-protocol.md").exists()

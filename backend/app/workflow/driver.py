@@ -63,6 +63,7 @@ def next_actions(run: Path) -> ActionBatch:
         ]
 
     def critic_loop(scene_id, kind, refactor_file, read):
+        read = [*read, *references("critique-protocol.md")]  # tiers, scoring, issue fields, refactor rules
         problems = critique_problems(run, scene_id, kind) if kind == "video" else []
         if problems and "changes.json" in problems[0]:  # a refactor not recorded yet
             return [{"do": "write", "file": f"scenes/{scene_id}/changes.json", "what": problems[0]}]
@@ -71,6 +72,7 @@ def next_actions(run: Path) -> ActionBatch:
             "do": "subagent",
             "agent": CRITICS[kind],
             "target": scene_id,
+            "read": read,
             "what": f"one critique round → {critique_file(scene_id, kind)}",
         }
         if state in ("missing", "stale"):
@@ -119,7 +121,9 @@ def next_actions(run: Path) -> ActionBatch:
                     "do": "subagent",
                     "agent": "script-critic",
                     "target": "script",
-                    "read": references("script-writing.md", "script-review.md", "transitions.md"),
+                    "read": references(
+                        "critique-protocol.md", "script-writing.md", "script-review.md", "transitions.md"
+                    ),
                     "what": "one critique round for the changes requested at CP1 → script_critique.json",
                 }
             ],

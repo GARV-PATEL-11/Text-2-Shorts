@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs: a run started from the website (what `text-2-shorts new` asks).",
+  "properties": {
+    "requirement": {
+      "description": "the topic, in the user's words",
+      "maxLength": 2000,
+      "minLength": 3,
+      "title": "Requirement",
+      "type": "string"
+    },
+    "objectives": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Objectives",
+      "type": "array"
+    },
+    "approach": {
+      "default": "zoom",
+      "enum": [
+        "zoom",
+        "arc",
+        "linear",
+        "creative"
+      ],
+      "title": "Approach",
+      "type": "string"
+    },
+    "minutes": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "maximum": 12,
+      "title": "Minutes",
+      "type": "number"
+    },
+    "audience": {
+      "default": "curious beginners",
+      "maxLength": 300,
+      "title": "Audience",
+      "type": "string"
+    },
+    "tts": {
+      "default": "polly",
+      "enum": [
+        "polly",
+        "google"
+      ],
+      "title": "Tts",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement"
+  ],
+  "title": "NewRunInput",
+  "type": "object"
+}

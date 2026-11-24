@@ -25,6 +25,7 @@ from conftest import (
     approve,
     approved_outline,
     confirm_requirements,
+    critique_issue,
     make_outline,
     make_plan,
     make_script,
@@ -595,9 +596,13 @@ def test_one_script_critique_iteration_runs_for_each_change_request_at_cp1(tmp_p
     )
 
 
-def video_round(run, verdict, score=None):
-    issues = [] if verdict == "pass" else [{"target": "s01c01", "aspect": "render", "problem": "x", "fix": "y"}]
-    round_ = {"reviewed": critiques.critique_subject_hash(run, "s01", "video"), "verdict": verdict, "issues": issues}
+def video_round(run, verdict, score=None, issues=()):
+    round_ = {
+        "reviewed": critiques.critique_subject_hash(run, "s01", "video"),
+        "verdict": verdict,
+        "summary": "what the round found and why",
+        "issues": list(issues),
+    }
     write_json_file(
         run / "scenes" / "s01" / "video_critique.json",
         {"rounds": [round_ | ({} if score is None else {"score": score})]},
@@ -605,13 +610,39 @@ def video_round(run, verdict, score=None):
     return critiques.validate_critique(run, "s01", "video")
 
 
-def test_plan_and_video_critique_rounds_are_scored_against_the_preferred_threshold(tmp_path):
+def test_critique_rounds_are_scored_from_their_tiers_against_the_preferred_threshold(tmp_path):
     two_scenes_after_cp2(tmp_path)
+    good, other_good = critique_issue("video", "s01c01", "good"), critique_issue("video", "s01c02", "good", "V-G2")
     assert any("score" in error for error in video_round(tmp_path, "pass"))  # every round is scored
-    assert any("threshold 85" in error for error in video_round(tmp_path, "pass", 80))  # 85 by default
-    assert any("threshold 85" in error for error in video_round(tmp_path, "revise", 90))  # the score decides
+    assert any("90" in error for error in video_round(tmp_path, "pass", 100, [good]))  # 100 − 10 per good to have
+    assert video_round(tmp_path, "pass", 90, [good]) == []  # a pass may carry suggestions
+    assert any("threshold 85" in error for error in video_round(tmp_path, "pass", 80, [good, other_good]))
+    assert any(
+        "threshold 85" in error
+        for error in video_round(tmp_path, "revise", 97, [critique_issue("video", "s01c01", "great")])
+    )
     write_json_file(tmp_path / "preferences.json", {"quality_threshold": 75})
-    assert video_round(tmp_path, "pass", 80) == []
+    assert video_round(tmp_path, "pass", 80, [good, other_good]) == []
+
+
+def test_an_open_basic_need_always_means_revise(tmp_path):
+    two_scenes_after_cp2(tmp_path)
+    write_json_file(tmp_path / "preferences.json", {"quality_threshold": 70})
+    basic = critique_issue("video", "s01c01", "basic", "V-B3")
+    assert any("basic" in error for error in video_round(tmp_path, "pass", 75, [basic]))  # 75 ≥ 70 is not enough
+    assert video_round(tmp_path, "revise", 75, [basic]) == []
+
+
+def test_critique_issues_name_a_criterion_of_their_own_critic_and_tier(tmp_path):
+    two_scenes_after_cp2(tmp_path)
+    assert any(
+        "good" in e for e in video_round(tmp_path, "revise", 75, [critique_issue("video", "s01c01", "basic", "V-G3")])
+    )
+    assert any(
+        "P-B1" in e for e in video_round(tmp_path, "revise", 75, [critique_issue("video", "s01c01", "basic", "P-B1")])
+    )
+    wrong_aspect = critique_issue("video", "s01c01", "basic", aspect="tone")
+    assert any("tone" in e for e in video_round(tmp_path, "revise", 75, [wrong_aspect]))
 
 
 CHANGE = {

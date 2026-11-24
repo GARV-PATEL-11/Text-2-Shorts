@@ -17,6 +17,12 @@ from app.workflow.preferences import load_preferences
 from app.workflow.validation import REVIEW_FILES, validate_review
 
 CRITICS = {"script": "script-critic", "plan": "plan-critic", "video": "video-critic"}
+CRITERION_PREFIX = {"script": "S", "plan": "P", "video": "V"}  # the rubric in each critic's agent file
+ASPECTS = {
+    "script": {"outline-fit", "clarity", "flow", "pacing", "speakability", "tone"},
+    "plan": {"clarity", "sync", "constructability", "design"},
+    "video": {"plan-match", "sync", "render", "design"},
+}
 
 
 def critique_file(scene_id: str, kind: str) -> str:
@@ -51,14 +57,19 @@ def validate_critique(run: Path, scene_id: str, kind: str) -> list[str]:
     elif kind != "script" and len(critique.rounds) > MAX_CRITIQUE_ROUNDS:
         errors.append(f"{name} has {len(critique.rounds)} rounds: the loop stops after {MAX_CRITIQUE_ROUNDS} rounds")
     threshold = load_preferences(run).quality_threshold
-    for number, critique_round in enumerate(critique.rounds if kind != "script" else [], 1):
-        if critique_round.score is None:
-            errors.append(f"{name} round {number}: add the rubric score (0–100)")
-        elif (critique_round.score >= threshold) != (critique_round.verdict == "pass"):
+    for number, critique_round in enumerate(critique.rounds, 1):
+        basic_open = any(issue.tier == "basic" for issue in critique_round.issues)
+        passes = critique_round.score >= threshold and not basic_open  # a basic need blocks at any score
+        if passes != (critique_round.verdict == "pass"):
             errors.append(
-                f"{name} round {number}: score {critique_round.score} against the quality threshold {threshold} "
-                f"means verdict {'pass' if critique_round.score >= threshold else 'revise'}"
+                f"{name} round {number}: score {critique_round.score} against the quality threshold {threshold}"
+                f"{' with a basic need open' if basic_open else ''} means verdict {'pass' if passes else 'revise'}"
             )
+        for issue in critique_round.issues:
+            if issue.criterion[0] != CRITERION_PREFIX[kind]:
+                errors.append(f"{name}: {issue.criterion} is not a {kind} criterion ({CRITERION_PREFIX[kind]}-…)")
+            if issue.aspect not in ASPECTS[kind]:
+                errors.append(f"{name}: aspect {issue.aspect} is not one of {', '.join(sorted(ASPECTS[kind]))}")
     if kind == "script":
         script = load_script(run)
         known = {"script"} | ({scene.scene_id for scene in script.scenes} if script else set())
@@ -121,7 +132,7 @@ def critique_problems(run: Path, scene_id: str, kind: str) -> list[str]:
                 f"{scene_id}: the {kind} changed since the last critique round — run the {CRITICS[kind]} ({next_round})"
             ]
         return [f"{scene_id}: {kind} critique round {len(rounds)} asks for changes — refactor, then {next_round}"]
-    issues = "; ".join(f"{issue.target} {issue.aspect}: {issue.problem}" for issue in last.issues)
+    issues = "; ".join(f"{issue.target} {issue.criterion} ({issue.tier}): {issue.problem}" for issue in last.issues)
     return [
         f"{scene_id}: REQUIRES ATTENTION — {MAX_CRITIQUE_ROUNDS} critique rounds below the quality threshold; "
         "open issues for the user to accept (approve --force) or fix: "

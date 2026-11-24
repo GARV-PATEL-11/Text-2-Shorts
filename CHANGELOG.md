@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.18.0 — 2026-11-24
+Critics and refactorers: tiered rubrics, derived scores, explainable reports.
+- **Tiers**: every critique issue names a rubric `criterion` (`S-`/`P-`/`V-` + `B` basic need · `G` good to have ·
+  `X` great if followed + number) and its `tier`. Basic needs must always hold: any open one means `revise` at any
+  score. A `pass` may carry good and great suggestions.
+- **Scores are derived**: 100 − 25 per basic − 10 per good − 3 per great; the validator recomputes them. The script
+  critic is scored too.
+- **Explainable reports**: each issue carries `evidence` (quote, beat, frame time, sync offset), `problem`,
+  `impact` and `fix`; each round carries a `summary` and `strengths` (what a refactor must keep).
+- **Agents**: script-critic, plan-critic and video-critic rewritten around their rubric tables; accuracy-reviewer
+  and audio-refactorer restructured (modes, rubric, finding fields, rules, output, reply); scene-planner's refactor
+  mode follows the protocol. clip-builder is unchanged (editing it marks every clip stale).
+- **Shared reference** `critique-protocol.md`: tiers, scoring, issue writing, an example round, and how refactorers
+  act on a round (basic → good → great, smallest change, keep strengths, never decline silently, routing).
+  `next` hands it to every critic and refactor step; the script refactor reads the last `script_critique.json`.
+- Contract: `CritiqueIssue` + `criterion`, `tier`, `evidence`, `impact`; `CritiqueRound.score` required,
+  + `summary`, `strengths`. Critique files written before 0.18 no longer validate: re-run the critic for those scenes.
+- Tests: tier scoring, basic needs blocking, criterion prefix and aspect per critic, and each critic's rubric table
+  checked against what the validator accepts. JSON schemas re-exported, including the console and new-run ones that
+  0.17 had not exported.
+
 ## 0.17.1 — 2026-11-24
 Ready to ship: CI green, lint clean, project settings current.
 - **CI**: installs the Cairo and Pango headers (`libcairo2-dev`, `libpango1.0-dev`, `build-essential`, `python3-dev`) —

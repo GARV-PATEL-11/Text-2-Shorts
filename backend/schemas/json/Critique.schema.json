@@ -2,6 +2,7 @@
   "$defs": {
     "CritiqueIssue": {
       "additionalProperties": false,
+      "description": "One defect, written so a refactorer can fix it without re-reviewing: which rule, where, what was seen, why it\nmatters, and the smallest fix.",
       "properties": {
         "target": {
           "description": "the whole script, or the scene or clip it is about",
@@ -9,24 +10,60 @@
           "title": "Target",
           "type": "string"
         },
+        "criterion": {
+          "description": "the rubric line it breaks: S script \u00b7 P plan \u00b7 V video critic; B basic need \u00b7 G good to have \u00b7 X great if followed; then its number (P-B3)",
+          "pattern": "^[SPV]-[BGX]\\d{1,2}$",
+          "title": "Criterion",
+          "type": "string"
+        },
+        "tier": {
+          "description": "basic: must always hold (blocks a pass) \u00b7 good: expected quality \u00b7 great: polish",
+          "enum": [
+            "basic",
+            "good",
+            "great"
+          ],
+          "title": "Tier",
+          "type": "string"
+        },
         "aspect": {
           "description": "script: outline-fit \u00b7 clarity \u00b7 flow \u00b7 pacing \u00b7 speakability \u00b7 tone; plan: clarity \u00b7 sync \u00b7 constructability \u00b7 design; video: plan-match \u00b7 sync \u00b7 render \u00b7 design",
           "title": "Aspect",
           "type": "string"
         },
+        "evidence": {
+          "description": "what was seen and where: a quote, a beat, a frame time, a sync offset",
+          "minLength": 1,
+          "title": "Evidence",
+          "type": "string"
+        },
         "problem": {
+          "description": "what is wrong, in one or two sentences",
+          "minLength": 1,
           "title": "Problem",
           "type": "string"
         },
+        "impact": {
+          "description": "what it does to the viewer, the build or the sync",
+          "minLength": 1,
+          "title": "Impact",
+          "type": "string"
+        },
         "fix": {
+          "description": "the smallest change that solves it",
+          "minLength": 1,
           "title": "Fix",
           "type": "string"
         }
       },
       "required": [
         "target",
+        "criterion",
+        "tier",
         "aspect",
+        "evidence",
         "problem",
+        "impact",
         "fix"
       ],
       "title": "CritiqueIssue",
@@ -49,21 +86,28 @@
           "type": "string"
         },
         "score": {
-          "anyOf": [
-            {
-              "maximum": 100,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "plan and video rounds: the rubric score; pass = score \u2265 quality_threshold",
-          "title": "Score"
+          "description": "100 \u2212 25 per basic \u2212 10 per good \u2212 3 per great issue (floor 0); pass = no basic issue and score \u2265 quality_threshold",
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Score",
+          "type": "integer"
+        },
+        "summary": {
+          "description": "2\u20134 sentences: the verdict and why, the biggest risk, what already works",
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "strengths": {
+          "description": "what works and must survive the refactor",
+          "items": {
+            "type": "string"
+          },
+          "title": "Strengths",
+          "type": "array"
         },
         "issues": {
+          "description": "most important first",
           "items": {
             "$ref": "#/$defs/CritiqueIssue"
           },
@@ -73,7 +117,9 @@
       },
       "required": [
         "reviewed",
-        "verdict"
+        "verdict",
+        "score",
+        "summary"
       ],
       "title": "CritiqueRound",
       "type": "object"

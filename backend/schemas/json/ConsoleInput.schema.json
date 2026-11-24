@@ -1,0 +1,17 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/console: one message to the run's Claude Code session.",
+  "properties": {
+    "message": {
+      "maxLength": 8000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "ConsoleInput",
+  "type": "object"
+}

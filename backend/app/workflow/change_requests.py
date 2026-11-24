@@ -9,6 +9,7 @@ from pathlib import Path
 from schemas.interaction import RequestEvent, ResolutionEvent, TrackedRequest
 from schemas.session import Action
 
+from app.config import REFERENCES_DIRECTORY
 from app.utilities import now_text, read_jsonl
 from app.workflow.ledger import append_jsonl, record_decision
 
@@ -125,7 +126,16 @@ def request_route(run: Path, request: TrackedRequest) -> Action | None:
     if kind == "structure" or where == "outline":
         return Action(do="write", file="outline.json", what=what) if (run / "outline.json").exists() else None
     if kind in ("wording", "accuracy") or where == "script":
-        return Action(do="write", file="script.json", what=what) if (run / "script.json").exists() else None
+        if not (run / "script.json").exists():
+            return None
+        if not (run / "script_critique.json").exists():
+            return Action(do="write", file="script.json", what=what)
+        return Action(  # the script-critic's round comes first (CP1): refactor from it, as critique-protocol.md says
+            do="write",
+            file="script.json",
+            read=["script_critique.json", str(REFERENCES_DIRECTORY / "critique-protocol.md")],
+            what=f"{what} — fix the last script_critique.json round too: basic needs first, keep its strengths",
+        )
     if kind == "visual":
         if scene and len(where) == 3 and (run / "scenes" / scene / "plan.json").exists():
             return Action(do="subagent", agent="scene-planner", target=scene, what=f"request mode — {what}")

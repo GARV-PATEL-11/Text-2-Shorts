@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "ConsoleEntry": {
+      "additionalProperties": false,
+      "description": "One line of the console (console.jsonl): what the user said, what Claude said or did, or what happened.",
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "you",
+            "claude",
+            "tool",
+            "system",
+            "error"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "role",
+        "text"
+      ],
+      "title": "ConsoleEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "busy": {
+      "title": "Busy",
+      "type": "boolean"
+    },
+    "kickoff": {
+      "default": "",
+      "description": "the message that starts (or resumes) production",
+      "title": "Kickoff",
+      "type": "string"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/ConsoleEntry"
+      },
+      "title": "Entries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "busy"
+  ],
+  "title": "ConsoleView",
+  "type": "object"
+}

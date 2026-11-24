@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "description": "One line of the console (console.jsonl): what the user said, what Claude said or did, or what happened.",
+  "properties": {
+    "at": {
+      "title": "At",
+      "type": "string"
+    },
+    "role": {
+      "enum": [
+        "you",
+        "claude",
+        "tool",
+        "system",
+        "error"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "text": {
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "at",
+    "role",
+    "text"
+  ],
+  "title": "ConsoleEntry",
+  "type": "object"
+}

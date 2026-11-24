@@ -17,14 +17,18 @@ READ (paths from the session), and nothing else:
   plan's last clip (PREVIOUS SCENE FINAL IMAGE);
 - `template.json` (type scale, animation style, density, composition, pacing) and `preferences.json` if present;
 - the scene's open change requests (`text-2-shorts status .`) and, when refactoring, the last round of
-  `scenes/sNN/plan_critique.json`.
+  `scenes/sNN/plan_critique.json` with `references/critique-protocol.md` (§5: how to act on a critique round).
 Look up every Manim name with `text-2-shorts doc Name1,Name2 [--topics card-name]` — never from memory.
 
 MODE (the session says which):
 - write: plan the scene from scratch.
-- refactor: fix exactly the issues of the last critique round, each with the smallest change; keep what passed.
+- refactor: fix the issues of the last critique round as critique-protocol.md §5 says. Fix every basic (P-B…)
+  issue, then every good (P-G…) issue, and a great (P-X…) issue only when it is cheap and safe. Use the smallest
+  change for each, keep the round's `strengths` and everything no issue names, and never decline an issue
+  silently.
 - request: apply the change request named by the session; keep the rest.
 Never change a narration word: the clips speak the script word for word (wording changes go through the script).
 
 THEN `text-2-shorts validate . plan --scene sNN` and fix the plan until it passes.
-REPLY in at most 8 lines: what you planned or changed (per clip), and anything the critic or the user should check.
+REPLY in at most 8 lines: what you planned or changed (per clip; in refactor mode one line per issue:
+`criterion clip: what changed`, plus any issue declined and why), and anything the critic or the user should check.

@@ -207,6 +207,20 @@ def approve(run, target, force=False):
     workflow_commands.handle_approve_command(argparse.Namespace(run=str(run), target=target, force=force))
 
 
+def critique_issue(kind, target, tier="basic", criterion=None, aspect=None):
+    """One critique issue of that critic's rubric (a basic need unless told otherwise)."""
+    return {
+        "target": target,
+        "criterion": criterion or f"{kind[0].upper()}-{tier[0].upper() if tier != 'great' else 'X'}1",
+        "tier": tier,
+        "aspect": aspect or {"script": "clarity", "plan": "clarity", "video": "render"}[kind],
+        "evidence": "beat 2 says 'it' with two objects on screen",
+        "problem": "unclear beat",
+        "impact": "the viewer cannot tell which object moves",
+        "fix": "name the object",
+    }
+
+
 def write_critique(run, scene_id, kind, *verdicts):
     """scenes/sNN/<kind>_critique.json (script_critique.json for the script) with one round per verdict; the last
     round reviewed the current version."""
@@ -216,10 +230,9 @@ def write_critique(run, scene_id, kind, *verdicts):
         {
             "reviewed": current if number == len(verdicts) else f"older-{number}",
             "verdict": verdict,
-            **({} if kind == "script" else {"score": 90 if verdict == "pass" else 60}),
-            "issues": []
-            if verdict == "pass"
-            else [{"target": scene_id, "aspect": "clarity", "problem": "unclear beat", "fix": "name the object"}],
+            "score": 100 if verdict == "pass" else 75,
+            "summary": "the round in two sentences",
+            "issues": [] if verdict == "pass" else [critique_issue(kind, scene_id)],
         }
         for number, verdict in enumerate(verdicts, 1)
     ]
