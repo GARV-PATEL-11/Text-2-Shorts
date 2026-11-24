@@ -100,12 +100,12 @@ def validate_content(run: Path) -> list[str]:
     if not (run / "content.md").exists():
         return ["content.md does not exist"]
     text = (run / "content.md").read_text()
-    headings = re.findall(r"^## (.+)$", text, re.M)
+    headings = re.findall(r"^## (.+)$", text, re.MULTILINE)
     topics = read_topics(run)
     errors = [f"content.md has no '## {topic}' section" for topic in topics if topic not in headings]
     if not errors and [heading for heading in headings if heading in topics] != topics:
         errors.append("content.md sections must follow the topic list's order")
-    sections = re.split(r"^## .+$", text, flags=re.M)[1:]
+    sections = re.split(r"^## .+$", text, flags=re.MULTILINE)[1:]
     errors += [
         f"content.md section '{heading}' is empty" for heading, body in zip(headings, sections) if not body.strip()
     ]

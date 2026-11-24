@@ -48,7 +48,7 @@ def main():
         import manim
 
         manim_version = manim.__version__
-    except Exception:
+    except (ImportError, OSError):  # not installed, or its Cairo/Pango libraries are missing
         manim_version = None
     claude_code_version = detect_version(["claude", "--version"])
     report = {

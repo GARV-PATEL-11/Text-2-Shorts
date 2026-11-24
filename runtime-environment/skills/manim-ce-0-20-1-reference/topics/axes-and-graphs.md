@@ -8,11 +8,12 @@
 ```python
 from manim import *
 
+
 class CardAxes(Scene):
     def construct(self):
         ax = Axes(x_range=[0, 3, 1], y_range=[0, 9, 3], x_length=6, y_length=4).to_edge(DOWN)
         labels = ax.get_axis_labels(x_label="x", y_label="y")
-        g = ax.plot(lambda x: x ** 2, x_range=[0, 3], color=BLUE)
+        g = ax.plot(lambda x: x**2, x_range=[0, 3], color=BLUE)
         lab = ax.get_graph_label(g, label=r"x^2", x_val=2.2, direction=UL)
         area = ax.get_area(g, x_range=[0, 2], opacity=0.4)
         pts = ax.plot_line_graph([0, 1, 2, 3], [0, 1, 4, 9], add_vertex_dots=True)

@@ -35,7 +35,7 @@ def build_jail_command(run: Path, command: list[str]) -> list[str]:
     install roots of claude and python, and the TTS credentials are mounted back read-only; own PID/IPC namespace;
     network kept for the API."""
     home = Path.home()
-    is_within = lambda path, directory: path == directory or directory in path.parents  # noqa: E731
+    is_within = lambda path, directory: path == directory or directory in path.parents
     mounts = {
         Path(directory)
         for directory in os.environ.get("PATH", "").split(":")

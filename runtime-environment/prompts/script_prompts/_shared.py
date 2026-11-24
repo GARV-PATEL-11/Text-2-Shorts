@@ -216,12 +216,10 @@ Allowed segment_type values:
 """.strip()
 
 
-def build_output_schema(approach_name, title_hint, segment_title_hint,
-                        narration_hint, transition_hint):
+def build_output_schema(approach_name, title_hint, segment_title_hint, narration_hint, transition_hint):
     """Return the shared schema block with approach-specific field hints."""
     return (
-        _OUTPUT_SCHEMA_TEMPLATE
-        .replace("__APPROACH_NAME__", approach_name)
+        _OUTPUT_SCHEMA_TEMPLATE.replace("__APPROACH_NAME__", approach_name)
         .replace("__TITLE_HINT__", title_hint)
         .replace("__SEGMENT_TITLE_HINT__", segment_title_hint)
         .replace("__NARRATION_HINT__", narration_hint)

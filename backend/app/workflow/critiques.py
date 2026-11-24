@@ -107,8 +107,10 @@ def critique_problems(run: Path, scene_id: str, kind: str) -> list[str]:
         recorded = {entry.iteration for entry in load_changes(run, scene_id)}
         if missing := [n for n in range(1, len(rounds)) if rounds[n - 1].verdict == "revise" and n not in recorded]:
             return [
-                f"{scene_id}: record the refactor of iteration {missing[0]} in scenes/{scene_id}/changes.json "
-                "(what changed, files, rendering, audio timing, sync, validation)"
+                (
+                    f"{scene_id}: record the refactor of iteration {missing[0]} in scenes/{scene_id}/changes.json "
+                    "(what changed, files, rendering, audio timing, sync, validation)"
+                )
             ]
     if last.verdict == "pass" and last.reviewed == current:
         return []

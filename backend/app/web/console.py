@@ -98,7 +98,7 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
             continue
         if event.get("session_id") and event.get("type") == "system":
             session_id = event["session_id"]
-            update_state(run, lambda state: setattr(state, "console_session", session_id))
+            update_state(run, lambda state, session_id=session_id: setattr(state, "console_session", session_id))
         for entry in entries_from_event(event):
             yield keep(entry)
     if process.wait() != 0:

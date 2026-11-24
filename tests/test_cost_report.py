@@ -58,4 +58,4 @@ def test_summarize_existing_log_format(tmp_path):
     assert report["total_cost_usd"] == 1.72 and report["render_units"] == 1
     assert report["cost_per_render_unit"] == 1.72 and report["render_cost_per_unit"] == 1.6
     assert report["stages"]["scene"]["retries"] == 1 and report["stages"]["scene"]["failed"] == 1
-    assert list(report["stages"])[0] == "scene"  # sorted by cost
+    assert next(iter(report["stages"])) == "scene"  # sorted by cost

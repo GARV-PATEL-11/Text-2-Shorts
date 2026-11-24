@@ -10,7 +10,7 @@ TOPICS = REPOSITORY_ROOT / "runtime-environment/skills/manim-ce-0-20-1-reference
 EXAMPLES = [
     (topic_path.stem, match.group(1))
     for topic_path in sorted(TOPICS.glob("*.md"))
-    for match in re.finditer(r"```python\n(.*?)```", topic_path.read_text(), re.S)
+    for match in re.finditer(r"```python\n(.*?)```", topic_path.read_text(), re.DOTALL)
 ]
 
 

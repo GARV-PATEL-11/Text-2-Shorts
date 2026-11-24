@@ -1,9 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv run python -m app.pipeline:*)",
-      "Bash(xdg-open runs/:*)",
-      "Read(runs/**)"
+      "Bash(uv run text-2-shorts:*)",
+      "Bash(google-chrome file:*)",
+      "Read(artifacts/runs/**)"
     ]
   }
 }

@@ -7,6 +7,7 @@
 ```python
 from manim import *
 
+
 class CardEmphasis(Scene):
     def construct(self):
         eq = MathTex(r"e^{i\pi} + 1 = 0")

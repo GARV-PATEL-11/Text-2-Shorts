@@ -36,8 +36,10 @@ def next_steps(run: Path) -> list[str]:
             return steps + [f"{name}: {error}" for error in errors]
     if stage_approval_problem(run, "outline"):
         return steps + [
-            "CP0: show the user the outline (segments, timing, visual plans); approve with "
-            "`text-2-shorts approve <run> outline`"
+            (
+                "CP0: show the user the outline (segments, timing, visual plans); approve with "
+                "`text-2-shorts approve <run> outline`"
+            )
         ]
     script_errors = validate_script(run)
     steps += [f"script: {error}" for error in script_errors]

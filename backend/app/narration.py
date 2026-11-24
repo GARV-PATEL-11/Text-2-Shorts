@@ -21,8 +21,34 @@ from schemas.requirements import Brief
 LETTERS = dict(
     zip(
         "abcdefghijklmnopqrstuvwxyz",
-        "ay bee see dee ee ef gee aitch eye jay kay el em en oh pee cue ar ess tee you vee "
-        "double-you ex why zee".split(),
+        [
+            "ay",
+            "bee",
+            "see",
+            "dee",
+            "ee",
+            "ef",
+            "gee",
+            "aitch",
+            "eye",
+            "jay",
+            "kay",
+            "el",
+            "em",
+            "en",
+            "oh",
+            "pee",
+            "cue",
+            "ar",
+            "ess",
+            "tee",
+            "you",
+            "vee",
+            "double-you",
+            "ex",
+            "why",
+            "zee",
+        ],
     )
 )
 GREEK = {
@@ -220,7 +246,7 @@ def phrase_times(
     marks: list[tuple[str, float]], beats: list[str], both_cases: AbstractSet[str] = frozenset()
 ) -> list[float | None]:
     """Start time (s) of each beat's quoted narration phrase, from word marks [(word, start_s)], in order."""
-    normalized_words = lambda text: re.sub(r"[^a-z0-9 ]", "", text.lower()).split()  # noqa: E731
+    normalized_words = lambda text: re.sub(r"[^a-z0-9 ]", "", text.lower()).split()
     words = [normalized_words(word)[0] if normalized_words(word) else "" for word, _ in marks]
     beat_times, i = [], 0
     for beat in beats:

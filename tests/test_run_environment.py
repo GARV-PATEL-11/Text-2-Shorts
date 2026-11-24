@@ -7,15 +7,15 @@ from pathlib import Path
 
 from app import config, sandbox, utilities
 from app.workflow import run_workspace, status
+from conftest import environment_report
 from schemas.requirements import Brief
 from schemas.run_state import TokenUsage
-from conftest import environment_report
 
 RUN_ENVIRONMENT = Path(__file__).resolve().parent.parent / "runtime-environment"
 
 
 def frontmatter(markdown_path: Path) -> dict:
-    match = re.match(r"---\n(.*?)\n---\n", markdown_path.read_text(), re.S)
+    match = re.match(r"---\n(.*?)\n---\n", markdown_path.read_text(), re.DOTALL)
     assert match, f"{markdown_path} has no frontmatter"
     return dict(line.split(":", 1) for line in match[1].splitlines() if ":" in line)
 

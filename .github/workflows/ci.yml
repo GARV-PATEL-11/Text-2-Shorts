@@ -1,4 +1,4 @@
-# Deterministic test suite — no LLM calls.
+# Deterministic checks — no LLM calls, no TTS, no network beyond package installs.
 name: ci
 
 on:
@@ -13,6 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # manimpango and pycairo publish no Linux wheels: uv builds them against the Cairo and Pango headers.
       - name: Update package lists and install system dependencies
         run: |
           sudo apt-get update
@@ -21,13 +22,23 @@ jobs:
             texlive-latex-base \
             texlive-latex-extra \
             pkg-config \
+            build-essential \
+            python3-dev \
+            libcairo2-dev \
+            libpango1.0-dev \
             bubblewrap
 
       - name: Install uv
         run: pip install uv
 
       - name: Synchronize project dependencies
-        run: uv sync
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run ruff format --check .
 
       - name: Run deterministic test suite
         run: uv run pytest -q

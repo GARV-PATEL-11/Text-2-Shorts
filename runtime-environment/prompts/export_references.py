@@ -15,7 +15,7 @@ PROMPTS_DIRECTORY = Path(__file__).resolve().parent
 REFERENCES_DIRECTORY = PROMPTS_DIRECTORY.parent / "skills" / "text-2-shorts-produce" / "references"
 sys.path.insert(0, str(PROMPTS_DIRECTORY))
 
-import script_prompts  # noqa: E402  (the package sits next to this script)
+import script_prompts
 
 GENERATED = (
     "<!-- GENERATED from runtime-environment/prompts/script_prompts/{module}.py by "
@@ -37,12 +37,24 @@ TOPIC_USE = (
 )
 PROMPTS = {
     "topic-list.md": ("req_modifier", "Topic list (request modifier)", TOPIC_USE, "REQ_MODIFIER_SYSTEM"),
-    "outline-linear.md": ("classic_linear_narrative", "Outline — Classic Linear Narrative",
-                          OUTLINE_USE.format(approach="linear"), "CLASSIC_LINEAR_NARRATIVE_SYSTEM"),
-    "outline-arc.md": ("problem_to_solution_arc", "Outline — Problem → Solution Arc",
-                       OUTLINE_USE.format(approach="arc"), "PROBLEM_TO_SOLUTION_ARC_SYSTEM"),
-    "outline-zoom.md": ("conceptual_zoom", "Outline — Conceptual Zoom",
-                        OUTLINE_USE.format(approach="zoom"), "CONCEPTUAL_ZOOM_SYSTEM"),
+    "outline-linear.md": (
+        "classic_linear_narrative",
+        "Outline — Classic Linear Narrative",
+        OUTLINE_USE.format(approach="linear"),
+        "CLASSIC_LINEAR_NARRATIVE_SYSTEM",
+    ),
+    "outline-arc.md": (
+        "problem_to_solution_arc",
+        "Outline — Problem → Solution Arc",
+        OUTLINE_USE.format(approach="arc"),
+        "PROBLEM_TO_SOLUTION_ARC_SYSTEM",
+    ),
+    "outline-zoom.md": (
+        "conceptual_zoom",
+        "Outline — Conceptual Zoom",
+        OUTLINE_USE.format(approach="zoom"),
+        "CONCEPTUAL_ZOOM_SYSTEM",
+    ),
 }
 
 

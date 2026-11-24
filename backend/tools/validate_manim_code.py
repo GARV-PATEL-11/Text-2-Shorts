@@ -247,26 +247,26 @@ def validate_clip_file(
                     }
                 )
     if entry_contract is not None:
-        for name, line in entry_calls(tree):
-            if name not in entry_contract:
+        for entry_name, line in entry_calls(tree):
+            if entry_name not in entry_contract:
                 validator.findings.append(
                     {
                         "severity": "ERROR",
                         "code": "CONTRACT_READ",
                         "line": line,
-                        "message": f"self.entry('{name}'): '{name}' is not in the entry contract "
+                        "message": f"self.entry('{entry_name}'): '{entry_name}' is not in the entry contract "
                         f"{sorted(entry_contract)}",
                     }
                 )
     if entry_contract:
-        taken = {name for name, _ in entry_calls(tree)}
-        for name in sorted(entry_contract - taken):
+        taken = {entry_name for entry_name, _ in entry_calls(tree)}
+        for missing_name in sorted(entry_contract - taken):
             validator.findings.append(
                 {
                     "severity": "ERROR",
                     "code": "ENTRY_NOT_STANDALONE",
                     "line": 0,
-                    "message": f"take entry object '{name}' with self.entry('{name}', lambda: <how it looks>) so the "
+                    "message": f"take entry object '{missing_name}' with self.entry('{missing_name}', lambda: <how it looks>) so the "
                     "clip also runs on its own (clips are built in parallel)",
                 }
             )

@@ -7,10 +7,11 @@
 ```python
 from manim import *
 
+
 class CardTracker(Scene):
     def construct(self):
         ax = Axes(x_range=[0, 3, 1], y_range=[0, 9, 3], x_length=6, y_length=4)
-        g = ax.plot(lambda x: x ** 2, color=BLUE)
+        g = ax.plot(lambda x: x**2, color=BLUE)
         t = ValueTracker(0.5)
         dot = always_redraw(lambda: Dot(ax.c2p(t.get_value(), t.get_value() ** 2), color=YELLOW))
         val = DecimalNumber(0, num_decimal_places=2).to_corner(UR)

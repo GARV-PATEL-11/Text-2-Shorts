@@ -8,6 +8,7 @@
 ```python
 from manim import *
 
+
 class CardText(Scene):
     def construct(self):
         title = Text("Euler's identity", font_size=40).to_edge(UP)

@@ -23,7 +23,7 @@ def test_known_names(api_index):
 def test_doc_cards_resolve_class_dot_method(api_index):
     from conftest import run_tool
 
-    exit_code, output = run_tool("doc_cards.py", "--index", api_index, "--names", "Axes.plot,Axes.get_graph")
+    _exit_code, output = run_tool("doc_cards.py", "--index", api_index, "--names", "Axes.plot,Axes.get_graph")
     assert "### Axes.plot" in output  # a real method is not "missing"
     assert "NOT IN Manim" in output and "Axes.get_graph" in output.split("NOT IN Manim")[1]
     assert "Axes.plot" not in output.split("NOT IN Manim")[1]

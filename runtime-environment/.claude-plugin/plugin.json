@@ -1,5 +1,5 @@
 {
   "name": "text-2-shorts-runtime-environment",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "Text-2-Shorts execution environment: the skills, subagents and hooks a Claude Code session needs to produce a video inside an isolated run workspace."
 }

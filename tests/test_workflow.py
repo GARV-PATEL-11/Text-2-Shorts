@@ -33,8 +33,8 @@ from conftest import (
     write_json_file,
     write_requirements,
 )
-from schemas.run_state import ClipBuild
 from schemas.media import ClipMux, FinalReport
+from schemas.run_state import ClipBuild
 
 
 def approved_script_run(run, *scene_seconds):
@@ -437,7 +437,7 @@ def test_the_outline_follows_its_approach_model_and_rules(tmp_path):
         write_json_file(tmp_path / "outline.json", outline)
         return " | ".join(validation.validate_outline(tmp_path))
 
-    segments = lambda outline: outline["outline"]  # noqa: E731
+    segments = lambda outline: outline["outline"]
     assert errors_with(lambda o: None) == ""
     assert "hook" in errors_with(lambda o: segments(o)[0].update(segment_type="concept"))  # A7: hook first
     assert "order" in errors_with(lambda o: segments(o)[1].update(segment_type="recap"))  # A2 relative order

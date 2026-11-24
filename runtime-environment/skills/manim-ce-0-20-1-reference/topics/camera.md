@@ -7,6 +7,7 @@
 ```python
 from manim import *
 
+
 class CardCamera(MovingCameraScene):
     def construct(self):
         dots = VGroup(*[Dot(RIGHT * i) for i in range(-3, 4)])

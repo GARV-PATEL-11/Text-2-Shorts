@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.1 — 2026-11-24
+Ready to ship: CI green, lint clean, project settings current.
+- **CI**: installs the Cairo and Pango headers (`libcairo2-dev`, `libpango1.0-dev`, `build-essential`, `python3-dev`) —
+  manimpango and pycairo publish no Linux wheels, so `uv sync` built them from source and failed at
+  `pkg-config pangocairo`. `uv sync --locked` (a stale `uv.lock` fails), then `ruff check` and `ruff format --check`
+  before the tests.
+- **Lint**: the whole tree passes ruff 0.17's default rules; `PLW1510` is ignored on purpose (every `subprocess.run`
+  reads `returncode` itself). Real fixes: the console's session-id callback binds its value, `preflight` catches only
+  import failures, integer env defaults are strings, scripts with a shebang are executable.
+- **Settings**: `.claude/settings.json` allows the current `text-2-shorts` command, `artifacts/runs/` and opening videos
+  in Chrome (it still allowed the removed `app.pipeline` and `runs/`). `.env.example` says how to use it.
+
 ## 0.17.0 — 2026-11-24
 The website is the only interface, connected to Claude Code.
 - **Start runs on the website**: the `faraday new` form → `POST /api/runs` → `create_run()` (preflight, voice

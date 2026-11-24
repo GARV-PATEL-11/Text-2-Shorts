@@ -8,6 +8,7 @@
 ```python
 from manim import *
 
+
 class CardTransforms(Scene):
     def construct(self):
         sq = Square(color=BLUE)

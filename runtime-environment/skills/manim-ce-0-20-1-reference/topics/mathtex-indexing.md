@@ -8,6 +8,7 @@
 ```python
 from manim import *
 
+
 class CardMathTex(Scene):
     def construct(self):
         eq = MathTex(r"a^2", "+", r"b^2", "=", r"c^2")

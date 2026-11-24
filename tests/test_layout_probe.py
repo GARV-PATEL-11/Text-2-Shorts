@@ -11,7 +11,7 @@ def test_detects_offscreen_and_overlap():
 
 
 def test_clip_timing_against_narration_budget():
-    exit_code, output = run_tool(
+    _exit_code, output = run_tool(
         "layout_probe.py",
         FIXTURES_DIRECTORY / "good_clips.py",
         "Scene001",

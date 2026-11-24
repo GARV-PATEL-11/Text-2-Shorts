@@ -69,8 +69,8 @@ SYNC_TOLERANCE_SECONDS = 0.35  # spoken vs shown time of a beat
 
 # ── Rendering ────────────────────────────────────────────────────────────────────────────────────────────────────
 DRAFT_QUALITY = "m"  # Manim -qm: 1280×720 at 30 fps — every draft and preview; only `final` renders 1440p
-FINAL_FRAME_RATE = int(os.environ.get("TEXT_2_SHORTS_FPS", 120))  # final is always 2560×1440 (-qp, 16:9); 60–120
-MAX_PARALLEL_RENDERS = int(os.environ.get("TEXT_2_SHORTS_PARALLEL", 4))  # scenes rendered at once
+FINAL_FRAME_RATE = int(os.environ.get("TEXT_2_SHORTS_FPS", "120"))  # final is always 2560×1440 (-qp, 16:9); 60–120
+MAX_PARALLEL_RENDERS = int(os.environ.get("TEXT_2_SHORTS_PARALLEL", "4"))  # scenes rendered at once
 
 # ── Critiques ────────────────────────────────────────────────────────────────────────────────────────────────────
 MAX_CRITIQUE_ROUNDS = 3  # per scene plan and per scene video; the score threshold is a per-run preference

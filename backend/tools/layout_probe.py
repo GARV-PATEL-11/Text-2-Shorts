@@ -212,7 +212,7 @@ def main():
         beats.setdefault(clip_name, {})[str(number)] = round(time - clip_start, 3)
 
     budget = (
-        dict((clip_name, float(seconds)) for clip_name, seconds in (x.split("=") for x in arguments.budget.split(",")))
+        {clip_name: float(seconds) for clip_name, seconds in (x.split("=") for x in arguments.budget.split(","))}
         if arguments.budget
         else {}
     )

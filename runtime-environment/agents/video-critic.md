@@ -32,3 +32,4 @@ threshold the scene REQUIRES ATTENTION and goes to the user. Then
 `text-2-shorts validate . video-critique --scene sNN` and fix the file until it passes.
 REPLY: the verdict, the round number, and the issues grouped as: for the audio-refactorer (sync) and for a clip
 rebuild (the rest).
+

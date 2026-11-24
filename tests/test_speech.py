@@ -33,7 +33,10 @@ def test_planned_ssml_is_checked_and_made_speakable():
 
 
 def test_phrase_times_follow_word_marks_in_order():
-    marks = [(word, i * 0.4) for i, word in enumerate("the legs are ay and bee the long side is see".split())]
+    marks = [
+        (word, i * 0.4)
+        for i, word in enumerate(["the", "legs", "are", "ay", "and", "bee", "the", "long", "side", "is", "see"])
+    ]
     beats = ['"the legs" → legs glow', '"`a` and `b`" → labels', '"the long side" → c pulses', '"missing" → x']
     assert phrase_times(marks, beats) == [0.0, 1.2, 2.4, None]
 
@@ -41,6 +44,7 @@ def test_phrase_times_follow_word_marks_in_order():
 def test_polly_sends_ssml_falls_back_to_text_and_returns_word_marks(monkeypatch):
     import io
     import json
+
     import boto3
     from app import narration
 
@@ -88,9 +92,10 @@ def test_marked_ssml_for_google_timepoints():
 
 def test_google_maps_timepoints_to_words_and_falls_back_to_text(monkeypatch):
     from types import SimpleNamespace as Namespace
+
+    from app import narration
     from google.api_core.exceptions import InvalidArgument
     from google.cloud import texttospeech_v1beta1 as gtts
-    from app import narration
 
     requests = []
 

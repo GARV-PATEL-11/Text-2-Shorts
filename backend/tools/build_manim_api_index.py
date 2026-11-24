@@ -41,7 +41,7 @@ def build_index() -> dict:
 
     exported = {}
     namespace: dict = {}
-    exec("from manim import *", namespace)  # exactly what generated scene files do
+    exec("from manim import *", namespace)  # noqa: S102 — trusted constant; exactly what generated scene files do
     for name, obj in sorted(namespace.items()):
         if name.startswith("_") or name == "__builtins__":
             continue

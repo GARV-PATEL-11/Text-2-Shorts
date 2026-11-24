@@ -18,7 +18,9 @@ from pathlib import Path
 
 CLASS_RE = re.compile(r"\b([A-Z][a-z]+(?:[A-Z][a-z0-9]*)+|[A-Z][a-z]{2,}(?=\())")
 METHOD_RE = re.compile(r"\.([a-z_][a-z0-9_]{2,})\(")
-BAN_HINT = re.compile(r"BANNED|NEVER USE|DEPRECATED|REMOVED|never cite|must be|→ use|does not exist|RENAMED", re.I)
+BAN_HINT = re.compile(
+    r"BANNED|NEVER USE|DEPRECATED|REMOVED|never cite|must be|→ use|does not exist|RENAMED", re.IGNORECASE
+)
 IGNORE = {"Manim", "ManimCE", "ManimGL", "Python", "PascalCase", "LaTeX", "MathJax", "JSON", "OpenGL", "Scene"}
 
 

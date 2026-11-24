@@ -6,13 +6,12 @@ import re
 import subprocess
 
 import pytest
-from conftest import REPOSITORY_ROOT, approved_outline, make_script, write_brief, write_json_file
-from fastapi.testclient import TestClient
-from test_workflow import two_scenes_after_cp2
-
 from app.web import auth
 from app.web.app import create_app
+from conftest import REPOSITORY_ROOT, approved_outline, make_script, write_brief, write_json_file
+from fastapi.testclient import TestClient
 from schemas.api import ClaudeAccount
+from test_workflow import two_scenes_after_cp2
 
 FRONTEND = REPOSITORY_ROOT / "frontend"
 BASE = "http://127.0.0.1:8765"

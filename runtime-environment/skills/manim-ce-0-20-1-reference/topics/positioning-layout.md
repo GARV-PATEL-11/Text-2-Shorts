@@ -9,6 +9,7 @@
 ```python
 from manim import *
 
+
 class CardLayout(Scene):
     def construct(self):
         title = Text("Pythagoras", font_size=44).to_edge(UP)
