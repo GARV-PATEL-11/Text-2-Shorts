@@ -123,18 +123,22 @@ def request_route(run: Path, request: TrackedRequest) -> Action | None:
     resolve = f" — then `text-2-shorts resolve . {request.id} applied` (or declined, with the user's agreement)"
     what = f"apply {request.id} ({kind}, {where}): {request.text}{resolve}"
     scene = where[:3] if re.match(r"^s\d{2}", where) else None
-    if kind == "structure" or where == "outline":
-        return Action(do="write", file="outline.json", what=what) if (run / "outline.json").exists() else None
+    if kind == "structure" or where == "outline":  # building and refactoring words is the script-writer's (Opus)
+        if not (run / "outline.json").exists():
+            return None
+        return Action(do="subagent", agent="script-writer", target="outline", what=f"outline refactor mode — {what}")
     if kind in ("wording", "accuracy") or where == "script":
         if not (run / "script.json").exists():
             return None
         if not (run / "script_critique.json").exists():
-            return Action(do="write", file="script.json", what=what)
+            return Action(do="subagent", agent="script-writer", target="script", what=f"script refactor mode — {what}")
         return Action(  # the script-critic's round comes first (CP1): refactor from it, as critique-protocol.md says
-            do="write",
-            file="script.json",
+            do="subagent",
+            agent="script-writer",
+            target="script",
             read=["script_critique.json", str(REFERENCES_DIRECTORY / "critique-protocol.md")],
-            what=f"{what} — fix the last script_critique.json round too: basic needs first, keep its strengths",
+            what="script refactor mode — fix the last script_critique.json round (basic needs first, keep its "
+            f"strengths) and {what}",
         )
     if kind == "visual":
         if scene and len(where) == 3 and (run / "scenes" / scene / "plan.json").exists():

@@ -42,10 +42,16 @@ API_INDEX_PATH = USER_CACHE_DIRECTORY / "text-2-shorts" / f"manim_api_{MANIM_VER
 ALWAYS_LOADED_TOPICS = ["clip-structure", "timing-and-sync", "positioning-layout"]  # topic cards in every task
 
 # ── Models (Claude Code) ─────────────────────────────────────────────────────────────────────────────────────────
-# Visual planning and code generation (refactoring included) run on Opus — the scene-planner and clip-builder
-# subagents (runtime-environment/agents/*.md frontmatter); the run session and every other subagent on Sonnet. All at
-# medium effort.
-SESSION_MODEL, PLANNING_AND_CODE_MODEL, EFFORT = "claude-sonnet-5-5", "claude-opus-5-5", "medium"
+# Who runs on what (subagents: runtime-environment/agents/*.md frontmatter; a test keeps them equal). All at medium.
+# Haiku — the run session: the user's conversation (the website console), refining requirements, routing the batch
+#   `next` returns, records. It builds nothing itself.
+# Opus — every builder and refactor except audio: script-writer (outline, script), scene-planner (plans),
+#   clip-builder (clip code).
+# Sonnet — every critic and reviewer (script-, plan-, video-critic, accuracy-reviewer) and audio (audio-refactorer).
+SESSION_MODEL = "claude-haiku-5-5"
+BUILD_MODEL = "claude-opus-5-5"
+REVIEW_AND_AUDIO_MODEL = "claude-sonnet-5-5"
+EFFORT = "medium"
 
 # ── Narration defaults for `text-2-shorts new` ───────────────────────────────────────────────────────────────────
 DEFAULT_TTS = os.environ.get("TEXT_2_SHORTS_TTS", "polly")

@@ -53,12 +53,31 @@ def next_actions(run: Path) -> ActionBatch:
     def reviewer(stage, mode, file, problems):
         if validate_review(run, stage):
             return [{"do": "subagent", "agent": "accuracy-reviewer", "target": mode, "what": f"{mode} mode → {file}"}]
+        if stage == "script":  # building and refactoring is Opus's: the script-writer fixes the script
+            fixes = [
+                {
+                    "do": "subagent",
+                    "agent": "script-writer",
+                    "target": "script",
+                    "what": "script refactor — fix the accuracy ERRORs in script_review.json: " + "; ".join(problems),
+                }
+            ]
+        else:  # …and the scene-planner each plan, one scene per call
+            scenes = sorted({match[1] for problem in problems if (match := re.search(r"\b(s\d{2})", problem))})
+            fixes = [
+                {
+                    "do": "subagent",
+                    "agent": "scene-planner",
+                    "target": scene_id,
+                    "what": "request mode — fix the accuracy ERRORs in plan_review.json for "
+                    + scene_id
+                    + ": "
+                    + "; ".join(problem for problem in problems if scene_id in problem),
+                }
+                for scene_id in scenes
+            ]
         return [
-            {
-                "do": "write",
-                "file": "script.json" if stage == "script" else "scenes/*/plan.json",
-                "what": "fix: " + "; ".join(problems),
-            },
+            *fixes,
             {"do": "subagent", "agent": "accuracy-reviewer", "target": mode, "what": f"{mode} mode again → {file}"},
         ]
 
@@ -199,10 +218,13 @@ def next_actions(run: Path) -> ActionBatch:
             "2 outline",
             [
                 {
-                    "do": "write",
-                    "file": "outline.json",
+                    "do": "subagent",
+                    "agent": "script-writer",
+                    "target": "outline",
                     "read": references(*guide),
-                    "what": "from content.md — " + "; ".join(errors[:3]),
+                    "what": ("outline refactor" if (run / "outline.json").exists() else "outline")
+                    + " mode — from content.md: "
+                    + "; ".join(errors[:3]),
                 }
             ],
         )
@@ -222,10 +244,13 @@ def next_actions(run: Path) -> ActionBatch:
             "3 script",
             [
                 {
-                    "do": "write",
-                    "file": "script.json",
-                    "what": "; ".join(errors[:3]),
-                    "read": references("standards.md", "script-writing.md", "transitions.md"),
+                    "do": "subagent",
+                    "agent": "script-writer",
+                    "target": "script",
+                    "what": ("script refactor" if (run / "script.json").exists() else "script")
+                    + " mode — "
+                    + "; ".join(errors[:3]),
+                    "read": references("standards.md", "script-writing.md", "transitions.md", "script-review.md"),
                 }
             ],
         )
@@ -237,8 +262,8 @@ def next_actions(run: Path) -> ActionBatch:
             [
                 {
                     "do": "ask_user",
-                    "what": "CP1: self-review, then show the scene table, the full "
-                    "narration and the accuracy findings; on approval `text-2-shorts approve . script`",
+                    "what": "CP1: show the scene table, the full narration and the accuracy findings; "
+                    "on approval `text-2-shorts approve . script`",
                     "read": references("script-review.md"),
                 }
             ],

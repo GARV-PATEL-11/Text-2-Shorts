@@ -15,8 +15,9 @@ see your files and you cannot change theirs.
   Every stage, scene and clip has a status (pending · in_progress · completed · failed · requires_refactoring ·
   requires_user_approval · approved) in state.json, shown by `text-2-shorts status .`.
   `text-2-shorts` commands validate, enforce the order, synthesise voice, check, accept and render.
-- Models: this session and the critics, reviewers and audio-refactorer run on Sonnet; visual planning
-  (scene-planner) and clip code (clip-builder), refactoring included, on Opus; all at medium effort.
+- Models: this session (Haiku) talks with the user, refines requirements and routes; it builds nothing itself.
+  Builders and refactors run on Opus (script-writer: outline and script; scene-planner: plans; clip-builder: code);
+  critics, accuracy-reviewer and audio-refactorer on Sonnet; all at medium effort.
 - Show the user every change as it happens: one line per file written, command run or subagent result. The hook
   shows each write, command and subagent too, and logs it to log.jsonl.
 - The user works only in the Faraday website (`text-2-shorts serve`): each message there is one turn of this

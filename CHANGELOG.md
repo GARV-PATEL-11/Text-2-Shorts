@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.19.0 — 2026-11-24
+Model policy: Haiku talks, Opus builds, Sonnet critiques and does audio.
+- **Run session → Haiku** (`claude-haiku-5-5`): the user's conversation (website console), refining requirements
+  (brief, topics, content, preferences, template), routing what `next` returns, records (`changes.json`). It
+  builds nothing itself.
+- **Opus builds and refactors everything but audio**: new **script-writer** subagent writes and refactors the
+  outline and the script (modes: outline, outline refactor, script, script refactor), including script-critic
+  rounds, accuracy ERRORs and wording/accuracy/structure change requests; scene-planner fixes plan accuracy ERRORs
+  (one scene per call); clip-builder unchanged.
+- **Sonnet**: script-, plan-, video-critic, accuracy-reviewer, audio-refactorer.
+- Config: `SESSION_MODEL`, `BUILD_MODEL`, `REVIEW_AND_AUDIO_MODEL`, `EFFORT` (replaces `PLANNING_AND_CODE_MODEL`).
+- Tests: every agent's model by role; the outline stage and change requests dispatch the script-writer; nothing
+  asks the session to write `outline.json`, `script.json` or a plan; a script refactor fixes the critique round
+  before it resolves the request.
+- Docs: README, PROJECT_STRUCTURE, workspace CLAUDE.md and the workflow skill.
+- Removed the repo-session developer skills (`make-short`, `text-2-shorts-clip-debugging`,
+  `text-2-shorts-prompt-maintenance`): the website starts runs, and nothing in the product used them.
+
 ## 0.18.0 — 2026-11-24
 Critics and refactorers: tiered rubrics, derived scores, explainable reports.
 - **Tiers**: every critique issue names a rubric `criterion` (`S-`/`P-`/`V-` + `B` basic need · `G` good to have ·

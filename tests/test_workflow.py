@@ -393,8 +393,11 @@ def test_next_hands_out_the_exact_next_batch(tmp_path):
     write_requirements(tmp_path)
     assert "approve . requirements" in driver.next_actions(tmp_path).actions[0].what
     confirm_requirements(tmp_path)
-    batch = driver.next_actions(tmp_path)
-    assert batch.stage.startswith("2") and batch.actions[0].file == "outline.json"
+    batch = driver.next_actions(tmp_path)  # building the outline is the Opus script-writer's, not the session's
+    assert batch.stage.startswith("2") and (batch.actions[0].agent, batch.actions[0].target) == (
+        "script-writer",
+        "outline",
+    )
     assert any(path.endswith("references/outline-linear.md") for path in batch.actions[0].read)
 
     plans = two_scenes_after_cp2(tmp_path)
@@ -493,7 +496,7 @@ def test_change_requests_are_validated_routed_and_resolved(tmp_path):
         approve(tmp_path, "script")  # an open request blocks its checkpoint
     write_critique(tmp_path, "script", "script", "revise")  # the one critique iteration the request buys
     action = driver.next_actions(tmp_path).actions[0]
-    assert "r001" in action.what and action.file == "script.json"  # routed to the script
+    assert "r001" in action.what and (action.agent, action.target) == ("script-writer", "script")  # routed
     workflow_commands.handle_resolve_command(
         argparse.Namespace(run=str(tmp_path), id="r001", status="applied", note="done")
     )
@@ -584,7 +587,8 @@ def test_one_script_critique_iteration_runs_for_each_change_request_at_cp1(tmp_p
         approve(tmp_path, "script")
     write_critique(tmp_path, "script", "script", "revise")
     action = driver.next_actions(tmp_path).actions[0]
-    assert action.file == "script.json" and "r001" in action.what  # refactor: apply the request
+    assert (action.agent, action.target) == ("script-writer", "script") and "r001" in action.what  # refactor
+    assert action.what.index("script_critique.json") < action.what.index("resolve")  # fix first, resolve last
     workflow_commands.handle_resolve_command(
         argparse.Namespace(run=str(tmp_path), id="r001", status="applied", note="")
     )
@@ -831,3 +835,18 @@ def test_scene_plans_are_written_and_refactored_by_the_scene_planner(tmp_path):
     feedback(tmp_path, "s02", "visual", "bigger diagram")
     route = driver.next_actions(tmp_path).actions[0]
     assert (route.agent, route.target) == ("scene-planner", "s02") and "r001" in route.what
+
+
+def test_outline_and_script_are_built_and_refactored_by_the_script_writer_never_the_session(tmp_path):
+    import inspect
+    import re
+
+    two_scenes_after_cp2(tmp_path)
+    for target, kind in [("outline", "structure"), ("script", "wording"), ("s01", "accuracy")]:
+        request = change_requests.record_change_request(tmp_path, target, kind, "say it more simply", "script")
+        action = change_requests.request_route(tmp_path, request)
+        assert action is not None and (action.do, action.agent) == ("subagent", "script-writer"), (target, kind)
+    source = inspect.getsource(driver) + inspect.getsource(change_requests)
+    session_writes = re.findall(r'"file": "([^"]+)"|file="([^"]+)"', source)
+    built = {"outline.json", "script.json", "scenes/*/plan.json"}
+    assert not built & {name for pair in session_writes for name in pair}, session_writes

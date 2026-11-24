@@ -15,7 +15,6 @@ crosses a boundary has a Pydantic contract in `backend/schemas/`.
 | `artifacts/` | Generated output: `runs/` (one folder per video, git-ignored), `reports/` (repository reports), `trash/` (files awaiting deletion, git-ignored) |
 | `docs/` | This file, `guides/`, dated `changes/`, `diagrams/`, and `history/` (superseded designs) |
 | `tests/` | The deterministic test suite and its fixtures |
-| `.claude/skills/` | Skills for developers working on this repository (not used by a run) |
 
 At the root: `README.md`, `CHANGELOG.md`, `pyproject.toml` + `uv.lock` (dependencies, entry point, tool settings),
 `.env.example` (the environment variables; never commit `.env`), `.github/workflows/ci.yml` (`uv run pytest -q`).
@@ -120,7 +119,7 @@ Code transcripts are formats this project does not own.
 | `settings.json` | Session sandbox and permissions (`--settings`) |
 | `hooks/hooks.json` | SessionStart and PostToolUse → `text-2-shorts hook` |
 | `workspace/CLAUDE.md` | The instructions copied into every run |
-| `agents/*.md` | One file per subagent: scene-planner and clip-builder (Opus), critics, accuracy-reviewer, audio-refactorer (Sonnet) |
+| `agents/*.md` | One file per subagent: script-writer, scene-planner and clip-builder (Opus: builders and refactors); critics, accuracy-reviewer, audio-refactorer (Sonnet). The session itself runs on Haiku |
 | `skills/text-2-shorts-produce/` | The workflow skill; `references/` = one guide per stage, read by path |
 | `skills/manim-ce-0-20-1-reference/` | Manim topic cards; `scripts/` link to `backend/tools/` |
 | `templates/*.json` | Starter video templates (logic: `backend/app/workflow/templates.py`) |
@@ -141,7 +140,6 @@ Code transcripts are formats this project does not own.
 
 ## Where a change belongs
 
-The developer skill `.claude/skills/text-2-shorts-prompt-maintenance/SKILL.md` maps every kind of change to all the
-files involved. A setting: `backend/app/config.py`. A new file or payload: a contract in `backend/schemas/` first. A
+A setting: `backend/app/config.py`. A new file or payload: a contract in `backend/schemas/` first. A
 new command: a handler in `backend/app/commands/`, logic in `backend/app/workflow/`, the parser entry in
 `backend/app/cli.py`. A new screen: `frontend/app.js`, fed by a view model in `backend/schemas/api.py`.

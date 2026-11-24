@@ -5,7 +5,7 @@ description: Use when working inside a Text-2-Shorts run workspace (a folder wit
 
 # Producing a run
 
-You do the reasoning; `text-2-shorts` decides the order and does the deterministic work. Goal: a `final.mp4` the
+You talk with the user and route the work to subagents; `text-2-shorts` decides the order and does the deterministic work. Goal: a `final.mp4` the
 user approved: requirements → outline → script → scene visual + audio plans → clips, scene by scene.
 
 ## The loop
@@ -28,8 +28,8 @@ Start no work `next` did not list: it enforces the order (scenes in series, a sc
 | Stage | Output | Gate → checkpoint | Read |
 |---|---|---|---|
 | 1 Requirements | `brief.json`; `topics.md` (numbered); `content.md` (one `## topic` section each); `template.json` (`text-2-shorts templates`, `template . <name> --set k=v`) | `approve . requirements`, then `approve . template` | `references/requirements.md`, `references/topic-list.md` |
-| 2 Outline | `outline.json` in the approach's model | order, timing, visual-plan rules → **CP0** `approve . outline` | `references/outline-linear.md` · `references/outline-arc.md` · `references/outline-zoom.md` · creative: `references/narrative-structures.md` |
-| 3 Script | `script.json`: index scene, then one scene per outline segment with bridge, narration, on-screen/animation/audio/transition needs; `script_review.json` (**accuracy-reviewer**); changes at CP1 → one **script-critic** round, then refactor | objectives, mapping, word budget → **CP1** `approve . script` | `references/standards.md`, `references/script-writing.md`, `references/script-review.md`, `references/transitions.md`, `references/critique-protocol.md` |
+| 2 Outline | `outline.json` in the approach's model, by the **script-writer** | order, timing, visual-plan rules → **CP0** `approve . outline` | `references/outline-linear.md` · `references/outline-arc.md` · `references/outline-zoom.md` · creative: `references/narrative-structures.md` |
+| 3 Script | `script.json` by the **script-writer**: index scene, then one scene per outline segment with bridge, narration, on-screen/animation/audio/transition needs; `script_review.json` (**accuracy-reviewer**); changes at CP1 → one **script-critic** round, then refactor | objectives, mapping, word budget → **CP1** `approve . script` | `references/standards.md`, `references/script-writing.md`, `references/script-review.md`, `references/transitions.md`, `references/critique-protocol.md` |
 | 4 Plans | `scenes/sNN/plan.json` (visuals + SSML + sound effects) by the **scene-planner**; **plan-critic**; `plan_review.json` | script word for word, SSML, critique → **CP2** `approve . plan` | `references/scene-visual-planning.md`, `references/audio-ssml.md`, `references/critique-protocol.md` |
 | 5 Production | per scene: `voice` → clips one at a time (**clip-builder**) → `preview` → **audio-refactorer** → **video-critic** + `changes.json` | in sync → **CP3** `approve . sNN`, then the next scene | `references/scene-production.md`, `references/critique-protocol.md` |
 | Final | `final .` → 2560×1440, 120 fps; template transitions, music, sound effects | media and delivery checks → **CP4** `approve . final` | — |

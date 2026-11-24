@@ -346,7 +346,7 @@ def test_every_skill_and_agent_meets_the_standard():
         *RUN_ENVIRONMENT.glob("skills/*/SKILL.md"),
         *RUN_ENVIRONMENT.glob("agents/*.md"),
     ]
-    assert len(files) == 12  # 3 repo skills, 2 runtime-environment skills, 7 subagents
+    assert len(files) == 10  # 2 runtime-environment skills, 8 subagents (no repo-session skills)
     for path in files:
         desc = frontmatter(path)["description"].strip()
         assert desc.startswith("Use when") and len(desc) <= 500, f"{path}: {desc[:60]}"
@@ -395,15 +395,20 @@ def test_outline_and_topic_references_are_generated_from_the_script_prompts_pack
         )
 
 
-def test_visual_planning_and_code_run_on_opus_everything_else_on_sonnet_all_at_medium_effort():
-
-    opus = {"scene-planner", "clip-builder"}  # visual planning and code generation, refactoring included
-    for path in RUN_ENVIRONMENT.glob("agents/*.md"):
-        fields = frontmatter(path)
-        expected = config.PLANNING_AND_CODE_MODEL if path.stem in opus else config.SESSION_MODEL
-        assert (fields["model"].strip(), fields["effort"].strip()) == (expected, "medium"), path.name
-    assert (config.PLANNING_AND_CODE_MODEL, config.SESSION_MODEL) == ("claude-opus-5-5", "claude-sonnet-5-5")
-    command = sandbox.session_command()
+def test_conversation_on_haiku_builders_and_refactorers_on_opus_critics_and_audio_on_sonnet():
+    builders = {"script-writer", "scene-planner", "clip-builder"}  # build and refactor outline, script, plans, clips
+    reviewers_and_audio = {"script-critic", "plan-critic", "video-critic", "accuracy-reviewer", "audio-refactorer"}
+    agents = {path.stem: frontmatter(path) for path in RUN_ENVIRONMENT.glob("agents/*.md")}
+    assert set(agents) == builders | reviewers_and_audio
+    for name, fields in agents.items():
+        expected = config.BUILD_MODEL if name in builders else config.REVIEW_AND_AUDIO_MODEL
+        assert (fields["model"].strip(), fields["effort"].strip()) == (expected, "medium"), name
+    assert (config.SESSION_MODEL, config.BUILD_MODEL, config.REVIEW_AND_AUDIO_MODEL) == (
+        "claude-haiku-5-5",
+        "claude-opus-5-5",
+        "claude-sonnet-5-5",
+    )
+    command = sandbox.session_command()  # the session: the user's conversation, requirements, routing
     assert command[command.index("--model") + 1] == config.SESSION_MODEL
 
 

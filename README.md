@@ -22,8 +22,7 @@ Voice credentials (AWS Polly or Google Cloud TTS) and details: `docs/guides/depl
 uv run text-2-shorts new "<topic>" --objective "…" --approach zoom --minutes 2 --audience "…" --tts polly --voice Matthew
 uv run text-2-shorts open artifacts/runs/<id>     # interactive Claude Code session for this run, inside its jail
 ```
-From a repo session, `/make-short <topic>` asks the setup questions and runs `text-2-shorts new` for you. The run session then
-works through the stages below and asks you at every checkpoint (requirements · template · CP0 outline · CP1 script ·
+The run session works through the stages below and asks you at every checkpoint (requirements · template · CP0 outline · CP1 script ·
 CP2 scene visual plans · CP3 each scene's preview · CP4 final video). Re-running `text-2-shorts open` resumes from where the run stopped.
 `uv run text-2-shorts status artifacts/runs/<id>` shows approvals, every stage, scene and clip status and the next steps from anywhere.
 **Faraday is used from its website only.** `uv run text-2-shorts serve` opens it at http://127.0.0.1:8765 (FastAPI):
@@ -106,6 +105,7 @@ runtime-environment/                  the execution environment, defined once (d
     references/                   requirements · script-writing · narrative-structures · script-review ·
                                   scene-visual-planning · audio-ssml · scene-production · transitions · standards
   skills/manim-ce-0-20-1-reference/  version-pinned Manim topic cards + scripts
+  agents/script-writer.md         subagent (Opus): writes and refactors the outline and the script
   agents/scene-planner.md         subagent (Opus): writes and refactors ONE scene's visual + audio plan
   agents/clip-builder.md          subagent (Opus): builds ONE clip in its prepared folder (fresh context per clip)
   agents/accuracy-reviewer.md     subagent: independent accuracy check → script_review.json, plan_review.json
@@ -131,10 +131,13 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
   `TASK.md` with only its clip, the paths of the standards and three always-on Manim cards, and the cards specific
   to that clip. The session-start hook prints the run's state, so resuming costs one short block instead of
   re-reading files.
-- **Models**: visual planning and code generation, refactoring included, run on Opus (`claude-opus-5-5`): the
-  scene-planner and clip-builder subagents. The run session and every other subagent (critics, accuracy-reviewer,
-  audio-refactorer) run on Sonnet (`claude-sonnet-5-5`). All at medium effort. Session settings live in
-  `backend/app/config.py` (`SESSION_MODEL`, `EFFORT`; launched by `session_command` in `backend/app/sandbox.py`); subagents set `model`/`effort` in their frontmatter.
+- **Models**: the run session, which is the user's conversation (the website console), refining requirements and
+  routing, runs on Haiku (`claude-haiku-5-5`) and builds nothing itself. Every builder and refactor except audio
+  runs on Opus (`claude-opus-5-5`): script-writer (outline, script), scene-planner (plans), clip-builder (code).
+  Every critic and reviewer (script-, plan-, video-critic, accuracy-reviewer) and audio (audio-refactorer) run on
+  Sonnet (`claude-sonnet-5-5`). All at medium effort. Settings: `SESSION_MODEL`, `BUILD_MODEL`,
+  `REVIEW_AND_AUDIO_MODEL`, `EFFORT` in `backend/app/config.py` (the session is launched by `session_command` in
+  `backend/app/sandbox.py`); subagents set `model`/`effort` in their frontmatter, and a test keeps them equal.
 - **Everything visible**: the session runs with `--verbose` (every tool call's input and output shown as it
   happens); the hooks show the user each write (with its validation result), command and subagent, and the run
   state at session start; every event is also in `log.jsonl`; the commands print what they changed.
@@ -184,5 +187,4 @@ runtime-environment/   the Claude Code run environment: agents, skills + referen
 artifacts/             runs/ (one folder per video), reports/, trash/ (awaiting deletion)
 docs/                  PROJECT_STRUCTURE.md · guides/ · changes/ (dated change lists) · diagrams/ · history/
 tests/                 deterministic suite: validators, task → accept → final, jail isolation, hooks, speech, web
-.claude/skills/        repo-session skills: make-short (launcher) · text-2-shorts-clip-debugging · text-2-shorts-prompt-maintenance
 ```

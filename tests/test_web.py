@@ -330,7 +330,7 @@ def test_a_run_has_one_console_turn_at_a_time(web, monkeypatch):
         assert response.status_code == 409 and client.get(f"/api/runs/{run.name}/console").json()["busy"] is True
 
 
-def test_a_console_turn_is_the_run_session_in_its_jail():
+def test_a_console_turn_is_the_run_session_in_its_jail():  # Haiku: the user's conversation
     from app import sandbox
     from app.config import SESSION_MODEL
 
