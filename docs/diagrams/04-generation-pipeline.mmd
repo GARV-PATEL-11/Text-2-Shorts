@@ -1,0 +1,40 @@
+flowchart TD
+    U(["User request"]) --> R
+    subgraph R["1 · Requirements"]
+        B["brief.json — topic · objectives · audience · style<br/>approach: zoom · arc · linear · creative"]
+        T["topics.md (request modifier) → content.md"]
+        B --> T
+    end
+    R -->|"requirements checkpoint · template.json (template checkpoint) · preferences.json"| O
+    subgraph O["2 · Outline"]
+        OL["outline.json — the approach's prompt and model<br/>segments: type · timing · talking points · visual plan"]
+    end
+    O -->|"order · timing · visual-plan rules<br/>CP0 human: approve outline"| S
+    subgraph S["3 · Complete script"]
+        SC["script.json — s01 index scene (what we cover)<br/>then one scene per outline segment: objective · duration<br/>bridge_in (inter-scene transition) · complete narration"]
+        SK{{"script-critic: one round per change asked at CP1<br/>outline-fit · clarity · flow · pacing"}}
+        SR["script_review.json — accuracy-reviewer"]
+        SC --> SR
+        SR -.->|"user asks for changes at CP1"| SK
+        SK -->|"refactor once, back to the user"| SC
+    end
+    S -->|"objectives · index · bridges · word budget · length<br/>CP1 human: approve script"| P
+    subgraph P["4 · Scene-wise visual + audio plans"]
+        PL["scenes/sNN/plan.json — composition · transition_in<br/>clips: narration slice · beats · positions · entry/exit<br/>+ SSML: waits · pauses · pace · emphasis"]
+        PC{{"plan-critic: clarity · sync · constructable · design<br/>score ≥ 85 · ≤ 3 rounds per scene"}}
+        PL --> PC -->|revise| PL
+        PR["plan_review.json — accuracy-reviewer"]
+        PC -->|"pass, or round 3: requires attention"| PR
+    end
+    P -->|"narration = script · valid SSML · critique done<br/>CP2 human: approve plans"| C
+    subgraph C["5 · Scene by scene (in series): clips, preview, sync, video critique"]
+        V["voice: audio per clip from its SSML"] --> K["clip-builder: one clip at a time, in order<br/>earlier clips in place · ./check + accept · 720p30<br/>self.beat(n) marks · CHANGES.md"]
+        K --> PV["preview: whole scene incl. transition, 720p30<br/>sync.json = changes-made document"]
+        PV -->|out of sync| AR["audio-refactorer: re-time SSML<br/>→ voice → preview"]
+        AR --> PV
+        PV --> VC{{"video-critic: plan-match · sync · render · design<br/>score ≥ 85 · ≤ 3 rounds · changes.json → changes.txt"}}
+        VC -->|"sync issue"| AR
+        VC -->|"clip issue: feedback → rebuild"| K
+    end
+    C -->|"in sync · critique done · CP3 human: this scene's preview<br/>then the next scene"| F["final: 2560×1440 at 120 fps · stream checks · template transitions<br/>music + sound effects · A/V sync · media and delivery checks"]
+    F -->|"CP4 human: final video"| D(["final.mp4"])

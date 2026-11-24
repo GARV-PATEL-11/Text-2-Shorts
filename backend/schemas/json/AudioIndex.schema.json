@@ -1,0 +1,60 @@
+{
+  "$defs": {
+    "ClipAudio": {
+      "additionalProperties": false,
+      "description": "One clip's narration in scenes/sNN/audio/index.json.",
+      "properties": {
+        "hash": {
+          "description": "voice key: spoken SSML + provider + voice + engine",
+          "title": "Hash",
+          "type": "string"
+        },
+        "seconds": {
+          "minimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        },
+        "spoken": {
+          "default": "",
+          "title": "Spoken",
+          "type": "string"
+        },
+        "beat_times": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "when the voice says each beat's phrase",
+          "title": "Beat Times"
+        }
+      },
+      "required": [
+        "hash",
+        "seconds"
+      ],
+      "title": "ClipAudio",
+      "type": "object"
+    }
+  },
+  "additionalProperties": {
+    "$ref": "#/$defs/ClipAudio"
+  },
+  "description": "scenes/sNN/audio/index.json: clip id \u2192 its narration audio.",
+  "title": "AudioIndex",
+  "type": "object"
+}

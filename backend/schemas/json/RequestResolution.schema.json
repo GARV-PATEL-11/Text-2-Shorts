@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^r\\d{3}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "applied",
+        "declined"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    },
+    "resolved_at": {
+      "title": "Resolved At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "resolved_at"
+  ],
+  "title": "RequestResolution",
+  "type": "object"
+}

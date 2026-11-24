@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "HookToolInput": {
+      "description": "The fields of Claude Code's tool_input the hook uses (the rest is ignored).",
+      "properties": {
+        "file_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Path"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "subagent_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subagent Type"
+        }
+      },
+      "title": "HookToolInput",
+      "type": "object"
+    }
+  },
+  "description": "The JSON Claude Code sends a hook on stdin (only the fields used here; the rest is ignored).",
+  "properties": {
+    "hook_event_name": {
+      "title": "Hook Event Name",
+      "type": "string"
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cwd"
+    },
+    "transcript_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Transcript Path"
+    },
+    "tool_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool Name"
+    },
+    "tool_input": {
+      "$ref": "#/$defs/HookToolInput"
+    }
+  },
+  "required": [
+    "hook_event_name"
+  ],
+  "title": "HookEvent",
+  "type": "object"
+}

@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "ClipMux": {
+      "additionalProperties": false,
+      "properties": {
+        "video_s": {
+          "title": "Video S",
+          "type": "number"
+        },
+        "audio_s": {
+          "title": "Audio S",
+          "type": "number"
+        },
+        "out_s": {
+          "title": "Out S",
+          "type": "number"
+        },
+        "video_padded_s": {
+          "title": "Video Padded S",
+          "type": "number"
+        },
+        "audio_padded_s": {
+          "title": "Audio Padded S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "video_s",
+        "audio_s",
+        "out_s",
+        "video_padded_s",
+        "audio_padded_s"
+      ],
+      "title": "ClipMux",
+      "type": "object"
+    },
+    "MediaFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "enum": [
+            "ERROR",
+            "WARN"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "MediaFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "final_report.json: the assembly report, the media and delivery checks, and the fingerprint of the video.",
+  "properties": {
+    "clips": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ClipMux"
+      },
+      "title": "Clips",
+      "type": "object"
+    },
+    "sound_effects": {
+      "default": 0,
+      "title": "Sound Effects",
+      "type": "integer"
+    },
+    "transition": {
+      "default": "cut",
+      "title": "Transition",
+      "type": "string"
+    },
+    "music": {
+      "default": false,
+      "title": "Music",
+      "type": "boolean"
+    },
+    "final_s": {
+      "title": "Final S",
+      "type": "number"
+    },
+    "sum_clips_s": {
+      "title": "Sum Clips S",
+      "type": "number"
+    },
+    "checks": {
+      "items": {
+        "$ref": "#/$defs/MediaFinding"
+      },
+      "title": "Checks",
+      "type": "array"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fingerprint"
+    }
+  },
+  "required": [
+    "clips",
+    "final_s",
+    "sum_clips_s"
+  ],
+  "title": "FinalReport",
+  "type": "object"
+}

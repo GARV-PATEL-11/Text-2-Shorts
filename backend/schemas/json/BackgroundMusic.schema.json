@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "file": {
+      "title": "File",
+      "type": "string"
+    },
+    "volume_db": {
+      "default": -24,
+      "maximum": 0,
+      "minimum": -40,
+      "title": "Volume Db",
+      "type": "number"
+    }
+  },
+  "required": [
+    "file"
+  ],
+  "title": "BackgroundMusic",
+  "type": "object"
+}

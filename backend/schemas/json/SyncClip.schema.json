@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "SyncBeat": {
+      "additionalProperties": false,
+      "properties": {
+        "beat": {
+          "minimum": 1,
+          "title": "Beat",
+          "type": "integer"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "spoken_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spoken At"
+        },
+        "shown_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shown At"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "shown \u2212 spoken, seconds",
+          "title": "Offset"
+        }
+      },
+      "required": [
+        "beat",
+        "plan"
+      ],
+      "title": "SyncBeat",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clip_id": {
+      "examples": [
+        "s03c02"
+      ],
+      "pattern": "^s\\d{2}c\\d{2}$",
+      "title": "Clip Id",
+      "type": "string"
+    },
+    "video_seconds": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Video Seconds"
+    },
+    "audio_seconds": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Audio Seconds"
+    },
+    "audio_fits": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Audio Fits"
+    },
+    "beats": {
+      "items": {
+        "$ref": "#/$defs/SyncBeat"
+      },
+      "title": "Beats",
+      "type": "array"
+    },
+    "changes": {
+      "default": "",
+      "description": "the clip-builder's CHANGES.md",
+      "title": "Changes",
+      "type": "string"
+    }
+  },
+  "required": [
+    "clip_id"
+  ],
+  "title": "SyncClip",
+  "type": "object"
+}

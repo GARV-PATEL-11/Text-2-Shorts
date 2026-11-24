@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "video_s": {
+      "title": "Video S",
+      "type": "number"
+    },
+    "audio_s": {
+      "title": "Audio S",
+      "type": "number"
+    },
+    "out_s": {
+      "title": "Out S",
+      "type": "number"
+    },
+    "video_padded_s": {
+      "title": "Video Padded S",
+      "type": "number"
+    },
+    "audio_padded_s": {
+      "title": "Audio Padded S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "video_s",
+    "audio_s",
+    "out_s",
+    "video_padded_s",
+    "audio_padded_s"
+  ],
+  "title": "ClipMux",
+  "type": "object"
+}

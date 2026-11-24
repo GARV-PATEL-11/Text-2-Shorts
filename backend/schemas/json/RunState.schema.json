@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "Approval": {
+      "additionalProperties": false,
+      "description": "A checkpoint approval, bound to the fingerprint of exactly what was approved.",
+      "properties": {
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        }
+      },
+      "required": [
+        "at"
+      ],
+      "title": "Approval",
+      "type": "object"
+    },
+    "ClipBuild": {
+      "additionalProperties": false,
+      "description": "The last `accept` of a clip: READY with the key of the inputs it was built from, or FAILED.",
+      "properties": {
+        "status": {
+          "enum": [
+            "READY",
+            "FAILED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "open_findings": {
+          "description": "gate: CODE for every ERROR still open",
+          "items": {
+            "type": "string"
+          },
+          "title": "Open Findings",
+          "type": "array"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "clip_key of the inputs the accepted code was built from",
+          "title": "Key"
+        },
+        "at": {
+          "default": "",
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "ClipBuild",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "state.json \u2014 changed only by `approve`, `accept`, the hook and `status` (never by hand).",
+  "properties": {
+    "approved": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Approval"
+      },
+      "description": "requirements, template, outline, script, plan, scene:sNN, start:sNN, final",
+      "title": "Approved",
+      "type": "object"
+    },
+    "clips": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ClipBuild"
+      },
+      "description": "clip id \u2192 its last build",
+      "title": "Clips",
+      "type": "object"
+    },
+    "sessions": {
+      "description": "Claude Code transcript paths of this run",
+      "items": {
+        "type": "string"
+      },
+      "title": "Sessions",
+      "type": "array"
+    },
+    "status": {
+      "additionalProperties": {
+        "enum": [
+          "pending",
+          "in_progress",
+          "completed",
+          "failed",
+          "requires_refactoring",
+          "requires_user_approval",
+          "approved"
+        ],
+        "type": "string"
+      },
+      "description": "every stage, scene and clip \u2192 its status",
+      "title": "Status",
+      "type": "object"
+    }
+  },
+  "title": "RunState",
+  "type": "object"
+}

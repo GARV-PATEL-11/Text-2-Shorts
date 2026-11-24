@@ -1,10 +1,10 @@
 import pytest
 from pydantic import ValidationError
-import models
+from schemas import media, plans, unused_contracts
 
 
 def clip(clip_id, i, entry=(), exit_=()):
-    return models.ClipPlan(
+    return plans.ClipPlan(
         clip_id=clip_id,
         index=i,
         objective="o",
@@ -12,15 +12,15 @@ def clip(clip_id, i, entry=(), exit_=()):
         ssml="<speak>n</speak>",
         visual_intent="v",
         beats=["b"],
-        entry=models.ContinuityState(persistent_objects=list(entry)),
-        exit=models.ContinuityState(persistent_objects=list(exit_)),
+        entry=plans.ContinuityState(persistent_objects=list(entry)),
+        exit=plans.ContinuityState(persistent_objects=list(exit_)),
         est_seconds=5,
     )
 
 
 def test_continuity_contract_enforced():
     with pytest.raises(ValidationError, match="entry needs"):
-        models.ScenePlan(
+        plans.ScenePlan(
             scene_id="s01",
             index=1,
             title="t",
@@ -31,7 +31,7 @@ def test_continuity_contract_enforced():
 
 
 def test_valid_scene():
-    scene = models.ScenePlan(
+    scene = plans.ScenePlan(
         scene_id="s01",
         index=1,
         title="t",
@@ -44,11 +44,11 @@ def test_valid_scene():
 
 def test_clip_id_must_belong_to_scene():
     with pytest.raises(ValidationError, match="does not match scene s02"):
-        models.ScenePlan(scene_id="s02", index=1, title="t", objective="o", composition="c", clips=[clip("s01c01", 1)])
+        plans.ScenePlan(scene_id="s02", index=1, title="t", objective="o", composition="c", clips=[clip("s01c01", 1)])
 
 
 def test_cache_key_is_stable_and_input_sensitive():
-    metadata = models.GenerationMetadata(
+    metadata = unused_contracts.GenerationMetadata(
         producer="clip_codegen",
         producer_kind="llm",
         prompt_id="clip_codegen@1",
@@ -65,4 +65,4 @@ def test_cache_key_is_stable_and_input_sensitive():
 
 def test_extra_fields_rejected():
     with pytest.raises(ValidationError):
-        models.Finding(severity="ERROR", code="X", message="m", surprise=1)
+        media.GateFinding.model_validate({"severity": "ERROR", "code": "X", "message": "m", "surprise": 1})

@@ -1,5 +1,160 @@
 # Changelog
 
+## 0.17.0 — 2026-11-24
+The website is the only interface, connected to Claude Code.
+- **Start runs on the website**: the `faraday new` form → `POST /api/runs` → `create_run()` (preflight, voice
+  credentials, font, workspace), shared with `text-2-shorts new`.
+- **Console**: each message is one turn of the run's Claude Code session (`claude -p … --output-format stream-json
+  --resume <session>` in the run's jail, with the same plugin, settings, model and effort as `open`), streamed to the
+  page as `ConsoleEntry` lines (you, claude, tool, system, error) and kept in the run's `console.jsonl`. One turn at a
+  time per run (409 otherwise); the session id is kept in `state.json` (`console_session`).
+- **Terminal look**: Fira Code at its Retina weight (450), ligatures on, for the console, forms and approval panels;
+  Fraunces headings, Geist text; still black and white, no motion.
+- The no-orchestration test now allows exactly one relay (`sandbox.console_claude_arguments`, the user's own message)
+  and still forbids prompts in Python. The run guide tells the session the user talks to it through the website.
+
+## 0.16.0 — 2026-11-24
+Faraday: "Curiosity, Illustrated". The frontend after a critic refactor loop (report:
+`artifacts/reports/frontend-critic-refactor-loop.md`).
+- Rebrand of everything a person sees (title, bar, sign-in, home, footer, README); the CLI and package keep their names.
+- Run header: counts from the run's files and a 7-stage strip (Scenes added, derived from real scene statuses), the
+  current stage marked; status glyphs; plain stage names; static loading state; one-line empty states; tighter rhythm;
+  a single-column stage list on phones.
+- Truthfulness: `RunDetail.final_checked`; no "every check passed" or delivered-size claim for unchecked videos.
+- Type: Fraunces (soft serif) for headings and the Faraday wordmark; Geist for text and controls; Geist Mono for ids.
+- Still black and white only, no motion.
+
+## 0.15.0 — 2026-11-24
+FastAPI backend, sign-in with Claude, and an all-black frontend.
+- **FastAPI**: `backend/app/web/app.py` replaces the standard-library server; every request and response is a Pydantic
+  model (`schemas/api.py`); errors are `ApiError` JSON. `text-2-shorts serve` runs it with uvicorn on 127.0.0.1.
+  Videos answer HTTP Range requests, so they can be seeked.
+- **Sign in with Claude**: "Continue with Claude" opens a session for the Claude account Claude Code is signed in to on
+  this machine (`claude auth status --json`, `backend/app/web/auth.py`). Not signed in: the page says to run
+  `claude auth login`, which opens claude.ai. No password or token passes through the web view. Sessions: random
+  tokens in an HttpOnly, SameSite=Strict cookie, 12 hours, in memory; sign out from the bar. Every API and media route
+  needs a session.
+- **All black**: the page is `#0b0b0d` with `#17181c` cards, white type, white pill and outlined buttons, after the dark
+  sections of armakuni.com; tests enforce the palette (greys only), the black ground and the absence of motion.
+- Dependencies: `fastapi`, `uvicorn`; dev: `httpx` (the test client).
+
+## 0.14.0 — 2026-11-24
+The frontend approves checkpoints and records changes.
+- **Waiting for you**: every checkpoint the user can decide now (those waiting for approval and the one the next batch
+  asks about), with its open problems. Approve (with optional notes), or approve anyway when problems are open (recorded
+  as forced), or ask for changes.
+- **Ask for a change**: a form for any stage, scene or clip and any kind of change; open requests can be marked applied
+  or declined.
+- **One code path**: `approve_checkpoint()`, `record_change_request()` and `resolve_request()` in `backend/app/workflow/`
+  serve both the CLI (`approve`, `feedback`, `resolve`) and the web API (`POST /api/runs/<run>/approve`, `/requests`,
+  `/requests/<rNNN>`), so gates, fingerprints and decision records are identical.
+- **Safe on this machine**: the server answers only for 127.0.0.1/localhost (no DNS rebinding); writes must be JSON
+  from the page's own origin (no cross-site form posts); bodies are capped and validated (`ApproveInput`,
+  `ChangeRequestInput`, `ResolveInput`).
+- `Action.checkpoint` names the checkpoint an ask-the-user action decides; `record_decision()` returns the decision.
+
+## 0.13.0 — 2026-11-24
+Top-level folders by role, Pydantic contracts for every file and payload, and a frontend.
+- **Folders**: `frontend/`; `backend/` (`app/`, `schemas/`, `tools/`); `runtime-environment/` (was `run-environment/`;
+  plugin `text-2-shorts-runtime-environment`); `artifacts/` (`runs/`, `reports/`, `trash/`); `docs/` (with
+  `PROJECT_STRUCTURE.md`); `tests/`. New runs are created in `artifacts/runs/`.
+- **Contracts everywhere**: `backend/schemas/` split by domain (base, requirements, script, plans, reviews, interaction,
+  run_state, media, session, api; never-used contracts isolated in `unused_contracts.py`). New contracts for
+  `state.json` (`RunState`), `log.jsonl`, the audio index, `TASK.json`, gate results, scene renders, `sync.json`,
+  `assembly.json`, `final_report.json`, requests and decisions, the `next` batch, the hook's input and output, the
+  environment report and token totals. Code and tools read and write through them; `export_json_schemas.py` exports
+  every live contract (56).
+- **Frontend**: `text-2-shorts serve` (read-only, 127.0.0.1:8765) serves `frontend/`, a black-and-white page in the
+  type and neutral palette of armakuni.com (Geist, Geist Mono): the run list, where a run stands, what happens next,
+  scenes with their previews, the final video with its checks, change requests and decisions. No motion; tests
+  enforce the colours, the absence of motion and that run data is never parsed as HTML.
+- **Fixed**: the topic-card tests had silently stopped finding the cards after the move; a guard test now fails.
+
+## 0.12.0 — 2026-11-24
+Repository restructure by responsibility; no behaviour change (the same 111 tests pass).
+- **`app/` split**: `run_steps.py` (2,532 lines) and `cli.py` became `cli.py` (entry point), `config.py` (every
+  setting; environment variables read once), `utilities.py`, `sandbox.py`, `commands/` (handlers: run, workflow,
+  production, hook) and `workflow/` (ledger, change requests, preferences, templates, artifacts, fingerprints,
+  checkpoints, validation, critiques, production, clips, approvals, driver, status, run workspace). No import cycles.
+- **Moves**: `app/clip_gates.py` → `tools/` (a standalone script run in the render jail); `app/outline_models/` →
+  `schemas/outline_models/`; `diagrams/` → `docs/diagrams/` (superseded ones → `docs/history/diagrams/`); docs into
+  `docs/guides/`, `docs/changes/`, `docs/history/` (architecture plan, module specifications, skills assessment,
+  proposed stages, reference material).
+- **New**: `PROJECT_STRUCTURE.md` (every folder and module, dependency layers, run workspace, where changes go),
+  `docs/reports/unused-files-inventory.md` (removal candidates with evidence; nothing deleted) and
+  `docs/reports/restructuring-report.md`.
+- Tests import the module they exercise; references in README, tools README, skills and guides updated.
+
+## 0.11.0 — 2026-11-24
+The PRD's workflow rules: clips in sequence, one script critique per requested change, scored critiques with
+escalation, a refactor log, statuses, requirements and template checkpoints, music, sound effects and transitions.
+- **Clips in sequence**: `task` refuses a clip until the earlier clips of its scene are accepted and copies them into
+  the task folder (the clip starts from their real end state); `next` hands out one clip at a time. Replaces 0.9's
+  parallel clips; `self.entry` stays.
+- **Script critique on request**: no critique loop before CP1. Each change the user asks for at CP1 buys exactly one
+  script-critic round (dispatched before the refactor); more rounds than requests is a validation error.
+- **Scored critiques**: plan and video critique rounds carry a 0–100 score; the verdict must follow
+  `quality_threshold` (preferences.json, default 85). After 3 rounds below it the scene REQUIRES ATTENTION and needs
+  the user (`approve --force`, recorded).
+- **Refactor log**: every video refactor iteration is a `ChangeRecord` in `scenes/sNN/changes.json` (issue,
+  findings, modification, files, rendering, audio timing, sync, validation, score), required before CP3; the hook
+  writes the run's `changes.txt`. `validate <run> changes --scene sNN`.
+- **Statuses**: every stage, scene and clip is pending · in_progress · completed · failed · requires_refactoring ·
+  requires_user_approval · approved, saved in `state.json` and shown by `status`.
+- **Requirements**: `Brief` gains detail_level, explanation_depth, technical_complexity, visual_expectations,
+  audio_expectations; `approve <run> requirements` confirms brief, topics and content before the outline.
+- **Templates**: `run-environment/templates/` (standard-dark from standards.md, chalkboard, paper-light);
+  `text-2-shorts templates`, `text-2-shorts template <run> <name> --set key=value` → `template.json` (`VideoTemplate`:
+  colours, type scale, animation and transition style, density, composition, pacing, music) +
+  `template_preview.svg`; `approve <run> template`. Precedence: standard < preferences < template; TASK.md and the clip
+  key carry it.
+- **Script content**: script scenes name on_screen_text (the plan must show it), animations, audio and transition
+  requirements, and depends_on (earlier scenes only).
+- **Audio from the user's files**: clip `sound_effects` and the template's `music` (must exist in the run folder),
+  mixed at assembly.
+- **Assembly**: stream parameters checked before concatenation; scenes joined with the template's transition (cut,
+  fade through the background, crossfade).
+- **Final checks**: adds 16:9 aspect ratio, true peak, silences, decode errors, duration against the script, missing
+  clips.
+- **Models**: visual planning and code generation, refactoring included, run on Opus 5.5 at medium effort: the new
+  **scene-planner** subagent (writes and refactors scene plans, applies visual change requests) and the
+  clip-builder. The run session (`--model claude-sonnet-5-5 --effort medium`) and every other subagent run on
+  Sonnet 5.5 at medium effort.
+- **Everything shown**: the session runs `--verbose`; the PostToolUse hook shows the user each write (with its
+  validation result), command and subagent (`systemMessage`) and logs it with what was shown; the SessionStart hook
+  shows the run state and next batch to the user as well as to Claude; the skill tells the session to report every
+  change in one line.
+- Docs: caching controls (Claude Code's TTL and disable variables) in the README; agents, references, skill, diagram
+  and README follow the new rules.
+
+## 0.10.0 — 2026-11-24
+The outline stage returns; the user's tweaks, decisions and preferences become validated contracts.
+- **Outline stage (CP0)**: `app/outline_models/` (base, Conceptual Zoom, Problem-Solution Arc, Classic Linear
+  Narrative) are restored, plus `VideoOutline` for the creative approach. `outline.json` is validated by the
+  approach's model and the outline prompts' checkable rules: segment order (A2/B2/C2) and first/last segment
+  (A7/B3/C2), 10–120 s per segment (G2), transitions (S13) and the visual-plan standard (VP2 sentence count, VP3
+  opening, VP4 closing, VP5 no double quotes). `text-2-shorts approve <run> outline` is CP0.
+- **Prompts package**: `run-environment/prompts/script_prompts/` (request modifier + three outline prompts, shared
+  blocks in `_shared.py`), rendered to `references/topic-list.md` and `references/outline-{linear,arc,zoom}.md` by
+  `run-environment/prompts/export_references.py`; a test fails when they drift.
+- **Requirements end with `topics.md` and `content.md`**: the request modifier's numbered list, then one
+  `## <topic>` section per topic — the outline's `raw_content`. Both validated.
+- **Script narrates the outline**: `ScriptScene.outline_segment`; the scenes after the index scene narrate every
+  outline segment once, in order. The script waits for CP0.
+- **Change requests** (`ChangeRequest`, `requests.jsonl`): `text-2-shorts feedback <run> <target> --kind
+  wording|visual|audio-timing|accuracy|structure|style|other --text … [--checkpoint …]`; `text-2-shorts resolve
+  <run> rNNN applied|declined`. Open requests block their checkpoint; `next` routes them; a clip's visual request
+  resolves when the clip is accepted. (`--scope` and `feedback.jsonl` are gone.)
+- **Checkpoint decisions** (`CheckpointDecision`, `decisions.jsonl`): every approval (`--notes` for approved with
+  notes; forced flagged) and every change requested at a checkpoint.
+- **Script critic loop**: `script-critic` subagent, one combined critic, at most 3 rounds before CP1
+  (`script_critique.json`: outline-fit, clarity, flow, pacing, speakability, tone); CP1 needs a passing round on the
+  current script, or the user accepts the open issues after round 3. `text-2-shorts hash <run> script`,
+  `validate <run> script-critique`.
+- **Standing preferences** (`Preferences`, `preferences.json`, copied from the repo root by `new`): tone, palette
+  roles, background, font, voice rate, pause length, confirm each scene (`approve <run> start:sNN`). Applied to
+  clip keys, TASK.md, render background and the voice SSML.
+
 ## 0.9.0 — 2026-11-23
 Option B: a deterministic driver for the Claude Code session; scenes produced in series, a scene's clips in parallel.
 - **`text-2-shorts next <run> [--json]`** returns the exact next batch — who does what (write, subagent, command,

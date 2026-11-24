@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "description": "The Claude account Claude Code is signed in to on this machine: who the web view's user is.",
+  "properties": {
+    "email": {
+      "title": "Email",
+      "type": "string"
+    },
+    "organization": {
+      "default": "",
+      "title": "Organization",
+      "type": "string"
+    },
+    "plan": {
+      "default": "",
+      "title": "Plan",
+      "type": "string"
+    },
+    "method": {
+      "default": "",
+      "description": "claude.ai (subscription) or console (API billing)",
+      "title": "Method",
+      "type": "string"
+    }
+  },
+  "required": [
+    "email"
+  ],
+  "title": "ClaudeAccount",
+  "type": "object"
+}

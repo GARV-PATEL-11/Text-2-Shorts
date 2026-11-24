@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "RenderedSection": {
+      "description": "One clip section of a scene render (Manim's sections JSON; its extra fields are ignored).",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "duration": {
+          "title": "Duration",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "duration"
+      ],
+      "title": "RenderedSection",
+      "type": "object"
+    }
+  },
+  "description": "What tools/scene_harness.py render reports.",
+  "properties": {
+    "ok": {
+      "title": "Ok",
+      "type": "boolean"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/RenderedSection"
+      },
+      "title": "Sections",
+      "type": "array"
+    },
+    "stderr_tail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stderr Tail"
+    }
+  },
+  "required": [
+    "ok"
+  ],
+  "title": "SceneRender",
+  "type": "object"
+}

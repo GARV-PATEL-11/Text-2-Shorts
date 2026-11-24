@@ -1,0 +1,60 @@
+{
+  "description": "What `claude auth status --json` reports (Claude Code's format: only the fields used here are read).",
+  "properties": {
+    "loggedIn": {
+      "default": false,
+      "title": "Loggedin",
+      "type": "boolean"
+    },
+    "email": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Email"
+    },
+    "orgName": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Orgname"
+    },
+    "subscriptionType": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subscriptiontype"
+    },
+    "authMethod": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Authmethod"
+    }
+  },
+  "title": "ClaudeAuthStatus",
+  "type": "object"
+}

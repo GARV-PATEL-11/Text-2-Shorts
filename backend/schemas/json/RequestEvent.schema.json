@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "description": "A request row of requests.jsonl.",
+  "properties": {
+    "id": {
+      "pattern": "^r\\d{3}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "target": {
+      "pattern": "^(outline|script|plan|final|s\\d{2}(c\\d{2})?)$",
+      "title": "Target",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "wording",
+        "visual",
+        "audio-timing",
+        "accuracy",
+        "structure",
+        "style",
+        "other"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "text": {
+      "description": "the user's words",
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "checkpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the checkpoint it was raised at, if any",
+      "title": "Checkpoint"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "event": {
+      "const": "request",
+      "default": "request",
+      "title": "Event",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "target",
+    "kind",
+    "text",
+    "created_at"
+  ],
+  "title": "RequestEvent",
+  "type": "object"
+}

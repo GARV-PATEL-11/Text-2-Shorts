@@ -1,0 +1,13 @@
+{
+ "name": "paper-light",
+ "description": "Light paper background, dark ink, strong accent colours; good for print-like diagrams.",
+ "background": "#f4efe4",
+ "palette": {"text": "BLACK", "focus": "RED_D", "given": "BLUE_D", "derived": "GREEN_D", "warning": "MAROON_D", "secondary": "GREY_D"},
+ "font": null,
+ "animation_style": "crisp fades and transforms; diagrams build piece by piece",
+ "scene_transition": "crossfade",
+ "transition_seconds": 0.5,
+ "density": "balanced",
+ "composition": "diagram centre-left, labels and equations to the right",
+ "pacing": "medium"
+}

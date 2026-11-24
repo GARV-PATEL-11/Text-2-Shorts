@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/requests",
+  "properties": {
+    "target": {
+      "title": "Target",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    },
+    "checkpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Checkpoint"
+    }
+  },
+  "required": [
+    "target",
+    "kind",
+    "text"
+  ],
+  "title": "ChangeRequestInput",
+  "type": "object"
+}

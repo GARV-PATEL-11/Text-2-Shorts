@@ -1,5 +1,6 @@
 import shutil
 import sys
+
 from conftest import FIXTURES_DIRECTORY, TOOLS_DIRECTORY
 
 sys.path.insert(0, str(TOOLS_DIRECTORY))

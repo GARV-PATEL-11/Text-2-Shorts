@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "description": "A resolution row of requests.jsonl.",
+  "properties": {
+    "event": {
+      "const": "resolution",
+      "default": "resolution",
+      "title": "Event",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^r\\d{3}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "applied",
+        "declined"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    },
+    "resolved_at": {
+      "title": "Resolved At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "status",
+    "resolved_at"
+  ],
+  "title": "ResolutionEvent",
+  "type": "object"
+}

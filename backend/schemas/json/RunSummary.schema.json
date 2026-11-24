@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "description": "One row of the run list.",
+  "properties": {
+    "id": {
+      "description": "the run folder name, e.g. 20261124-101500-keplers-laws",
+      "title": "Id",
+      "type": "string"
+    },
+    "topic": {
+      "title": "Topic",
+      "type": "string"
+    },
+    "created": {
+      "description": "YYYY-MM-DD HH:MM, from the folder name",
+      "title": "Created",
+      "type": "string"
+    },
+    "stage": {
+      "description": "the stage the next batch belongs to, or why the run cannot be read",
+      "title": "Stage",
+      "type": "string"
+    },
+    "has_final": {
+      "title": "Has Final",
+      "type": "boolean"
+    },
+    "readable": {
+      "default": true,
+      "description": "False when an older version of the workflow made it",
+      "title": "Readable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "topic",
+    "created",
+    "stage",
+    "has_final"
+  ],
+  "title": "RunSummary",
+  "type": "object"
+}

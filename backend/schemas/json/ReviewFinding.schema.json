@@ -1,0 +1,52 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "description": "scene id (script review) or clip id (plan review)",
+      "pattern": "^s\\d{2}(c\\d{2})?$",
+      "title": "Target",
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "ERROR",
+        "WARN"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "FALSE",
+        "UNSTATED",
+        "NOTATION",
+        "MISLEADING",
+        "SPOKEN"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "quote": {
+      "title": "Quote",
+      "type": "string"
+    },
+    "why": {
+      "title": "Why",
+      "type": "string"
+    },
+    "fix": {
+      "title": "Fix",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target",
+    "severity",
+    "kind",
+    "quote",
+    "why",
+    "fix"
+  ],
+  "title": "ReviewFinding",
+  "type": "object"
+}

@@ -1,6 +1,6 @@
 ---
 name: make-short
-description: Use when the user wants a narrated explainer video or "short" made from a topic, script or outline, or asks how to start, continue or check a Text-2-Shorts video run in runs/.
+description: Use when the user wants a narrated explainer video or "short" made from a topic, script or outline, or asks how to start, continue or check a Text-2-Shorts video run in artifacts/runs/.
 ---
 
 # Starting a Text-2-Shorts video
@@ -17,6 +17,7 @@ session. Production never happens in this session. If the current folder is alre
 | Structure | `zoom` big picture → detail · `arc` problem → solution · `linear` lesson · `creative` a structure designed for the topic | `--approach`; a user's own outline/script → `--approach creative` + paste it in the run session |
 | Audience, pace | free text · slow / medium / fast | `--audience`, `--pace` |
 | Voice | AWS Polly (any voice id; `--engine neural`, `generative` or `standard`) or Google Cloud TTS (any voice name) | `--tts polly\|google --voice <id>` |
+| Standing preferences | tone, palette, background, font, voice rate, pause length, confirm each scene | `preferences.json` in the repo root (schema `Preferences`) is copied into every new run |
 | Font | any installed family | `--font "<family>"`; list: `fc-list : family` |
 | Output | drafts 720p30; delivery 2560×1440 (16:9) at 120 fps (60–120) | fixed; fps via `TEXT_2_SHORTS_FPS` |
 
@@ -30,10 +31,10 @@ ask before substituting. Never invent a flag or quietly change what the user ask
    en-US-Neural2-D/F for Google).
 2. `uv run text-2-shorts new "<topic in the user's words>" --objective "…" --approach … --minutes … --audience "…" [--style "…"] --tts … --voice … [--engine …] [--pace …] [--font …] [--notes "…"]`.
    It checks the machine (LaTeX, ffmpeg, bubblewrap, Claude Code version) and the voice credentials, then prints
-   `runs/<id>`. On failure, relay the fix it prints.
-3. Tell the user to run `uv run text-2-shorts open runs/<id>` in their own terminal: an interactive session that produces
-   the video and asks them at four checkpoints. The same command resumes an interrupted run;
-   `uv run text-2-shorts status runs/<id>` shows progress from anywhere.
+   `artifacts/runs/<id>`. On failure, relay the fix it prints.
+3. Tell the user to run `uv run text-2-shorts open artifacts/runs/<id>` in their own terminal: an interactive session that produces
+   the video and asks them at every checkpoint (requirements · template · CP0 outline · CP1 script · CP2 plans · CP3 each scene · CP4 final). The same command resumes an interrupted run;
+   `uv run text-2-shorts status artifacts/runs/<id>` shows progress from anywhere.
 
 Done when the run exists and the user has the `text-2-shorts open` command (plus anything unsupported clearly flagged).
 

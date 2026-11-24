@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "style": {
+      "default": "cut",
+      "enum": [
+        "cut",
+        "fade",
+        "crossfade"
+      ],
+      "title": "Style",
+      "type": "string"
+    },
+    "seconds": {
+      "default": 0.5,
+      "maximum": 2,
+      "minimum": 0,
+      "title": "Seconds",
+      "type": "number"
+    },
+    "color": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Color"
+    }
+  },
+  "title": "SceneTransition",
+  "type": "object"
+}

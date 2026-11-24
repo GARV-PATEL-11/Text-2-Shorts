@@ -1,0 +1,29 @@
+{
+  "additionalProperties": false,
+  "description": "A checkpoint waiting for the user, with what would block approving it now.",
+  "properties": {
+    "target": {
+      "description": "what `approve` takes: a stage, sNN, start:sNN or final",
+      "title": "Target",
+      "type": "string"
+    },
+    "label": {
+      "title": "Label",
+      "type": "string"
+    },
+    "problems": {
+      "description": "open problems (approving anyway records it)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Problems",
+      "type": "array"
+    }
+  },
+  "required": [
+    "target",
+    "label"
+  ],
+  "title": "CheckpointView",
+  "type": "object"
+}

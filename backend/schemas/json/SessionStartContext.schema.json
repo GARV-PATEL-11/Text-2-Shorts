@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "hookEventName": {
+      "const": "SessionStart",
+      "default": "SessionStart",
+      "title": "Hookeventname",
+      "type": "string"
+    },
+    "additionalContext": {
+      "title": "Additionalcontext",
+      "type": "string"
+    }
+  },
+  "required": [
+    "additionalContext"
+  ],
+  "title": "SessionStartContext",
+  "type": "object"
+}

@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "ManifestClip": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "examples": [
+            "s03c02"
+          ],
+          "pattern": "^s\\d{2}c\\d{2}$",
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "video": {
+          "title": "Video",
+          "type": "string"
+        },
+        "audio": {
+          "title": "Audio",
+          "type": "string"
+        },
+        "lead_in": {
+          "default": 0.0,
+          "title": "Lead In",
+          "type": "number"
+        },
+        "tail": {
+          "default": 0.0,
+          "title": "Tail",
+          "type": "number"
+        },
+        "sound_effects": {
+          "description": "files as absolute paths",
+          "items": {
+            "$ref": "#/$defs/SoundEffect"
+          },
+          "title": "Sound Effects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "clip_id",
+        "video",
+        "audio"
+      ],
+      "title": "ManifestClip",
+      "type": "object"
+    },
+    "SoundEffect": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "description": "the user's own audio file, relative to the run folder",
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "at": {
+          "description": "seconds from the clip's start",
+          "minimum": 0,
+          "title": "At",
+          "type": "number"
+        },
+        "volume_db": {
+          "default": -6,
+          "maximum": 6,
+          "minimum": -40,
+          "title": "Volume Db",
+          "type": "number"
+        }
+      },
+      "required": [
+        "file",
+        "at"
+      ],
+      "title": "SoundEffect",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scene_id": {
+      "examples": [
+        "s03"
+      ],
+      "pattern": "^s\\d{2}$",
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/ManifestClip"
+      },
+      "title": "Clips",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scene_id",
+    "clips"
+  ],
+  "title": "ManifestScene",
+  "type": "object"
+}

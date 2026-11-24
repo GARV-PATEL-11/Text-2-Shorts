@@ -1,0 +1,13 @@
+{
+ "name": "standard-dark",
+ "description": "The standards.md look: deep blue-green background, white text, yellow focus.",
+ "background": "#0e2733",
+ "palette": {"text": "WHITE", "focus": "YELLOW", "given": "BLUE", "derived": "GREEN", "warning": "RED", "secondary": "GREY_B"},
+ "font": null,
+ "animation_style": "smooth, unhurried moves; one motion at a time",
+ "scene_transition": "fade",
+ "transition_seconds": 0.5,
+ "density": "balanced",
+ "composition": "one focal element, centred; supporting labels around it",
+ "pacing": "medium"
+}

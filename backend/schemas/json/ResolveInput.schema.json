@@ -1,0 +1,25 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/requests/<id>",
+  "properties": {
+    "status": {
+      "enum": [
+        "applied",
+        "declined"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Note",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "ResolveInput",
+  "type": "object"
+}

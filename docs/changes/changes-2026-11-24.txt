@@ -1,0 +1,470 @@
+TEXT-2-SHORTS — EVERY CHANGE MADE ON 2026-11-24 (one atomic change per entry)
+================================================================================
+Branch CCW-V02, on top of commit 27e7719 (0.9.0). Version 0.10.0 (parts 1–4): the outline stage returns with the
+script_prompts package and the restored outline models; change requests, checkpoint decisions and standing
+preferences become validated contracts (like `Brief`). Version 0.11.0 (part 5): the PRD's workflow rules. Not
+committed yet.
+Tags: [ADDED] new · [MODIFIED] changed behaviour or content · [REMOVED] deleted · [RESTORED] brought back ·
+[FIXED] a defect corrected. Paths are relative to the repository root.
+
+
+PART 1 — the outline stage and the prompts package
+---------------------------------------------------
+
+001 [RESTORED] app/outline_models/ (base_outline.py, conceptual_zoom.py, problem_solution_arc.py,
+    classic_linear_narrative.py, __init__.py)
+    The four model files removed in 0.7.0 are back, unchanged except the base file's docstring, which now names
+    the file correctly (base_outline.py, not base_models.py). They validate outline.json again.
+
+002 [ADDED] app/outline_models/base_outline.py — `VideoOutline`
+    A root model for the creative approach: the shared meta and segments without approach-specific rules, so every
+    one of the four approaches has a model.
+
+003 [ADDED] run-environment/prompts/script_prompts/ (from the supplied package)
+    The refactored prompts: req_modifier.py, classic_linear_narrative.py, problem_to_solution_arc.py,
+    conceptual_zoom.py, _shared.py and __init__.py, placed in the run environment (not app/, which holds no
+    prompts). req_modifier.py includes the user's edit: the length is the user's, not a fixed 5–6 minutes.
+
+004 [ADDED] run-environment/prompts/export_references.py
+    Renders each prompt as a Markdown reference the run session reads by path, with a short note on how to use it
+    in a run; the prompts stay maintained once, in the package.
+
+005 [ADDED] references/topic-list.md, outline-linear.md, outline-arc.md, outline-zoom.md (generated)
+    The request-modifier prompt and the three outline prompts, as the session's stage-1 and stage-2 guidance.
+
+006 [ADDED] tests/test_run_environment.py — drift test for the generated references
+    Fails when a reference no longer matches the package (it caught the req_modifier.py edit, re-exported); also
+    checks the topic prompt keeps its single {user_raw_input} placeholder.
+
+007 [ADDED] app/run_steps.py — `validate_topics()` and `validate_content()`
+    topics.md must be a numbered list 1., 2., 3. …; content.md must have one non-empty `## <topic>` section per
+    topic, in the list's order. content.md is the outline's raw_content (the gap the package's notes pointed out).
+
+008 [ADDED] app/run_steps.py — `validate_outline()`
+    outline.json is validated by the approach's model (OUTLINE_MODELS) and the prompts' checkable rules: segment
+    order A2/B2/C2, first segment A7/B3, zoom ends with a recap (C2), 10–120 s per segment (G2), transition only
+    missing on the last segment (S13), visual plan sentence count (VP2), empty-canvas opening (VP3), "The scene
+    ends with" closing (VP4), no double quotes (VP5).
+
+009 [ADDED] app/run_steps.py — CP0 (`approve <run> outline`)
+    An outline fingerprint joins the stage approvals; approving the outline also checks topics.md and content.md.
+    Editing an approved outline makes CP0 stale.
+
+010 [ADDED] schemas/models.py — `ScriptScene.outline_segment`
+    Which outline segment a script scene narrates; `validate_script()` requires the scenes after the index to
+    narrate every segment once, in order, and refuses any script before CP0.
+
+011 [MODIFIED] app/run_steps.py — status and `next` include the new stages
+    Brief → topics.md → content.md → outline.json → CP0 → script …; stage labels renumbered (1 requirements,
+    2 outline, 3 script, 4 plans, 5 production). The hook and `validate` cover topics, content and outline.
+
+
+PART 2 — change requests, checkpoint decisions, standing preferences
+---------------------------------------------------------------------
+
+012 [ADDED] schemas/models.py — `ChangeRequest` and `RequestResolution`
+    A tweak the user asked for: id rNNN, target (outline, script, plan, final, sNN, sNNcMM), kind (wording, visual,
+    audio-timing, accuracy, structure, style, other), the user's words, the checkpoint it was raised at; and how it
+    was resolved (applied or declined, with a note).
+
+013 [MODIFIED] app/run_steps.py — `text-2-shorts feedback` records validated change requests
+    `--kind` replaces `--scope`; `--checkpoint` also records the decision "changes requested". Requests and
+    resolutions are append-only events in requests.jsonl (feedback.jsonl is gone).
+
+014 [ADDED] app/run_steps.py — `text-2-shorts resolve <run> rNNN applied|declined [--note]`
+    Closes a request; status shows every open request.
+
+015 [ADDED] app/run_steps.py — open requests block their checkpoint (`blocking_requests()`)
+    A structure request blocks CP0, wording/accuracy requests block CP1, scene-level visual requests block CP2,
+    any request on a scene blocks its CP3, and any open request blocks CP4 (all forceable by the user).
+
+016 [ADDED] app/run_steps.py — `next` routes open requests (`request_route()`)
+    Each open request becomes an action at the artifact it changes (outline.json, script.json, a scene plan,
+    preferences.json, the audio-refactorer, or a question to the user), with the `resolve` command to run after.
+
+017 [ADDED] app/run_steps.py — a clip's requests resolve when it is rebuilt (`resolve_clip_requests()`)
+    After a clip passes `accept`, its open requests (except audio timing) are marked applied with the time.
+
+018 [ADDED] schemas/models.py, app/run_steps.py — `CheckpointDecision` and decisions.jsonl
+    Every approval is recorded (approved, approved with notes via `approve --notes`, forced flagged, with the
+    approved fingerprint), as is every change requested at a checkpoint.
+
+019 [ADDED] schemas/models.py — `Preferences` (preferences.json)
+    Standing settings: tone, palette roles, background, font, voice rate (80–120%), pause length (200–2000 ms),
+    confirm each scene; validated by the hook and `validate . preferences`.
+
+020 [ADDED] app/run_steps.py — preferences applied at every stage
+    `video_style()` and `video_font()` feed the clip key, TASK.md (palette roles line) and the render background;
+    `clip_speech()` applies the pause length and voice rate to the SSML the voice speaks (re-voicing when changed).
+
+021 [ADDED] app/run_steps.py — confirm each scene (`approve <run> start:sNN`)
+    With confirm_each_scene on, `next` asks the user before a scene's production starts.
+
+022 [ADDED] app/cli.py — preferences carry into new runs
+    `text-2-shorts new` copies preferences.json from the repository root into the run, if it exists.
+
+023 [MODIFIED] app/narration.py — `speakable_ssml(..., pause_ms)`
+    The [pause] length is a parameter, so preferences can change it.
+
+
+PART 3 — guidance, docs, tests
+-------------------------------
+
+024 [MODIFIED] run-environment/skills/text-2-shorts-produce/SKILL.md
+    Five stages with CP0–CP4, every reference listed by path, and a "tweaks and decisions" section (feedback kinds,
+    resolve, approve --notes, preferences).
+
+025 [MODIFIED] references/requirements.md, script-writing.md, narrative-structures.md, scene-visual-planning.md
+    Requirements end with topics.md, content.md and preferences; the script is written from the approved outline
+    (one scene per segment, `outline_segment`); narrative-structures.md now guides creative outlines; scene plans
+    take the outline segment's visual plan as their visual source.
+
+026 [MODIFIED] run-environment/workspace/CLAUDE.md, README.md, diagrams/04-generation-pipeline.mmd
+    Layout lists the new files; the README workflow table, commands and diagram show the outline stage, CP0, change
+    requests, decisions and preferences.
+
+027 [MODIFIED] .claude/skills (make-short, clip-debugging, prompt-maintenance), docs (naming-conventions,
+    architecture-plan, module-specifications, proposed-stages/README)
+    Five checkpoints and standing preferences in the launcher; `--kind` in debugging; map rows for the prompts
+    package and the interaction contracts; vocabulary and status notes updated.
+
+028 [ADDED] tests — outline stage and interaction
+    Topic list and content checks, every outline rule, the script waiting for CP0 and narrating the outline,
+    change requests (routing, blocking, resolving, validation), decisions, preferences (style, speech, confirm each
+    scene, validation); existing tests now pass through the outline stage.
+
+029 [MODIFIED] schemas/json/, schemas/export_json_schemas.py, pyproject.toml, plugin.json, uv.lock, CHANGELOG.md
+    New schemas exported (ChangeRequest, RequestResolution, CheckpointDecision, Preferences; ScriptScene with
+    outline_segment); version 0.10.0 with its changelog entry.
+
+
+PART 4 — the script critic
+---------------------------
+
+030 [ADDED] run-environment/agents/script-critic.md
+    Written into the empty file added on 2026-11-23: one critique round of script.json per call (outline-fit,
+    clarity, flow, pacing, speakability, tone; facts stay with the accuracy-reviewer), appended to
+    script_critique.json, never a 4th round.
+
+031 [MODIFIED] app/run_steps.py — critique loops cover the script
+    `critique_file()` places the script's critique at script_critique.json; `critique_subject_hash()` uses the script
+    fingerprint; `validate_critique()` accepts "script" and the script's scene ids as targets.
+
+032 [ADDED] app/run_steps.py — CP1 requires the script critique
+    Approving the script needs a passing round on the current script (or the user's acceptance after round 3); `next`
+    dispatches the script-critic as soon as the script is valid, before the accuracy review; status lists it.
+
+033 [MODIFIED] app/run_steps.py — commands
+    `text-2-shorts hash <run> script` (the scene argument may be "script"; the kind is optional),
+    `validate <run> script-critique`, and the hook validates script_critique.json when it is written.
+
+034 [MODIFIED] schemas/models.py — `CritiqueIssue`
+    A target may be "script" (the whole script) as well as a scene or clip; the aspect list names the script aspects.
+
+035 [MODIFIED] produce SKILL.md, script-writing.md, workspace CLAUDE.md, README.md, diagram 04, prompt-maintenance,
+    naming-conventions, CHANGELOG.md
+    The script stage shows the critic loop (≤ 3 rounds) before CP1; agent list, commands and vocabulary updated.
+
+036 [MODIFIED] tests
+    A script critique is written before every script approval in the tests; a new test covers dispatch, the
+    current-version rule, the 3-round cap and forcing after round 3; the skills test counts 6 subagents.
+
+
+
+PART 5 — the PRD (0.11.0): conflicts 1, 3 and 6 resolved as decided; the clear requirements implemented
+---------------------------------------------------------------------------------------------------------
+Decided by the user: 1 follow the PRD (clips in sequence) · 3 follow the PRD (one script critique iteration, only
+on requested changes) · 6 the clip-level loop is the per-scene video critic · 2, 4, 5 not decided, kept as they are
+(720p30 drafts, the outline stage, CP2 and per-scene CP3).
+
+037 [MODIFIED] app/run_steps.py — `prepare_clip()`: clips are built one at a time, in order
+    A clip's task is refused ("build sNNcMM first") until every earlier clip of its scene is accepted for its
+    current inputs; the accepted earlier clips are copied into work/clip_MM/scene/clips/, so the clip starts from
+    their real end state. Replaces 0.9.0's "clips are independent".
+
+038 [MODIFIED] app/run_steps.py — `next_actions()` hands out one clip-builder action (parallel false)
+    The first unbuilt clip of the current scene; the next one comes after `accept`.
+
+039 [REMOVED] app/run_steps.py — the script critic loop before CP1
+    The driver no longer runs the script-critic up to 3 times before every CP1.
+
+040 [ADDED] app/run_steps.py — `script_changes_requested()`, `script_critique_problems()`
+    Each "changes requested" decision at the script checkpoint buys exactly one script-critic round. Until it is
+    written, `next` dispatches the critic before routing the request to the refactor, and CP1 is blocked; more
+    rounds than requests is a validation error. Without requests no critique is needed.
+
+041 [ADDED] schemas/models.py — `CritiqueRound.score` (0–100)
+    Plan and video rounds must carry it; the verdict must follow the threshold (pass iff score ≥ threshold).
+
+042 [ADDED] schemas/models.py — `Preferences.quality_threshold` (50–100, default 85)
+    The configurable score a scene plan or video must reach.
+
+043 [MODIFIED] app/run_steps.py — escalation after 3 rounds below the threshold
+    The problem now reads "REQUIRES ATTENTION — 3 critique rounds below the quality threshold" with the open
+    issues; only the user's forced approval (recorded in decisions.jsonl) passes it.
+
+044 [ADDED] schemas/models.py — `ChangeRecord`, `ChangeLog` (scenes/sNN/changes.json)
+    One entry per video refactor iteration: target, iteration 1–3, original issue, critique findings,
+    modification, files changed, rendering changes, audio timing changes, sync adjustments, validation results,
+    final score.
+
+045 [ADDED] app/run_steps.py — `load_changes()`, `validate_changes()`, `write_changes_text()`
+    Every revise round followed by another round needs its record before CP3; `next` asks for a missing record
+    and adds "append this iteration's ChangeRecord" to each video refactor; the hook validates changes.json and
+    writes the run's changes.txt; `validate <run> changes --scene sNN`.
+
+046 [ADDED] app/run_steps.py — `STATUSES`, `update_statuses()`
+    requirements, template, outline, script, plan, each scene, each clip and final as pending · in_progress ·
+    completed · failed · requires_refactoring · requires_user_approval · approved, derived from the gates, saved in
+    state.json ("status") and printed by `status`.
+
+047 [ADDED] schemas/models.py — `Brief`: detail_level, explanation_depth, technical_complexity,
+    visual_expectations, audio_expectations (with defaults, so existing briefs stay valid).
+
+048 [ADDED] app/run_steps.py — the requirements checkpoint (`approve <run> requirements`)
+    Fingerprint over brief.json, topics.md and content.md; the outline is refused until it is approved; `next`
+    asks the user after content.md.
+
+049 [ADDED] schemas/models.py — `VideoTemplate`
+    name, description, background, palette roles, font, type scale (never < 24), animation style, scene
+    transition (cut, fade, crossfade) and its seconds, density, composition, pacing, music file and level.
+
+050 [ADDED] run-environment/templates/ — standard-dark.json, chalkboard.json, paper-light.json
+    Starter templates; standard-dark is the standards.md look.
+
+051 [ADDED] app/run_steps.py — `template_names()`, `choose_template()`, `load_template()`, `validate_template()`,
+    `template_line()`; commands `text-2-shorts templates` and `text-2-shorts template <run> <name> --set key=value`
+    template.json = starter + standing preferences + the user's overrides (dotted keys, JSON values), validated,
+    with template_preview.svg (background, palette chips, type sizes) to show the user.
+
+052 [ADDED] app/run_steps.py — the template checkpoint (`approve <run> template`)
+    After the requirements checkpoint, before the outline; the hook validates template.json.
+
+053 [MODIFIED] app/run_steps.py — `video_style()`, `video_font()`, `clip_key()`, TASK.md
+    Precedence standard < preferences < template; TASK.md gets a TEMPLATE line (type scale, animation style,
+    density, composition, pacing), which is part of the clip key.
+
+054 [ADDED] schemas/models.py — `ScriptScene`: on_screen_text, animations, audio_requirements,
+    transition_requirements, depends_on (earlier scenes only)
+
+055 [ADDED] app/run_steps.py — `validate_plan()`: the script's on-screen text must appear in a clip
+    (visual_intent, beats or on_screen_math).
+
+056 [ADDED] schemas/models.py — `SoundEffect`, `ClipPlan.sound_effects`; app/run_steps.py checks the files exist
+    The user's own files, relative to the run; not part of the clip key (audio only), part of the scene
+    fingerprint (CP3 sees the change).
+
+057 [ADDED] tools/assemble_clips.py — sound effects mixed into each clip's audio (`mux_clip(..., sound_effects)`)
+
+058 [ADDED] tools/assemble_clips.py — `stream_parameters()`: every part must match before concatenation
+    Size, frame rate, pixel format, sample rate and channels; a mismatch stops assembly with the list.
+
+059 [ADDED] tools/assemble_clips.py — `join_scenes()`: the template's scene transition
+    cut (concat), fade (each scene fades through the background colour, length kept) or crossfade (xfade and
+    acrossfade, scenes overlap).
+
+060 [ADDED] tools/assemble_clips.py — `add_music()`: the template's music looped under the voice
+
+061 [MODIFIED] app/run_steps.py — `handle_final_command()` passes the template's transition and music
+
+062 [ADDED] app/run_steps.py — final checks: ASPECT_RATIO, TRUE_PEAK, SILENCE, DECODE_ERRORS
+    (check_final_media) and `check_delivery()`: MISSING_CLIPS, DURATION (±20 % of the script).
+
+063 [MODIFIED] schemas/models.py — `CheckpointDecision.checkpoint` accepts requirements and template;
+    `approve` accepts every stage checkpoint.
+
+064 [MODIFIED] run-environment/agents — script-critic (one round per requested change), plan-critic and
+    video-critic (score rubric, threshold, requires attention; the video-critic reads changes.json), clip-builder
+    (earlier clips in scene/clips, one at a time)
+
+065 [MODIFIED] references (requirements, script-writing, scene-visual-planning, scene-production), produce
+    SKILL.md, workspace CLAUDE.md, README.md (+ prompt-caching controls), diagram 04, make-short,
+    prompt-maintenance, naming-conventions, CHANGELOG.md
+
+066 [MODIFIED] schemas/json/ (ChangeLog added; Brief, Critique, ScriptScene, ScenePlan, Preferences,
+    CheckpointDecision updated), pyproject.toml, plugin.json, uv.lock — version 0.11.0
+
+067 [MODIFIED] tests
+    Clips in order (test_clips builds s01c01 first); one script critique per CP1 request; scores and threshold;
+    changes records and requires attention; statuses; requirements and template checkpoints; script content
+    fields; user audio files; transitions, music, sound effects and stream checks (ffmpeg lavfi media, no live
+    runs); delivery checks. The always-written script critiques were removed from the test setups.
+
+
+PART 6 — models and visibility (0.11.0, the user's instruction: visual planning and code generation, refactoring
+included, on Opus at medium effort; everything else on Sonnet 5.5 at medium; every change and log shown)
+---------------------------------------------------------------------------------------------------------------
+
+068 [ADDED] run-environment/agents/scene-planner.md (model claude-opus-5-5, effort medium)
+    Writes ONE scene's plan.json, refactors it after a plan-critic round, applies a scene's visual change request;
+    validates before replying.
+
+069 [MODIFIED] app/run_steps.py — `next_actions()` and `request_route()` dispatch the scene-planner
+    Plan writing and fixing, the plan critique refactor and scene-level visual requests were "write" actions for
+    the session; they are now scene-planner subagent actions (write, refactor or request mode).
+
+070 [MODIFIED] run-environment/agents/*.md — `model` and `effort` in every subagent
+    scene-planner and clip-builder: claude-opus-5-5, medium. script-critic, plan-critic, video-critic,
+    accuracy-reviewer, audio-refactorer: claude-sonnet-5-5, medium (was the alias sonnet, no effort).
+
+071 [ADDED] app/cli.py — `SESSION_MODEL`, `PLANNING_AND_CODE_MODEL`, `EFFORT`, `session_command()`
+    `text-2-shorts open` starts the session with --model claude-sonnet-5-5 --effort medium --verbose (verbose shows
+    every tool call's input and output as it happens).
+
+072 [MODIFIED] app/run_steps.py — the PostToolUse hook shows every event to the user
+    A `systemMessage` per write ("Write scenes/s01/plan.json — valid", "… changes.txt updated"), command and
+    subagent; the log.jsonl row records the agent and what was shown (INVALID with the errors when a write fails,
+    which still goes back to Claude with exit 2).
+
+073 [MODIFIED] app/run_steps.py — the SessionStart hook shows the run state and next batch to the user
+    (systemMessage) and gives the same text to Claude (additionalContext).
+
+074 [MODIFIED] produce SKILL.md (scene-planner, "show every change"), scene-visual-planning.md, workspace
+    CLAUDE.md, README.md (models, visibility), prompt-maintenance map, CHANGELOG.md
+
+075 [MODIFIED] tests — model and effort per agent, the session command, hook messages for writes, commands and
+    subagents, the scene-planner in the driver; the skills test counts 7 subagents. The old "every agent is
+    sonnet" assertion is replaced by the per-role check.
+
+
+PART 7 — repository restructure (0.12.0, no behaviour change)
+-------------------------------------------------------------
+
+076 [MODIFIED] app/cli.py — only the entry point: `build_parser()`, `register_subcommands()`, `main()`
+077 [ADDED] app/config.py — every setting: paths, environment variables (TEXT_2_SHORTS_FPS, TEXT_2_SHORTS_PARALLEL,
+    TEXT_2_SHORTS_TTS, POLLY_ENGINE, POLLY_VOICE, GOOGLE_VOICE — read once), models and effort, style, timing,
+    quality, critique limits; `CLIP_GATES_PATH` and the TTS defaults are new names for values that were inline
+078 [ADDED] app/utilities.py — JSON, hashing, timestamps, JSONL, ffprobe duration, thread pool, error formatting
+079 [ADDED] app/sandbox.py — `RENDER_JAIL_PREFIX`, `build_jail_command()`, `session_command()`
+080 [ADDED] app/commands/ — run_commands (new, open), workflow_commands (next, status, report, validate, hash, doc,
+    approve, feedback, resolve), production_commands (voice, accept, preview, final), hook_command (hook)
+081 [ADDED] app/workflow/ — 15 modules holding the logic of the former run_steps.py, one responsibility each:
+    ledger, change_requests, preferences, templates, artifacts, fingerprints, checkpoints, validation, critiques,
+    production, clips, approvals, driver, status, run_workspace
+082 [REMOVED] app/run_steps.py — every statement moved unchanged into the modules above
+083 [MOVED] app/clip_gates.py → tools/clip_gates.py (standalone script, run by ./check and in the render jail)
+084 [MOVED] app/outline_models/ → schemas/outline_models/ (data contracts)
+085 [MOVED] diagrams/ → docs/diagrams/; 02, 03, 07 (the removed LangGraph design) → docs/history/diagrams/
+086 [MOVED] docs/deployment-guide.md, naming-conventions.md → docs/guides/; docs/changes-*.txt → docs/changes/
+087 [MOVED] docs/architecture-plan.md, module-specifications.md, skills-assessment.md, proposed-stages/, reference/
+    → docs/history/
+088 [ADDED] PROJECT_STRUCTURE.md; docs/reports/unused-files-inventory.md; docs/reports/restructuring-report.md
+089 [MODIFIED] tests — import the module they exercise; the stale-docs test reads PROJECT_STRUCTURE.md and
+    docs/guides/deployment-guide.md
+090 [MODIFIED] README.md (repository map), tools/README.md (clip_gates row; stale "target module" column removed),
+    tools/check_diagrams.mjs, developer skills, Manim skill, outline references, naming conventions, pyproject comment
+091 [MODIFIED] pyproject.toml, plugin.json — version 0.12.0
+
+
+PART 8 — folders by role, contracts everywhere, frontend (0.13.0)
+------------------------------------------------------------------
+
+092 [MOVED] app/, schemas/, tools/ → backend/app/, backend/schemas/, backend/tools/ (pyproject packages, pytest and
+    pyrefly paths, the Manim skill's script links, config.REPOSITORY_ROOT updated)
+093 [MOVED] run-environment/ → runtime-environment/; plugin name text-2-shorts-runtime-environment
+094 [MOVED] runs/ → artifacts/runs/ (config.RUNS_DIRECTORY; .gitignore); docs/reports/ → artifacts/reports/;
+    app.zip and media/ → artifacts/trash/ (git-ignored); PROJECT_STRUCTURE.md → docs/
+095 [ADDED] frontend/README.md, then frontend/index.html, styles.css, app.js (the web view)
+096 [MODIFIED] backend/schemas/models.py → base, requirements, script, plans, reviews, interaction modules;
+    unused_contracts.py holds the 16 contracts nothing uses
+097 [ADDED] backend/schemas/run_state.py — RunState, Approval, ClipBuild, LogEntry, TokenUsage, Status
+098 [ADDED] backend/schemas/media.py — ClipAudio/AudioIndex, ClipTask, GateFinding/GateResult, RenderedSection/
+    SceneRender, SyncBeat/SyncClip/SyncReport, ManifestClip/ManifestScene/SceneTransition/BackgroundMusic/
+    AssemblyManifest, ClipMux, MediaFinding, FinalReport
+099 [ADDED] backend/schemas/session.py — Action, ActionBatch, HookToolInput, HookEvent, SessionStartContext, HookOutput
+100 [ADDED] backend/schemas/interaction.py — RequestEvent, ResolutionEvent, TrackedRequest
+101 [MODIFIED] backend/schemas/requirements.py — EnvironmentReport gains `problems` (what preflight reports)
+102 [MODIFIED] backend/schemas/export_json_schemas.py — exports every model of the live modules (56)
+103 [MODIFIED] workflow/ledger.py — load_state/update_state on RunState (validated before every write); typed JSONL
+104 [MODIFIED] workflow/change_requests.py — TrackedRequest; routes return Action
+105 [ADDED] workflow/artifacts.py — load_brief, load_audio_index/save_audio_index, load_gate_result,
+    load_sync_report, load_final_report
+106 [MODIFIED] workflow/production.py, clips.py, driver.py, status.py, approvals.py, critiques.py, validation.py,
+    templates.py, run_workspace.py, narration.py; commands/production_commands.py, workflow_commands.py,
+    hook_command.py, run_commands.py; cli.py — read and write through the contracts
+107 [MODIFIED] backend/tools/clip_gates.py (ClipTask, GateResult, SceneRender), assemble_clips.py
+    (AssemblyManifest), preflight.py (EnvironmentReport)
+108 [ADDED] workflow/status.py — compute_statuses() (no writes); update_statuses() saves it
+109 [ADDED] backend/schemas/api.py, workflow/run_views.py, commands/serve_command.py; `text-2-shorts serve`
+110 [ADDED] tests/test_web.py — API, media path safety, fonts, black-and-white only, no motion, no innerHTML;
+    tests/test_topic_cards.py guard; tests updated for the contracts and the new paths
+111 [MODIFIED] README.md, docs/PROJECT_STRUCTURE.md, developer skills, inventory and restructuring report;
+    pyproject.toml, plugin.json — version 0.13.0
+
+
+PART 9 — the frontend approves checkpoints and records changes (0.14.0)
+-----------------------------------------------------------------------
+
+112 [ADDED] workflow/approvals.py — ApprovalBlocked, checkpoint_target(), approve_checkpoint() (moved out of the approve
+    handler; the CLI and the web call it)
+113 [ADDED] workflow/change_requests.py — record_change_request() (request + "changes requested" decision);
+    resolve_request() raises LookupError for an unknown id instead of exiting
+114 [MODIFIED] workflow/ledger.py — record_decision() returns the CheckpointDecision
+115 [MODIFIED] commands/workflow_commands.py — approve, feedback and resolve call the shared functions
+116 [ADDED] schemas/session.py — Action.checkpoint; workflow/driver.py fills it for every checkpoint question
+117 [ADDED] schemas/api.py — CheckpointView, RunDetail.awaiting, ApproveInput, ChangeRequestInput, ResolveInput, ApiError
+118 [ADDED] workflow/run_views.py — awaiting_checkpoints() with each checkpoint's open problems
+119 [ADDED] commands/serve_command.py — POST approve, requests, requests/<rNNN>; Host check on every request;
+    JSON-only, same-origin writes; 64 KB body cap; 409 with the problems when a checkpoint is blocked
+120 [ADDED] frontend/app.js, styles.css — "Waiting for you" panels, "Ask for a change" form, Mark applied / Decline;
+    messages announced to screen readers; still black and white, no motion
+121 [MODIFIED] frontend/index.html, README.md, docs/PROJECT_STRUCTURE.md, runtime-environment/workspace/CLAUDE.md,
+    the serve help — no longer read-only
+122 [ADDED] tests/test_web.py — approve and refuse with problems, approve anyway, change requests and resolutions,
+    host/origin/content-type protection
+123 [MODIFIED] pyproject.toml, plugin.json — version 0.14.0
+
+
+PART 10 — FastAPI, sign-in with Claude, all-black frontend (0.15.0)
+-------------------------------------------------------------------
+
+124 [ADDED] pyproject.toml — fastapi, uvicorn; dev httpx
+125 [ADDED] backend/app/web/app.py — the FastAPI app (routes, Pydantic request/response models, ApiError handlers,
+    TrustedHostMiddleware for 127.0.0.1/localhost, same-origin JSON-only writes, Range-capable media)
+126 [ADDED] backend/app/web/auth.py — claude_code_account() from `claude auth status --json`; Sessions (in memory,
+    12 h); cookie t2s_session (HttpOnly, SameSite=Strict, Path=/)
+127 [ADDED] backend/schemas/api.py — ClaudeAuthStatus, ClaudeAccount, SessionView
+128 [MODIFIED] backend/app/commands/serve_command.py — runs the FastAPI app with uvicorn (the http.server handler is gone)
+129 [MODIFIED] frontend/styles.css — rewritten black: night ground, night-2 cards, white type, white pill and outlined
+    buttons, dark fields, white-filled statuses; no light sections
+130 [MODIFIED] frontend/app.js, index.html — sign-in page (#/signin) with "Continue with Claude" and the
+    `claude auth login` steps; the account and Sign out in the bar; signed-out answers return to sign-in; cards
+130a          for actions, scenes, panels, checks and the change form
+131 [MODIFIED] tests/test_web.py — FastAPI test client; sign-in, sign-out, cookie flags, refused sign-in, the
+    `claude auth status` parsing, Range, black ground and palette
+132 [MODIFIED] README.md, docs/PROJECT_STRUCTURE.md, CHANGELOG.md; pyproject.toml, plugin.json — version 0.15.0
+
+
+PART 11 — Faraday and the frontend critic refactor loop (0.16.0)
+----------------------------------------------------------------
+
+133 [MODIFIED] frontend/index.html, app.js, styles.css, README.md — Faraday, "Curiosity, Illustrated"
+134 [ADDED] frontend/app.js — scenesStage(), stageStrip() with the current stage, counts() from run data, loading(),
+    stageName(), withCode(); the run header carries the figures and the strip
+135 [MODIFIED] frontend/styles.css — section rhythm, h3-size section headings, figures, 7-stage strip, status glyphs,
+    compact placeholders, mobile stage list
+136 [ADDED] backend/schemas/api.py, workflow/run_views.py — RunDetail.final_checked (truthful media-check text)
+137 [ADDED] tests/test_web.py — final_checked for unchecked videos; the brand on the page
+138 [ADDED] artifacts/reports/frontend-critic-refactor-loop.md — issue register, iterations, evidence
+139 [MODIFIED] CHANGELOG.md, pyproject.toml, plugin.json — version 0.16.0
+
+
+PART 12 — the website as the only interface (0.17.0)
+----------------------------------------------------
+
+140 [ADDED] workflow/run_workspace.py — RunNotCreated, environment_check(), voice_credentials_problem(),
+    font_problem(), create_run() (moved out of the `new` handler; the CLI and the website call it)
+141 [ADDED] sandbox.py — KICKOFF_PROMPT, session_flags(), console_claude_arguments(); session_command() reuses them
+142 [ADDED] web/console.py — claude_turn_command(), turn_lock(), is_busy(), history(), entries_from_event(),
+    run_turn(); console.jsonl
+143 [ADDED] web/app.py — POST /api/runs, GET/POST /api/runs/{run}/console (NDJSON stream, 409 when busy)
+144 [ADDED] schemas — NewRunInput, ConsoleInput, ConsoleEntry, ConsoleView (api.py); RunState.console_session
+145 [ADDED] frontend — the console on every run page, the `faraday new` form, Fira Code (Retina) interaction layer
+146 [MODIFIED] tests — new runs from the website, the console relay with a fake Claude Code, one turn at a time, the
+    console arguments; the no-orchestration test allows the one relay
+147 [MODIFIED] README.md, docs/PROJECT_STRUCTURE.md, runtime-environment/workspace/CLAUDE.md, CHANGELOG.md,
+    pyproject.toml, plugin.json — version 0.17.0
+
+NOT CHANGED
+- `Brief` (2026-11-23, entry 001) is kept exactly as it was: the stage-1 contract.
+- (run-environment/agents/script-critic.md, empty when found, is now written — entry 030.)

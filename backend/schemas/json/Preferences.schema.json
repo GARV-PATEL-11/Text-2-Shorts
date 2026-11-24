@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "description": "Standing preferences applied at every stage (preferences.json in the run; copied from the repo root's\npreferences.json, if any, by `text-2-shorts new`).",
+  "properties": {
+    "tone": {
+      "default": "",
+      "description": "tone of voice for the script, e.g. 'warm, playful'",
+      "title": "Tone",
+      "type": "string"
+    },
+    "palette": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "palette role \u2192 Manim colour constant, overriding the standard palette",
+      "propertyNames": {
+        "enum": [
+          "text",
+          "focus",
+          "given",
+          "derived",
+          "warning",
+          "secondary"
+        ]
+      },
+      "title": "Palette",
+      "type": "object"
+    },
+    "background": {
+      "anyOf": [
+        {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Background"
+    },
+    "font": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "font family when brief.json names none",
+      "title": "Font"
+    },
+    "voice_rate_percent": {
+      "default": 100,
+      "maximum": 120,
+      "minimum": 80,
+      "title": "Voice Rate Percent",
+      "type": "integer"
+    },
+    "pause_ms": {
+      "default": 600,
+      "description": "length of a [pause]",
+      "maximum": 2000,
+      "minimum": 200,
+      "title": "Pause Ms",
+      "type": "integer"
+    },
+    "confirm_each_scene": {
+      "default": false,
+      "description": "ask the user before each scene's production starts",
+      "title": "Confirm Each Scene",
+      "type": "boolean"
+    },
+    "quality_threshold": {
+      "default": 85,
+      "description": "the critique score (0\u2013100) a scene plan or video must reach",
+      "maximum": 100,
+      "minimum": 50,
+      "title": "Quality Threshold",
+      "type": "integer"
+    }
+  },
+  "title": "Preferences",
+  "type": "object"
+}

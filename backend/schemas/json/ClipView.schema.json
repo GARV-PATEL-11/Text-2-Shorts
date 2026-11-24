@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "clip_id": {
+      "title": "Clip Id",
+      "type": "string"
+    },
+    "objective": {
+      "title": "Objective",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "failed",
+        "requires_refactoring",
+        "requires_user_approval",
+        "approved"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "clip_id",
+    "objective",
+    "status"
+  ],
+  "title": "ClipView",
+  "type": "object"
+}

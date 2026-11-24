@@ -1,0 +1,57 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "beat": {
+      "minimum": 1,
+      "title": "Beat",
+      "type": "integer"
+    },
+    "plan": {
+      "title": "Plan",
+      "type": "string"
+    },
+    "spoken_at": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Spoken At"
+    },
+    "shown_at": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Shown At"
+    },
+    "offset": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "shown \u2212 spoken, seconds",
+      "title": "Offset"
+    }
+  },
+  "required": [
+    "beat",
+    "plan"
+  ],
+  "title": "SyncBeat",
+  "type": "object"
+}

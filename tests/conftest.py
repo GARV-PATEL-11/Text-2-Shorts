@@ -2,13 +2,16 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
 import pytest
+from app.commands import workflow_commands
+from app.workflow import critiques, templates
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-TOOLS_DIRECTORY = REPOSITORY_ROOT / "tools"
+TOOLS_DIRECTORY = REPOSITORY_ROOT / "backend" / "tools"
 FIXTURES_DIRECTORY = Path(__file__).parent / "fixtures"
 sys.path.insert(0, str(TOOLS_DIRECTORY))
-sys.path.insert(0, str(REPOSITORY_ROOT / "schemas"))
+sys.path.insert(0, str(REPOSITORY_ROOT / "backend" / "schemas"))
 
 
 @pytest.fixture(scope="session")
@@ -43,7 +46,7 @@ def write_brief(run, **fields):
     run.mkdir(parents=True, exist_ok=True)
     brief = {
         "requirement": "topic",
-        "approach": "zoom",
+        "approach": "linear",
         "minutes": 1,
         "tts": "polly",
         "voice": "Matthew",
@@ -69,6 +72,7 @@ def script_scene(number, seconds, wpm=150, scene_count=1):
         "covers": [] if index and scene_count > 1 else [1],
         "previews": [f"s{later:02d}" for later in range(2, scene_count + 1)] if index else [],
         "duration_seconds": seconds,
+        "outline_segment": (None if scene_count > 1 else 1) if index else number - 1,
         "bridge_in": bridge,
         "narration": words(budget - len(bridge.split()), 100 * number),
     }
@@ -77,13 +81,80 @@ def script_scene(number, seconds, wpm=150, scene_count=1):
 def make_script(*scene_seconds):
     return {
         "title": "T",
-        "structure": "zoom",
+        "structure": "linear",
         "objectives": ["understand the topic"],
         "target_wpm": 150,
         "scenes": [
             script_scene(i, seconds, scene_count=len(scene_seconds)) for i, seconds in enumerate(scene_seconds, 1)
         ],
     }
+
+
+TOPICS = ["Why the question matters", "The core idea"]
+LINEAR_TYPES = ["hook", "concept", "math", "visualization", "mechanism", "application", "recap"]
+
+
+def write_requirements(run, topics=TOPICS):
+    """Stage 1 after the brief: the request-modifier topic list and the content the outline is built from."""
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "topics.md").write_text("".join(f"{i}. {topic}\n" for i, topic in enumerate(topics, 1)))
+    (run / "content.md").write_text(
+        "".join(f"## {topic}\n{topic} explained in two plain sentences.\n\n" for topic in topics)
+    )
+
+
+def visual_plan(seconds):
+    """A visual plan that meets VP2 (sentence count), VP3 (empty canvas first) and VP4 (closing sentence)."""
+    count = min(max(round(seconds * 0.7), 20), 60)
+    middle = [f"Element {i} draws itself and joins the picture." for i in range(1, count - 1)]
+    return " ".join(["The scene opens on an empty canvas.", *middle, "The scene ends with every element visible."])
+
+
+def make_outline(*segment_seconds, approach="Classic Linear Narrative"):
+    """A Classic Linear Narrative outline: hook first, then types in the approach's order."""
+    return {
+        "meta": {
+            "title": "T",
+            "topic": "t",
+            "total_duration_seconds": sum(segment_seconds),
+            "pace": "medium",
+            "target_wpm": 150,
+            "approach_name": approach,
+            "approach_style": "lesson",
+        },
+        "outline": [
+            {
+                "scene_id": i,
+                "segment_type": LINEAR_TYPES[min(i - 1, len(LINEAR_TYPES) - 1)],
+                "title": f"segment {i}",
+                "duration_seconds": seconds,
+                "talking_points": ["one idea"],
+                "visual_plan": visual_plan(seconds),
+                "narration_hint": "calm",
+                "transition_to_next": None if i == len(segment_seconds) else "What next?",
+            }
+            for i, seconds in enumerate(segment_seconds, 1)
+        ],
+    }
+
+
+def confirm_requirements(run, template="standard-dark"):
+    """The requirements checkpoint, then a template chosen and approved."""
+
+    approve(run, "requirements")
+    templates.choose_template(run, template, [])
+    approve(run, "template")
+
+
+def approved_outline(run, script_scene_seconds):
+    """Requirements + an outline approved at CP0, shaped for a script with these scene lengths."""
+    import json
+
+    write_requirements(run)
+    confirm_requirements(run)
+    segments = script_scene_seconds[1:] or script_scene_seconds
+    (run / "outline.json").write_text(json.dumps(make_outline(*[max(10, int(s)) for s in segments])))
+    approve(run, "outline")
 
 
 def described(names):
@@ -133,24 +204,40 @@ def write_json_file(path, data):
 def approve(run, target, force=False):
     import argparse
 
-    from app import run_steps
-
-    run_steps.handle_approve_command(argparse.Namespace(run=str(run), target=target, force=force))
+    workflow_commands.handle_approve_command(argparse.Namespace(run=str(run), target=target, force=force))
 
 
 def write_critique(run, scene_id, kind, *verdicts):
-    """scenes/sNN/<kind>_critique.json with one round per verdict; the last round reviewed the current version."""
-    from app import run_steps
+    """scenes/sNN/<kind>_critique.json (script_critique.json for the script) with one round per verdict; the last
+    round reviewed the current version."""
 
-    current = run_steps.critique_subject_hash(run, scene_id, kind)
+    current = critiques.critique_subject_hash(run, scene_id, kind)
     rounds = [
         {
             "reviewed": current if number == len(verdicts) else f"older-{number}",
             "verdict": verdict,
+            **({} if kind == "script" else {"score": 90 if verdict == "pass" else 60}),
             "issues": []
             if verdict == "pass"
             else [{"target": scene_id, "aspect": "clarity", "problem": "unclear beat", "fix": "name the object"}],
         }
         for number, verdict in enumerate(verdicts, 1)
     ]
-    write_json_file(run / "scenes" / scene_id / f"{kind}_critique.json", {"rounds": rounds})
+    path = run / "script_critique.json" if kind == "script" else run / "scenes" / scene_id / f"{kind}_critique.json"
+    write_json_file(path, {"rounds": rounds})
+
+
+def environment_report():
+    """A preflight report with nothing missing (what `text-2-shorts new` writes when the machine is ready)."""
+    from schemas.requirements import EnvironmentReport
+
+    return EnvironmentReport(
+        manim_version="0.20.1",
+        python_version="3.12",
+        latex=True,
+        dvisvgm=True,
+        ffmpeg=True,
+        bwrap=True,
+        socat=True,
+        api_index_hash="",
+    )

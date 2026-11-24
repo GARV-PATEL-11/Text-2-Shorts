@@ -1,0 +1,1 @@
+../../../../backend/tools/validate_manim_code.py

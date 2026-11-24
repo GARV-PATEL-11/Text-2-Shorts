@@ -1,4 +1,5 @@
 import json
+
 from conftest import FIXTURES_DIRECTORY, run_tool
 
 

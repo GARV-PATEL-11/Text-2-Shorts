@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "ClipView": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "requires_refactoring",
+            "requires_user_approval",
+            "approved"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clip_id",
+        "objective",
+        "status"
+      ],
+      "title": "ClipView",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scene_id": {
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "failed",
+        "requires_refactoring",
+        "requires_user_approval",
+        "approved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/ClipView"
+      },
+      "title": "Clips",
+      "type": "array"
+    },
+    "preview": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "URL of the 720p30 scene preview",
+      "title": "Preview"
+    },
+    "sync_problems": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sync Problems",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scene_id",
+    "title",
+    "status"
+  ],
+  "title": "SceneView",
+  "type": "object"
+}

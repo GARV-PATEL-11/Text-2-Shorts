@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "severity": {
+      "enum": [
+        "ERROR",
+        "WARN"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "code": {
+      "title": "Code",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "severity",
+    "code",
+    "message"
+  ],
+  "title": "MediaFinding",
+  "type": "object"
+}

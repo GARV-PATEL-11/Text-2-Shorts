@@ -1,0 +1,1 @@
+../../../../backend/tools/scene_harness.py

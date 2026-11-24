@@ -1,11 +1,17 @@
-"""The Claude Code run environment (run-environment/): a plugin with skills, agents and hooks, plus the per-run
+"""The Claude Code run environment (runtime-environment/): a plugin with skills, agents and hooks, plus the per-run
 workspace template."""
 
 import json
 import re
 from pathlib import Path
 
-RUN_ENVIRONMENT = Path(__file__).resolve().parent.parent / "run-environment"
+from app import config, sandbox, utilities
+from app.workflow import run_workspace, status
+from schemas.requirements import Brief
+from schemas.run_state import TokenUsage
+from conftest import environment_report
+
+RUN_ENVIRONMENT = Path(__file__).resolve().parent.parent / "runtime-environment"
 
 
 def frontmatter(markdown_path: Path) -> dict:
@@ -16,7 +22,7 @@ def frontmatter(markdown_path: Path) -> dict:
 
 def test_plugin_layout():
     manifest = json.loads((RUN_ENVIRONMENT / ".claude-plugin" / "plugin.json").read_text())
-    assert manifest["name"] == "text-2-shorts-run-environment"
+    assert manifest["name"] == "text-2-shorts-runtime-environment"
     skills = sorted(RUN_ENVIRONMENT.glob("skills/*/SKILL.md"))
     assert skills, "the environment ships at least one skill"
     for skill_path in skills:
@@ -27,16 +33,24 @@ REFERENCES_DIRECTORY = RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "r
 
 
 def test_no_llm_orchestration_in_app():
-    app_directory = Path(__file__).resolve().parent.parent / "app"
+    app_directory = Path(__file__).resolve().parent.parent / "backend" / "app"
     for module_path in app_directory.rglob("*.py"):
         source = module_path.read_text()
-        assert '"claude", "-p"' not in source and "SYSTEM = " not in source, (
-            f"{module_path} still orchestrates or holds prompts"
-        )
+        assert "SYSTEM = " not in source, f"{module_path} holds prompts"
+        # The website's console relays the user's own message to the run's Claude Code session, in one place only;
+        # nowhere else does Python start Claude Code with a message.
+        if module_path.name != "sandbox.py":
+            assert '"claude", "-p"' not in source, f"{module_path} starts Claude Code with a message"
+    sandbox_source = (app_directory / "sandbox.py").read_text()
+    assert sandbox_source.count('"claude", "-p"') == 1 and '["claude", "-p", message,' in sandbox_source
     assert not (app_directory / "graph" / "prompts").exists()
     for name in (
         "standards",
         "requirements",
+        "topic-list",
+        "outline-linear",
+        "outline-arc",
+        "outline-zoom",
         "script-writing",
         "narrative-structures",
         "script-review",
@@ -46,34 +60,41 @@ def test_no_llm_orchestration_in_app():
         "transitions",
     ):
         assert len((REFERENCES_DIRECTORY / f"{name}.md").read_text()) > 300, name
-    for agent in ("clip-builder", "accuracy-reviewer", "plan-critic", "video-critic", "audio-refactorer"):
+    for agent in (
+        "clip-builder",
+        "accuracy-reviewer",
+        "script-critic",
+        "plan-critic",
+        "video-critic",
+        "audio-refactorer",
+        "scene-planner",
+    ):
         agent_frontmatter = frontmatter(RUN_ENVIRONMENT / "agents" / f"{agent}.md")
         assert (
             agent_frontmatter["name"].strip() == agent
             and agent_frontmatter["description"].strip()
             and agent_frontmatter["tools"].strip()
         )
-        assert agent_frontmatter["model"].strip() == "sonnet"
 
 
 def test_standards_reference_matches_the_code():
-    from app import run_steps
 
     text = (REFERENCES_DIRECTORY / "standards.md").read_text()
     assert (
-        run_steps.VIDEO_STYLE["background"] in text
-        and f"{run_steps.VOICE_LEAD_IN_SECONDS} s" in text
-        and f"{run_steps.END_HOLD_SECONDS} s" in text
+        config.VIDEO_STYLE["background"] in text
+        and f"{config.VOICE_LEAD_IN_SECONDS} s" in text
+        and f"{config.END_HOLD_SECONDS} s" in text
     )
 
 
 def test_provision_creates_the_run_workspace(tmp_path):
-    from app import cli
 
     run = tmp_path / "20261120-000000-topic"
-    cli.provision_run_workspace(run, {"requirement": "topic", "approach": "zoom", "minutes": 1}, {"problems": []})
-    assert cli.read_json(run / "brief.json")["requirement"] == "topic"
-    assert cli.read_json(run / "environment_report.json") == {"problems": []}
+    run_workspace.provision_run_workspace(
+        run, Brief(requirement="topic", approach="zoom", minutes=1), environment_report()
+    )
+    assert utilities.read_json(run / "brief.json")["requirement"] == "topic"
+    assert utilities.read_json(run / "environment_report.json")["problems"] == []
     assert (run / "CLAUDE.md").read_text() == (RUN_ENVIRONMENT / "workspace" / "CLAUDE.md").read_text()
 
 
@@ -90,20 +111,22 @@ def test_settings_enable_sandbox_and_deny_secrets():
 def test_jail_lets_a_session_write_only_its_own_run(tmp_path):
     import shutil
     import subprocess
+
     import pytest
-    from app import cli
 
     if not (shutil.which("bwrap") and subprocess.run(["bwrap", "--ro-bind", "/", "/", "true"]).returncode == 0):
         pytest.skip("needs a working bubblewrap")
     run, sibling = tmp_path / "run", tmp_path / "other"
     run.mkdir(), sibling.mkdir()
     probe = (
-        f"touch {run}/ok; touch {sibling}/no 2>/dev/null; touch '{cli.REPOSITORY_ROOT}/jail_probe' 2>/dev/null; "
+        f"touch {run}/ok; touch {sibling}/no 2>/dev/null; touch '{config.REPOSITORY_ROOT}/jail_probe' 2>/dev/null; "
         f"touch ~/home_probe && test -f ~/.claude.json && command -v text-2-shorts >/dev/null && echo fine"
     )
-    result = subprocess.run(cli.build_jail_command(run, ["sh", "-c", probe]), capture_output=True, text=True)
+    result = subprocess.run(sandbox.build_jail_command(run, ["sh", "-c", probe]), capture_output=True, text=True)
     assert result.stdout.strip() == "fine", result.stderr
-    assert (run / "ok").exists() and not (sibling / "no").exists() and not (cli.REPOSITORY_ROOT / "jail_probe").exists()
+    assert (
+        (run / "ok").exists() and not (sibling / "no").exists() and not (config.REPOSITORY_ROOT / "jail_probe").exists()
+    )
     assert not (Path.home() / "home_probe").exists()  # home writes land in the session's private tmpfs
 
 
@@ -121,13 +144,12 @@ def run_hook(payload: dict):
 
 
 def test_hooks_resume_validate_and_log(tmp_path):
-    from app import cli
 
     run = tmp_path / "run"
-    cli.provision_run_workspace(run, {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
+    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
     result = run_hook({"hook_event_name": "SessionStart", "cwd": str(run), "transcript_path": "/x/t.jsonl"})
-    assert result.returncode == 0 and "next:" in result.stdout and "script.json does not exist" in result.stdout
-    assert cli.read_json(run / "state.json")["sessions"] == ["/x/t.jsonl"]
+    assert result.returncode == 0 and "next:" in result.stdout and "topics.md does not exist" in result.stdout
+    assert utilities.read_json(run / "state.json")["sessions"] == ["/x/t.jsonl"]
 
     (run / "scenes" / "s01").mkdir(parents=True)
     (run / "scenes" / "s01" / "plan.json").write_text("{}")
@@ -154,7 +176,6 @@ def test_hooks_resume_validate_and_log(tmp_path):
 
 
 def test_report_sums_session_tokens_once_per_message(tmp_path):
-    from app import cli, run_steps
 
     transcript = tmp_path / "s.jsonl"
 
@@ -177,14 +198,10 @@ def test_report_sums_session_tokens_once_per_message(tmp_path):
             ]
         )
     )
-    cli.write_json(tmp_path / "state.json", {"approved": {}, "clips": {}, "sessions": [str(transcript)]})
-    assert run_steps.sum_session_tokens(tmp_path) == {
-        "input": 7,
-        "output": 2,
-        "cache_read": 20,
-        "cache_write": 10,
-        "messages": 2,
-    }
+    utilities.write_json(tmp_path / "state.json", {"approved": {}, "clips": {}, "sessions": [str(transcript)]})
+    assert status.sum_session_tokens(tmp_path) == TokenUsage(
+        input=7, output=2, cache_read=20, cache_write=10, messages=2
+    )
 
 
 def test_hooks_config_only_calls_real_commands():
@@ -200,23 +217,22 @@ def test_docs_have_no_stale_commands():
     root = RUN_ENVIRONMENT.parent
     docs = [
         root / "README.md",
-        root / "docs" / "deployment-guide.md",
+        root / "docs" / "PROJECT_STRUCTURE.md",
+        root / "docs" / "guides" / "deployment-guide.md",
         root / ".env.example",
-        root / "tools" / "README.md",
-        root / "docs" / "skills-assessment.md",
-        *root.glob("app/**/*.py"),
+        root / "backend" / "tools" / "README.md",
+        *root.glob("backend/app/**/*.py"),
         *RUN_ENVIRONMENT.rglob("*.md"),
         *root.glob(".claude/skills/*/SKILL.md"),
         *RUN_ENVIRONMENT.glob("skills/*/SKILL.md"),
     ]
     stale = re.compile(
-        r"text-2-shorts (clips|build|outline)\b|re-run (clips|build)|claude -p|app/graph/prompts|"
-        r"app/sandbox\.json|CLIP_BUILDER_SYSTEM|STAGES|"
-        r"app/(pipeline|clips|check|speech)\.py|app\.(pipeline|clips|speech)\b|app/graph/models|"
+        r"text-2-shorts (clips|build|outline)\b|re-run (clips|build)|claude -p|backend/app/graph/prompts|"
+        r"backend/app/sandbox\.json|CLIP_BUILDER_SYSTEM|STAGES|"
+        r"backend/app/(pipeline|clips|check|speech)\.py|app\.(pipeline|clips|speech)\b|backend/app/graph/models|"
         r"(?<![\w.-])env/|Plan\.md|MODULE_SPECS|DEPLOYMENT\.md|SKILLS_ASSESSMENT|"
         r"\bt2s\b|\bT2S_(FPS|PARALLEL|TTS|BACKGROUND|TARGET_CLIP|STOP_AFTER)\b|"
-        r"outline\.json|math\.json|math-reviewer|approve \S+ outline|validate \S+ (outline|math)\b|clip-planning|"
-        r"outline-(zoom|arc|linear|review)|references/brief\.md|app/outline_models"
+        r"math\.json|math-reviewer|validate \S+ math\b|clip-planning|outline-review|references/brief\.md"
     )
     hits = [f"{doc.relative_to(root)}: {match[0]}" for doc in docs for match in stale.finditer(doc.read_text())]
     assert not hits, hits
@@ -228,27 +244,26 @@ def test_docs_have_no_stale_commands():
 def run_in_jail(tmp_path, script):
     import shutil
     import subprocess
+
     import pytest
-    from app import cli
 
     if not (shutil.which("bwrap") and subprocess.run(["bwrap", "--ro-bind", "/", "/", "true"]).returncode == 0):
         pytest.skip("needs a working bubblewrap")
     run = tmp_path / "run"
     run.mkdir(exist_ok=True)
-    return subprocess.run(cli.build_jail_command(run, ["sh", "-c", script]), capture_output=True, text=True)
+    return subprocess.run(sandbox.build_jail_command(run, ["sh", "-c", script]), capture_output=True, text=True)
 
 
 def test_jail_hides_the_rest_of_home_host_processes_and_repo_env(tmp_path):
-    from app import cli
 
-    siblings = [path.name for path in cli.REPOSITORY_ROOT.parent.iterdir()]
+    siblings = [path.name for path in config.REPOSITORY_ROOT.parent.iterdir()]
     result = run_in_jail(
         tmp_path,
-        f"ls -A '{cli.REPOSITORY_ROOT.parent}'; echo ---; test -e ~/.ssh && echo SSH; "
-        f"ls /proc | grep -c '^[0-9]'; cat '{cli.REPOSITORY_ROOT}/.env' 2>/dev/null | wc -c",
+        f"ls -A '{config.REPOSITORY_ROOT.parent}'; echo ---; test -e ~/.ssh && echo SSH; "
+        f"ls /proc | grep -c '^[0-9]'; cat '{config.REPOSITORY_ROOT}/.env' 2>/dev/null | wc -c",
     )
     listing, rest = result.stdout.split("---\n")
-    assert listing.split() == [cli.REPOSITORY_ROOT.name] or len(siblings) == 1  # other projects are not mounted
+    assert listing.split() == [config.REPOSITORY_ROOT.name] or len(siblings) == 1  # other projects are not mounted
     lines = rest.split()
     assert "SSH" not in lines
     assert int(lines[0]) < 10  # own PID namespace
@@ -256,19 +271,17 @@ def test_jail_hides_the_rest_of_home_host_processes_and_repo_env(tmp_path):
 
 
 def test_api_index_lives_outside_the_read_only_repo():
-    from app import cli, run_steps
 
     assert (
-        cli.REPOSITORY_ROOT not in run_steps.API_INDEX_PATH.parents
-        and Path.home() / ".cache" in run_steps.API_INDEX_PATH.parents
+        config.REPOSITORY_ROOT not in config.API_INDEX_PATH.parents
+        and Path.home() / ".cache" in config.API_INDEX_PATH.parents
     )
 
 
 def test_hook_finds_the_run_from_a_subfolder(tmp_path):
-    from app import cli
 
     run = tmp_path / "run"
-    cli.provision_run_workspace(run, {"requirement": "t", "approach": "zoom", "minutes": 1}, {})
+    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
     (run / "scenes" / "s01").mkdir(parents=True)
     (run / "scenes" / "s01" / "plan.json").write_text("{}")
     result = run_hook(
@@ -283,18 +296,18 @@ def test_hook_finds_the_run_from_a_subfolder(tmp_path):
 
 
 def test_status_survives_a_malformed_plan(tmp_path):
-    from app import run_steps
 
-    from conftest import approve, make_script, write_brief, write_json_file
+    from conftest import approve, approved_outline, make_script, write_brief, write_json_file
 
     write_brief(tmp_path / "r", objectives=["understand the topic"])
+    approved_outline(tmp_path / "r", (30, 30))
     write_json_file(tmp_path / "r" / "script.json", make_script(30, 30))
     write_json_file(tmp_path / "r" / "script_review.json", {"findings": []})
     approve(tmp_path / "r", "script")
     (tmp_path / "r" / "scenes" / "s01").mkdir(parents=True)
     (tmp_path / "r" / "scenes" / "s01" / "plan.json").write_text('{"scene_id": "s01"}')
-    assert any("s01 plan:" in step for step in run_steps.next_steps(tmp_path / "r"))
-    assert "next:" in run_steps.status_text(tmp_path / "r")
+    assert any("s01 plan:" in step for step in status.next_steps(tmp_path / "r"))
+    assert "next:" in status.status_text(tmp_path / "r")
 
 
 def test_state_updates_are_safe_across_processes(tmp_path):
@@ -302,9 +315,10 @@ def test_state_updates_are_safe_across_processes(tmp_path):
     import sys
 
     code = (
-        "import sys; from pathlib import Path; from app import run_steps\n"
-        "for k in range(20): run_steps.update_state(Path(sys.argv[1]), "
-        "lambda s: s['clips'].__setitem__(f'{sys.argv[2]}-{k}', {'status': 'READY'}))"
+        "import sys; from pathlib import Path; from app.workflow import ledger\n"
+        "from schemas.run_state import ClipBuild\n"
+        "for k in range(20): ledger.update_state(Path(sys.argv[1]), "
+        "lambda s: s.clips.__setitem__(f'{sys.argv[2]}-{k}', ClipBuild(status='READY')))"
     )
     procs = [
         subprocess.Popen(
@@ -313,18 +327,16 @@ def test_state_updates_are_safe_across_processes(tmp_path):
         for i in range(16)
     ]
     codes = [process.wait() for process in procs]
-    from app import cli
 
-    assert codes == [0] * 16 and len(cli.read_json(tmp_path / "state.json")["clips"]) == 320
+    assert codes == [0] * 16 and len(utilities.read_json(tmp_path / "state.json")["clips"]) == 320
 
 
 def test_skill_scripts_are_the_repo_tools_not_copies():
     scripts = sorted((RUN_ENVIRONMENT / "skills" / "manim-ce-0-20-1-reference" / "scripts").glob("*.py"))
     assert scripts
     for script in scripts:
-        assert script.is_symlink() and script.resolve() == (RUN_ENVIRONMENT.parent / "tools" / script.name).resolve(), (
-            script.name
-        )
+        target = (RUN_ENVIRONMENT.parent / "backend" / "tools" / script.name).resolve()
+        assert script.is_symlink() and script.resolve() == target, script.name
 
 
 def test_every_skill_and_agent_meets_the_standard():
@@ -334,7 +346,7 @@ def test_every_skill_and_agent_meets_the_standard():
         *RUN_ENVIRONMENT.glob("skills/*/SKILL.md"),
         *RUN_ENVIRONMENT.glob("agents/*.md"),
     ]
-    assert len(files) == 10  # 3 repo skills, 2 run-environment skills, 5 subagents
+    assert len(files) == 12  # 3 repo skills, 2 runtime-environment skills, 7 subagents
     for path in files:
         desc = frontmatter(path)["description"].strip()
         assert desc.startswith("Use when") and len(desc) <= 500, f"{path}: {desc[:60]}"
@@ -367,3 +379,64 @@ def test_the_workflow_skill_lists_every_reference_by_path():
     skill = (RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "SKILL.md").read_text()
     for reference in sorted(REFERENCES_DIRECTORY.glob("*.md")):
         assert f"references/{reference.name}" in skill, reference.name
+
+
+def test_outline_and_topic_references_are_generated_from_the_script_prompts_package():
+    import sys
+
+    sys.path.insert(0, str(RUN_ENVIRONMENT / "prompts"))
+    import export_references
+    import script_prompts
+
+    assert "{user_raw_input}" in script_prompts.REQ_MODIFIER_SYSTEM  # the one placeholder the topic prompt keeps
+    for name, text in export_references.references().items():  # drift between the package and the references
+        assert (REFERENCES_DIRECTORY / name).read_text() == text, (
+            f"{name}: run runtime-environment/prompts/export_references.py"
+        )
+
+
+def test_visual_planning_and_code_run_on_opus_everything_else_on_sonnet_all_at_medium_effort():
+
+    opus = {"scene-planner", "clip-builder"}  # visual planning and code generation, refactoring included
+    for path in RUN_ENVIRONMENT.glob("agents/*.md"):
+        fields = frontmatter(path)
+        expected = config.PLANNING_AND_CODE_MODEL if path.stem in opus else config.SESSION_MODEL
+        assert (fields["model"].strip(), fields["effort"].strip()) == (expected, "medium"), path.name
+    assert (config.PLANNING_AND_CODE_MODEL, config.SESSION_MODEL) == ("claude-opus-5-5", "claude-sonnet-5-5")
+    command = sandbox.session_command()
+    assert command[command.index("--model") + 1] == config.SESSION_MODEL
+
+
+def test_every_write_and_command_is_shown_to_the_user(tmp_path):
+
+    run = tmp_path / "run"
+    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
+    (run / "preferences.json").write_text('{"tone": "warm"}')
+    result = run_hook(
+        {
+            "hook_event_name": "PostToolUse",
+            "cwd": str(run),
+            "tool_name": "Write",
+            "tool_input": {"file_path": str(run / "preferences.json")},
+        }
+    )
+    shown = json.loads(result.stdout)["systemMessage"]
+    assert result.returncode == 0 and "preferences.json" in shown and "valid" in shown
+    result = run_hook(
+        {
+            "hook_event_name": "PostToolUse",
+            "cwd": str(run),
+            "tool_name": "Bash",
+            "tool_input": {"command": "text-2-shorts voice ."},
+        }
+    )
+    assert "text-2-shorts voice ." in json.loads(result.stdout)["systemMessage"]
+    result = run_hook(
+        {
+            "hook_event_name": "PostToolUse",
+            "cwd": str(run),
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "clip-builder", "description": "build s01c01"},
+        }
+    )
+    assert "clip-builder" in json.loads(result.stdout)["systemMessage"]

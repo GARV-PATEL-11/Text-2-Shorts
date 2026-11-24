@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "error": {
+      "title": "Error",
+      "type": "string"
+    },
+    "problems": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Problems",
+      "type": "array"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "title": "ApiError",
+  "type": "object"
+}

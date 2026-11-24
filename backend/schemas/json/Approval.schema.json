@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "description": "A checkpoint approval, bound to the fingerprint of exactly what was approved.",
+  "properties": {
+    "at": {
+      "title": "At",
+      "type": "string"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fingerprint"
+    }
+  },
+  "required": [
+    "at"
+  ],
+  "title": "Approval",
+  "type": "object"
+}

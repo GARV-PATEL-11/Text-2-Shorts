@@ -1,0 +1,179 @@
+"""Command handlers for production: voice, accept, preview, final."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from schemas.media import AssemblyManifest, BackgroundMusic, ClipAudio, FinalReport, SceneRender, SceneTransition
+from schemas.plans import ScenePlan
+
+from app import narration
+from app.config import DRAFT_QUALITY, FINAL_FRAME_RATE, TOOLS_DIRECTORY
+from app.utilities import probe_duration_seconds, run_in_parallel
+from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
+from app.workflow.checkpoints import require_approval, require_earlier_scenes
+from app.workflow.clips import accept_clip
+from app.workflow.fingerprints import clip_key, fingerprint, scene_video_hash
+from app.workflow.ledger import load_state
+from app.workflow.preferences import clip_speech
+from app.workflow.production import (
+    check_delivery,
+    check_final_media,
+    render_scene_sections,
+    scene_manifest,
+    stale_audio,
+    sync_report,
+    voice_key,
+)
+from app.workflow.templates import load_template
+
+
+def handle_voice_command(arguments) -> None:
+    run = Path(arguments.run)
+    require_approval(run, "plan")
+    brief = load_brief(run)
+    if brief is None:
+        sys.exit("brief.json is missing or invalid: `text-2-shorts validate . brief`")
+    synthesize_clip = None
+    plans = load_scene_plans(run)
+    pairs = narration.case_pairs(
+        [clip.narration for scene_plan in plans for clip in scene_plan.clips]
+    )  # letters used as both M and m
+    for plan in plans:
+        audio_directory = run / "scenes" / plan.scene_id / "audio"
+        audio_directory.mkdir(exist_ok=True)
+        audio_index = load_audio_index(run, plan.scene_id)
+        for clip in plan.clips:
+            text = clip_speech(run, clip.ssml, pairs)  # the planned SSML, symbols by name, preferred rate and pauses
+            voice_hash = voice_key(run, text)
+            audio_path = audio_directory / f"clip_{clip.index:02d}.mp3"
+            if clip.clip_id in audio_index and audio_index[clip.clip_id].hash == voice_hash and audio_path.exists():
+                continue  # unchanged SSML → keep the audio
+            synthesize_clip = synthesize_clip or narration.create_speech_synthesizer(brief)
+            audio, marks = synthesize_clip(text)
+            audio_path.write_bytes(audio)
+            audio_index[clip.clip_id] = ClipAudio(
+                hash=voice_hash,
+                seconds=round(probe_duration_seconds(audio_path), 2),
+                spoken=narration.to_plain(text),
+                beat_times=narration.phrase_times(marks, clip.beats, pairs) if marks else None,
+            )
+            print(f"{clip.clip_id}: {audio_index[clip.clip_id].seconds}s")
+        save_audio_index(run, plan.scene_id, audio_index)
+    total = sum(
+        clip_audio.seconds
+        for scene_plan in load_scene_plans(run)
+        for clip_audio in load_audio_index(run, scene_plan.scene_id).values()
+    )
+    print(f"total narration: {total:.1f}s")
+
+
+def handle_final_command(arguments) -> None:
+    run = Path(arguments.run)
+    state = load_state(run)
+    plans = load_scene_plans(run)
+    missing = [
+        clip.clip_id
+        for plan in plans
+        for clip in plan.clips
+        if (build := state.clips.get(clip.clip_id)) is None or build.status != "READY"
+    ]
+    if missing:
+        sys.exit(f"Not built yet: {missing}. Run build first.")
+    unapproved = [plan.scene_id for plan in plans if f"scene:{plan.scene_id}" not in state.approved]
+    if unapproved and not arguments.force:
+        sys.exit(f"Scene previews not approved (CP3): {unapproved} — `approve <run> sNN` (or --force).")
+    if not 60 <= FINAL_FRAME_RATE <= 120:
+        sys.exit(f"TEXT_2_SHORTS_FPS={FINAL_FRAME_RATE}: must be 60–120")
+
+    def render_scene(plan: ScenePlan) -> SceneRender:
+        return render_scene_sections(run, plan, "p", FINAL_FRAME_RATE, "media_final")
+
+    scene_renders = dict(zip([plan.scene_id for plan in plans], run_in_parallel(render_scene, plans)))
+    failed = {scene_id: render.stderr_tail for scene_id, render in scene_renders.items() if not render.ok}
+    if failed:
+        sys.exit(f"Final render failed: {json.dumps(failed, indent=1)[:3000]}")
+    manifest = AssemblyManifest(scenes=[scene_manifest(run, plan, scene_renders[plan.scene_id]) for plan in plans])
+    if template := load_template(run):  # scene transitions and the user's music, as the template specifies
+        manifest.transition = SceneTransition(
+            style=template.scene_transition, seconds=template.transition_seconds, color=template.background
+        )
+        if template.music:
+            manifest.music = BackgroundMusic(file=str(run / template.music), volume_db=template.music_volume_db)
+    (run / "assembly.json").write_text(manifest.model_dump_json(indent=2))
+    sys.path.insert(0, str(TOOLS_DIRECTORY))
+    from assemble_clips import assemble  # backend/tools/ is a script folder, not a package
+
+    report = FinalReport.model_validate(assemble(manifest.model_dump(), run / "final.mp4", run / "assembly_work"))
+    report.checks = check_final_media(run / "final.mp4") + check_delivery(run, plans, report)
+    report.fingerprint = fingerprint(run, plans)  # next_steps marks the video stale when any clip changes
+    (run / "final_report.json").write_text(report.model_dump_json(indent=2))
+    print(f"{run / 'final.mp4'}\nduration: {report.final_s}s · clips: {len(report.clips)}")
+    for finding in report.checks:
+        print(f"{finding.severity} {finding.code}: {finding.message}")
+
+
+def handle_preview_command(arguments) -> None:
+    """The whole scene (with its transitions) at 720p30 with its audio, the sync report and contact sheets."""
+    run, scene_id = Path(arguments.run), arguments.scene
+    require_approval(run, "plan")
+    plan = next((plan for plan in load_scene_plans(run) if plan.scene_id == scene_id), None)
+    if plan is None:
+        sys.exit(f"{scene_id}: no valid plan")
+    require_earlier_scenes(run, scene_id)
+    clip_states = load_state(run).clips
+    if unbuilt := [
+        c.clip_id
+        for c in plan.clips
+        if (build := clip_states.get(c.clip_id)) is None or build.key != clip_key(run, plan, c)
+    ]:
+        sys.exit(f"build these clips first: {unbuilt}")
+    if stale := stale_audio(run, [plan]):
+        sys.exit(f"audio missing or outdated for {sorted(stale)}: text-2-shorts voice <run>")
+    render = render_scene_sections(run, plan, DRAFT_QUALITY, None, "media_preview")
+    if not render.ok:
+        sys.exit(f"preview render failed: {render.stderr_tail}")
+    scene_directory = run / "scenes" / plan.scene_id
+    sys.path.insert(0, str(TOOLS_DIRECTORY))
+    from assemble_clips import assemble  # backend/tools/ is a script folder, not a package
+
+    assemble(
+        AssemblyManifest(scenes=[scene_manifest(run, plan, render)]).model_dump(),
+        scene_directory / "preview.mp4",
+        scene_directory / "preview_work",
+    )
+    for sheet in scene_directory.glob("preview_sheet_*.png"):
+        sheet.unlink()
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            str(scene_directory / "preview.mp4"),
+            "-vf",
+            "fps=1/2,scale=480:-1,tile=4x3",
+            str(scene_directory / "preview_sheet_%02d.png"),
+        ],
+        check=False,
+    )
+    sections = {section.name: section.duration for section in render.sections}
+    report = sync_report(run, plan, {clip.clip_id: sections[f"clip_{clip.index:02d}"] for clip in plan.clips})
+    report.scene_hash = scene_video_hash(run, scene_id)
+    (scene_directory / "sync.json").write_text(report.model_dump_json(indent=2))
+    print(
+        f"{scene_directory / 'preview.mp4'} (720p30) · sync: "
+        + ("in sync" if report.in_sync else "\n  " + "\n  ".join(report.problems))
+    )
+
+
+def handle_accept_command(arguments) -> None:
+    result = accept_clip(Path(arguments.run), arguments.clip)
+    print(
+        f"{arguments.clip}: {result.status}" + (f" — {', '.join(result.open_findings)}" if result.open_findings else "")
+    )
+    sys.exit(0 if result.status == "READY" else 1)

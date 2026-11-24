@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/approve",
+  "properties": {
+    "checkpoint": {
+      "pattern": "^(requirements|template|outline|script|plan|final|s\\d{2}|start:s\\d{2})$",
+      "title": "Checkpoint",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "maxLength": 4000,
+      "title": "Notes",
+      "type": "string"
+    },
+    "force": {
+      "default": false,
+      "description": "approve although problems are open (the user accepts them)",
+      "title": "Force",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "checkpoint"
+  ],
+  "title": "ApproveInput",
+  "type": "object"
+}

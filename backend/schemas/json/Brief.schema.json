@@ -1,0 +1,156 @@
+{
+  "additionalProperties": false,
+  "description": "Stage 1 \u2014 the user's requirements, written by `text-2-shorts new` and confirmed with the user.",
+  "properties": {
+    "requirement": {
+      "description": "the topic and request in the user's words",
+      "minLength": 1,
+      "title": "Requirement",
+      "type": "string"
+    },
+    "objectives": {
+      "description": "what the viewer should be able to do or explain",
+      "items": {
+        "type": "string"
+      },
+      "title": "Objectives",
+      "type": "array"
+    },
+    "audience": {
+      "default": "curious beginners",
+      "title": "Audience",
+      "type": "string"
+    },
+    "style": {
+      "default": "ELI5 / Feynman",
+      "description": "explanation style and tone",
+      "title": "Style",
+      "type": "string"
+    },
+    "approach": {
+      "default": "zoom",
+      "description": "narrative structure: three fixed ones, or 'creative' (designed for this topic, or the user's own)",
+      "enum": [
+        "zoom",
+        "arc",
+        "linear",
+        "creative"
+      ],
+      "title": "Approach",
+      "type": "string"
+    },
+    "minutes": {
+      "default": 2.0,
+      "exclusiveMinimum": 0,
+      "maximum": 12,
+      "title": "Minutes",
+      "type": "number"
+    },
+    "pace": {
+      "default": "medium",
+      "enum": [
+        "slow",
+        "medium",
+        "fast"
+      ],
+      "title": "Pace",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "description": "constraints and anything else the user asked for",
+      "title": "Notes",
+      "type": "string"
+    },
+    "tts": {
+      "default": "polly",
+      "enum": [
+        "polly",
+        "google"
+      ],
+      "title": "Tts",
+      "type": "string"
+    },
+    "voice": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Voice"
+    },
+    "engine": {
+      "default": "neural",
+      "enum": [
+        "neural",
+        "generative",
+        "standard"
+      ],
+      "title": "Engine",
+      "type": "string"
+    },
+    "font": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Font"
+    },
+    "detail_level": {
+      "default": "standard",
+      "enum": [
+        "overview",
+        "standard",
+        "detailed"
+      ],
+      "title": "Detail Level",
+      "type": "string"
+    },
+    "explanation_depth": {
+      "default": "conceptual",
+      "enum": [
+        "intuitive",
+        "conceptual",
+        "rigorous"
+      ],
+      "title": "Explanation Depth",
+      "type": "string"
+    },
+    "technical_complexity": {
+      "default": "beginner",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced"
+      ],
+      "title": "Technical Complexity",
+      "type": "string"
+    },
+    "visual_expectations": {
+      "default": "",
+      "description": "what the user expects to see (style, diagrams, density)",
+      "title": "Visual Expectations",
+      "type": "string"
+    },
+    "audio_expectations": {
+      "default": "",
+      "description": "voice, music and sound the user expects",
+      "title": "Audio Expectations",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement"
+  ],
+  "title": "Brief",
+  "type": "object"
+}

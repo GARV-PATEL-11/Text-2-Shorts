@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "ChangeRecord": {
+      "additionalProperties": false,
+      "description": "What one refactor iteration of a scene's video changed (scenes/sNN/changes.json \u2192 the run's changes.txt).",
+      "properties": {
+        "target": {
+          "description": "the scene or clip changed",
+          "pattern": "^s\\d{2}(c\\d{2})?$",
+          "title": "Target",
+          "type": "string"
+        },
+        "iteration": {
+          "description": "the video critique round whose issues this fixes",
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Iteration",
+          "type": "integer"
+        },
+        "issue": {
+          "description": "the original issue",
+          "minLength": 1,
+          "title": "Issue",
+          "type": "string"
+        },
+        "findings": {
+          "description": "the critique findings addressed",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Findings",
+          "type": "array"
+        },
+        "modification": {
+          "minLength": 1,
+          "title": "Modification",
+          "type": "string"
+        },
+        "files_changed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files Changed",
+          "type": "array"
+        },
+        "rendering_changes": {
+          "default": "none",
+          "title": "Rendering Changes",
+          "type": "string"
+        },
+        "audio_timing_changes": {
+          "default": "none",
+          "title": "Audio Timing Changes",
+          "type": "string"
+        },
+        "sync_adjustments": {
+          "default": "none",
+          "title": "Sync Adjustments",
+          "type": "string"
+        },
+        "validation_results": {
+          "description": "e.g. `accept` READY, preview in sync",
+          "minLength": 1,
+          "title": "Validation Results",
+          "type": "string"
+        },
+        "final_score": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the next round's score, once known",
+          "title": "Final Score"
+        }
+      },
+      "required": [
+        "target",
+        "iteration",
+        "issue",
+        "findings",
+        "modification",
+        "validation_results"
+      ],
+      "title": "ChangeRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/ChangeRecord"
+      },
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "entries"
+  ],
+  "title": "ChangeLog",
+  "type": "object"
+}

@@ -1,0 +1,24 @@
+{
+  "description": "One clip section of a scene render (Manim's sections JSON; its extra fields are ignored).",
+  "properties": {
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "path": {
+      "title": "Path",
+      "type": "string"
+    },
+    "duration": {
+      "title": "Duration",
+      "type": "number"
+    }
+  },
+  "required": [
+    "name",
+    "path",
+    "duration"
+  ],
+  "title": "RenderedSection",
+  "type": "object"
+}

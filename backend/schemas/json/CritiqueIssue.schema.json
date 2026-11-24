@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "target": {
+      "description": "the whole script, or the scene or clip it is about",
+      "pattern": "^(script|s\\d{2}(c\\d{2})?)$",
+      "title": "Target",
+      "type": "string"
+    },
+    "aspect": {
+      "description": "script: outline-fit \u00b7 clarity \u00b7 flow \u00b7 pacing \u00b7 speakability \u00b7 tone; plan: clarity \u00b7 sync \u00b7 constructability \u00b7 design; video: plan-match \u00b7 sync \u00b7 render \u00b7 design",
+      "title": "Aspect",
+      "type": "string"
+    },
+    "problem": {
+      "title": "Problem",
+      "type": "string"
+    },
+    "fix": {
+      "title": "Fix",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target",
+    "aspect",
+    "problem",
+    "fix"
+  ],
+  "title": "CritiqueIssue",
+  "type": "object"
+}

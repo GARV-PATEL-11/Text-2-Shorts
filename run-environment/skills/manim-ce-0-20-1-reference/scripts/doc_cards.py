@@ -1,1 +1,0 @@
-../../../../tools/doc_cards.py

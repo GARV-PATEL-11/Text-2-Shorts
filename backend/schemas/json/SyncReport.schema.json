@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "SyncBeat": {
+      "additionalProperties": false,
+      "properties": {
+        "beat": {
+          "minimum": 1,
+          "title": "Beat",
+          "type": "integer"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "spoken_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Spoken At"
+        },
+        "shown_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shown At"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "shown \u2212 spoken, seconds",
+          "title": "Offset"
+        }
+      },
+      "required": [
+        "beat",
+        "plan"
+      ],
+      "title": "SyncBeat",
+      "type": "object"
+    },
+    "SyncClip": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "examples": [
+            "s03c02"
+          ],
+          "pattern": "^s\\d{2}c\\d{2}$",
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "video_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Video Seconds"
+        },
+        "audio_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audio Seconds"
+        },
+        "audio_fits": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Audio Fits"
+        },
+        "beats": {
+          "items": {
+            "$ref": "#/$defs/SyncBeat"
+          },
+          "title": "Beats",
+          "type": "array"
+        },
+        "changes": {
+          "default": "",
+          "description": "the clip-builder's CHANGES.md",
+          "title": "Changes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clip_id"
+      ],
+      "title": "SyncClip",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "scenes/sNN/sync.json: spoken vs shown time of every beat, and whether each clip's audio fits.",
+  "properties": {
+    "scene_id": {
+      "examples": [
+        "s03"
+      ],
+      "pattern": "^s\\d{2}$",
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "tolerance": {
+      "title": "Tolerance",
+      "type": "number"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/SyncClip"
+      },
+      "title": "Clips",
+      "type": "array"
+    },
+    "problems": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Problems",
+      "type": "array"
+    },
+    "in_sync": {
+      "title": "In Sync",
+      "type": "boolean"
+    },
+    "scene_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the scene video this report was made from",
+      "title": "Scene Hash"
+    }
+  },
+  "required": [
+    "scene_id",
+    "tolerance",
+    "clips",
+    "in_sync"
+  ],
+  "title": "SyncReport",
+  "type": "object"
+}

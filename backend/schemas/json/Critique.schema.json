@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "CritiqueIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "description": "the whole script, or the scene or clip it is about",
+          "pattern": "^(script|s\\d{2}(c\\d{2})?)$",
+          "title": "Target",
+          "type": "string"
+        },
+        "aspect": {
+          "description": "script: outline-fit \u00b7 clarity \u00b7 flow \u00b7 pacing \u00b7 speakability \u00b7 tone; plan: clarity \u00b7 sync \u00b7 constructability \u00b7 design; video: plan-match \u00b7 sync \u00b7 render \u00b7 design",
+          "title": "Aspect",
+          "type": "string"
+        },
+        "problem": {
+          "title": "Problem",
+          "type": "string"
+        },
+        "fix": {
+          "title": "Fix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "aspect",
+        "problem",
+        "fix"
+      ],
+      "title": "CritiqueIssue",
+      "type": "object"
+    },
+    "CritiqueRound": {
+      "additionalProperties": false,
+      "properties": {
+        "reviewed": {
+          "description": "`text-2-shorts hash <run> script` or `\u2026 sNN plan|video`: the version reviewed",
+          "title": "Reviewed",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "revise"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "plan and video rounds: the rubric score; pass = score \u2265 quality_threshold",
+          "title": "Score"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/CritiqueIssue"
+          },
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reviewed",
+        "verdict"
+      ],
+      "title": "CritiqueRound",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "rounds": {
+      "items": {
+        "$ref": "#/$defs/CritiqueRound"
+      },
+      "minItems": 1,
+      "title": "Rounds",
+      "type": "array"
+    }
+  },
+  "required": [
+    "rounds"
+  ],
+  "title": "Critique",
+  "type": "object"
+}

@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "description": "The last `accept` of a clip: READY with the key of the inputs it was built from, or FAILED.",
+  "properties": {
+    "status": {
+      "enum": [
+        "READY",
+        "FAILED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "open_findings": {
+      "description": "gate: CODE for every ERROR still open",
+      "items": {
+        "type": "string"
+      },
+      "title": "Open Findings",
+      "type": "array"
+    },
+    "key": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "clip_key of the inputs the accepted code was built from",
+      "title": "Key"
+    },
+    "at": {
+      "default": "",
+      "title": "At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status"
+  ],
+  "title": "ClipBuild",
+  "type": "object"
+}

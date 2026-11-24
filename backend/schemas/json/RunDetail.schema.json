@@ -1,0 +1,616 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "description": "One thing to do now: write a file, dispatch a subagent, run a command, or ask the user.",
+      "properties": {
+        "do": {
+          "enum": [
+            "write",
+            "subagent",
+            "command",
+            "ask_user"
+          ],
+          "title": "Do",
+          "type": "string"
+        },
+        "what": {
+          "title": "What",
+          "type": "string"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "read": {
+          "description": "references to read, by path",
+          "items": {
+            "type": "string"
+          },
+          "title": "Read",
+          "type": "array"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "command to run before the subagent",
+          "title": "Before"
+        },
+        "after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "command to run after the subagent",
+          "title": "After"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command"
+        },
+        "checkpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ask_user: the checkpoint the user decides (`approve . <it>`)",
+          "title": "Checkpoint"
+        }
+      },
+      "required": [
+        "do",
+        "what"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "ActionBatch": {
+      "additionalProperties": false,
+      "description": "What `text-2-shorts next` returns: the stage and its batch of actions (in parallel when `parallel`).",
+      "properties": {
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "parallel": {
+          "default": false,
+          "title": "Parallel",
+          "type": "boolean"
+        },
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "stage"
+      ],
+      "title": "ActionBatch",
+      "type": "object"
+    },
+    "CheckpointDecision": {
+      "additionalProperties": false,
+      "description": "How the user decided at a checkpoint (CP0\u2013CP4, or the start of a scene when they asked to confirm each).",
+      "properties": {
+        "checkpoint": {
+          "pattern": "^(requirements|template|outline|script|plan|final|s\\d{2}|start:s\\d{2})$",
+          "title": "Checkpoint",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "approved_with_notes",
+            "changes_requested"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "requests": {
+          "description": "change request ids raised with this decision",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requests",
+          "type": "array"
+        },
+        "forced": {
+          "default": false,
+          "title": "Forced",
+          "type": "boolean"
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fingerprint"
+        },
+        "decided_at": {
+          "title": "Decided At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "checkpoint",
+        "decision",
+        "decided_at"
+      ],
+      "title": "CheckpointDecision",
+      "type": "object"
+    },
+    "CheckpointView": {
+      "additionalProperties": false,
+      "description": "A checkpoint waiting for the user, with what would block approving it now.",
+      "properties": {
+        "target": {
+          "description": "what `approve` takes: a stage, sNN, start:sNN or final",
+          "title": "Target",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "problems": {
+          "description": "open problems (approving anyway records it)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        }
+      },
+      "required": [
+        "target",
+        "label"
+      ],
+      "title": "CheckpointView",
+      "type": "object"
+    },
+    "ClipView": {
+      "additionalProperties": false,
+      "properties": {
+        "clip_id": {
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "requires_refactoring",
+            "requires_user_approval",
+            "approved"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "clip_id",
+        "objective",
+        "status"
+      ],
+      "title": "ClipView",
+      "type": "object"
+    },
+    "MediaFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "enum": [
+            "ERROR",
+            "WARN"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "severity",
+        "code",
+        "message"
+      ],
+      "title": "MediaFinding",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "One row of the run list.",
+      "properties": {
+        "id": {
+          "description": "the run folder name, e.g. 20261124-101500-keplers-laws",
+          "title": "Id",
+          "type": "string"
+        },
+        "topic": {
+          "title": "Topic",
+          "type": "string"
+        },
+        "created": {
+          "description": "YYYY-MM-DD HH:MM, from the folder name",
+          "title": "Created",
+          "type": "string"
+        },
+        "stage": {
+          "description": "the stage the next batch belongs to, or why the run cannot be read",
+          "title": "Stage",
+          "type": "string"
+        },
+        "has_final": {
+          "title": "Has Final",
+          "type": "boolean"
+        },
+        "readable": {
+          "default": true,
+          "description": "False when an older version of the workflow made it",
+          "title": "Readable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "topic",
+        "created",
+        "stage",
+        "has_final"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "SceneView": {
+      "additionalProperties": false,
+      "properties": {
+        "scene_id": {
+          "title": "Scene Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "failed",
+            "requires_refactoring",
+            "requires_user_approval",
+            "approved"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "clips": {
+          "items": {
+            "$ref": "#/$defs/ClipView"
+          },
+          "title": "Clips",
+          "type": "array"
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL of the 720p30 scene preview",
+          "title": "Preview"
+        },
+        "sync_problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sync Problems",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scene_id",
+        "title",
+        "status"
+      ],
+      "title": "SceneView",
+      "type": "object"
+    },
+    "TrackedRequest": {
+      "additionalProperties": false,
+      "description": "A change request with its current status, folded from its events in requests.jsonl.",
+      "properties": {
+        "id": {
+          "pattern": "^r\\d{3}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "target": {
+          "pattern": "^(outline|script|plan|final|s\\d{2}(c\\d{2})?)$",
+          "title": "Target",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "wording",
+            "visual",
+            "audio-timing",
+            "accuracy",
+            "structure",
+            "style",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "description": "the user's words",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "checkpoint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "the checkpoint it was raised at, if any",
+          "title": "Checkpoint"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "status": {
+          "default": "open",
+          "enum": [
+            "open",
+            "applied",
+            "declined"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "kind",
+        "text",
+        "created_at"
+      ],
+      "title": "TrackedRequest",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Everything the run page shows.",
+  "properties": {
+    "summary": {
+      "$ref": "#/$defs/RunSummary"
+    },
+    "objectives": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Objectives",
+      "type": "array"
+    },
+    "approach": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approach"
+    },
+    "minutes": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Minutes"
+    },
+    "stages": {
+      "additionalProperties": {
+        "enum": [
+          "pending",
+          "in_progress",
+          "completed",
+          "failed",
+          "requires_refactoring",
+          "requires_user_approval",
+          "approved"
+        ],
+        "type": "string"
+      },
+      "description": "requirements \u2026 final",
+      "title": "Stages",
+      "type": "object"
+    },
+    "next": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ActionBatch"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "awaiting": {
+      "description": "checkpoints the user can decide now",
+      "items": {
+        "$ref": "#/$defs/CheckpointView"
+      },
+      "title": "Awaiting",
+      "type": "array"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/SceneView"
+      },
+      "title": "Scenes",
+      "type": "array"
+    },
+    "final_video": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "URL of final.mp4",
+      "title": "Final Video"
+    },
+    "final_checks": {
+      "items": {
+        "$ref": "#/$defs/MediaFinding"
+      },
+      "title": "Final Checks",
+      "type": "array"
+    },
+    "requests": {
+      "items": {
+        "$ref": "#/$defs/TrackedRequest"
+      },
+      "title": "Requests",
+      "type": "array"
+    },
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/CheckpointDecision"
+      },
+      "title": "Decisions",
+      "type": "array"
+    },
+    "problem": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "why the run could not be read fully",
+      "title": "Problem"
+    }
+  },
+  "required": [
+    "summary"
+  ],
+  "title": "RunDetail",
+  "type": "object"
+}

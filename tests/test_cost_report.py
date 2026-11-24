@@ -1,5 +1,6 @@
 import json
 import sys
+
 from conftest import TOOLS_DIRECTORY
 
 sys.path.insert(0, str(TOOLS_DIRECTORY))

@@ -1,0 +1,53 @@
+{
+  "$defs": {
+    "SessionStartContext": {
+      "additionalProperties": false,
+      "properties": {
+        "hookEventName": {
+          "const": "SessionStart",
+          "default": "SessionStart",
+          "title": "Hookeventname",
+          "type": "string"
+        },
+        "additionalContext": {
+          "title": "Additionalcontext",
+          "type": "string"
+        }
+      },
+      "required": [
+        "additionalContext"
+      ],
+      "title": "SessionStartContext",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "What the hook prints: a line for the user, and (at session start) context for Claude.",
+  "properties": {
+    "systemMessage": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Systemmessage"
+    },
+    "hookSpecificOutput": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SessionStartContext"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "title": "HookOutput",
+  "type": "object"
+}

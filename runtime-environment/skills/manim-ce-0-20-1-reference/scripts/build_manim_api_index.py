@@ -1,0 +1,1 @@
+../../../../backend/tools/build_manim_api_index.py

@@ -1,0 +1,13 @@
+{
+ "name": "chalkboard",
+ "description": "A classroom board: dark green background, chalk-white text, soft colours, hand-drawn feel.",
+ "background": "#1f3329",
+ "palette": {"text": "WHITE", "focus": "YELLOW_B", "given": "BLUE_B", "derived": "GREEN_B", "warning": "RED_B", "secondary": "GREY_B"},
+ "font": null,
+ "animation_style": "write and draw strokes (Write, Create); calm pace, like a teacher at a board",
+ "scene_transition": "fade",
+ "transition_seconds": 0.6,
+ "density": "sparse",
+ "composition": "board layout: title top-left, working area centre, results boxed on the right",
+ "pacing": "slow"
+}

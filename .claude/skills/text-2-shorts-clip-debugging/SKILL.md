@@ -8,11 +8,11 @@ description: Use when a Text-2-Shorts clip fails `text-2-shorts accept` or `./ch
 Find the cause from evidence, cheapest first, then fix it where it lives (tool, plan or code).
 
 ## Evidence, in order
-1. `uv run text-2-shorts status runs/<id>` → the clip's status and `open_findings` codes.
-2. `runs/<id>/scenes/sNN/work/clip_MM/checks/<gate>.json` → exact findings with times/lines. Most cases end here.
-3. Reproduce without any LLM: `cd runs/<id>/scenes/sNN/work/clip_MM && ./check static` (then `probe`, `render`,
+1. `uv run text-2-shorts status artifacts/runs/<id>` → the clip's status and `open_findings` codes.
+2. `artifacts/runs/<id>/scenes/sNN/work/clip_MM/checks/<gate>.json` → exact findings with times/lines. Most cases end here.
+3. Reproduce without any LLM: `cd artifacts/runs/<id>/scenes/sNN/work/clip_MM && ./check static` (then `probe`, `render`,
    `frames`). The folder holds `TASK.json`, the clip file and its own copy of the earlier clips.
-4. `TASK.md` / `API_CARDS.md` (what the builder was told) and `runs/<id>/log.jsonl` (what the session ran).
+4. `TASK.md` / `API_CARDS.md` (what the builder was told) and `artifacts/runs/<id>/log.jsonl` (what the session ran).
 
 ## Rules the gates apply
 | Code | Gate | Meaning |
@@ -28,13 +28,13 @@ Find the cause from evidence, cheapest first, then fix it where it lives (tool, 
 | REMOVED_API / UNKNOWN_* | static | name not in Manim 0.20.1 (see `manim-ce-0-20-1-reference`) |
 | render failure | render | traceback in `checks/render.json` → `error` (drafts render at 720p30) |
 | out of sync | `preview` | `scenes/sNN/sync.json` → beats whose `offset` (shown − spoken) exceeds 0.35 s: audio-refactorer first, clip rebuild if the animation is wrong |
-Definitions: `tools/layout_probe.py`, `tools/validate_manim_code.py`, `app/clip_gates.py`.
+Definitions: `backend/tools/layout_probe.py`, `backend/tools/validate_manim_code.py`, `backend/tools/clip_gates.py`.
 
 ## Classify, then fix
 - **Tool false positive** (the finding is wrong) → fix the tool, add a test fixture in `tests/`.
 - **Plan defect** (impossible timing, contract the previous clip cannot satisfy, missing exit object) → edit the
   scene's `plan.json` (+ `text-2-shorts voice` if narration changed); it is not a code problem.
-- **Code defect** → `uv run text-2-shorts feedback runs/<id> sNNcMM --scope visual --text "<precise fix>"`, then in the run
+- **Code defect** → `uv run text-2-shorts feedback artifacts/runs/<id> sNNcMM --kind visual --text "<precise fix>"`, then in the run
   session `text-2-shorts task` → clip-builder → `text-2-shorts accept`.
 - **Recurring across clips/runs** → add a topic-card example or a validator rule; cheaper than more instructions.
 

@@ -56,7 +56,6 @@ cover/
 *.pot
 
 logs
-artifacts
 
 # Django stuff:
 *.log
@@ -219,8 +218,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Text-2-Shorts pipeline runs (sandbox folders, media)
-runs/
+# Text-2-Shorts generated output: video runs and the trash folder (artifacts/reports stays tracked)
+artifacts/runs/
+artifacts/trash/
 
 # ── Text-2-Shorts local/generated files ──────────────────────────────────────
 # Virtualenvs (any name/location)

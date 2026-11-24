@@ -1,0 +1,121 @@
+{
+  "additionalProperties": false,
+  "description": "One thing to do now: write a file, dispatch a subagent, run a command, or ask the user.",
+  "properties": {
+    "do": {
+      "enum": [
+        "write",
+        "subagent",
+        "command",
+        "ask_user"
+      ],
+      "title": "Do",
+      "type": "string"
+    },
+    "what": {
+      "title": "What",
+      "type": "string"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    },
+    "file": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "File"
+    },
+    "read": {
+      "description": "references to read, by path",
+      "items": {
+        "type": "string"
+      },
+      "title": "Read",
+      "type": "array"
+    },
+    "before": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "command to run before the subagent",
+      "title": "Before"
+    },
+    "after": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "command to run after the subagent",
+      "title": "After"
+    },
+    "command": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command"
+    },
+    "checkpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "ask_user: the checkpoint the user decides (`approve . <it>`)",
+      "title": "Checkpoint"
+    }
+  },
+  "required": [
+    "do",
+    "what"
+  ],
+  "title": "Action",
+  "type": "object"
+}

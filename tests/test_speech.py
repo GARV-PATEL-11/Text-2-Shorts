@@ -1,4 +1,5 @@
 from app.narration import case_pairs, phrase_times, speakable, speakable_ssml, ssml_problems, ssml_words, to_plain
+from schemas.requirements import Brief
 
 
 def test_symbols_units_abbreviations_and_case():
@@ -114,5 +115,5 @@ def test_google_maps_timepoints_to_words_and_falls_back_to_text(monkeypatch):
     ) == (b"mp3", None)
     assert requests[-1]["input"] == {"text": "Hi … there"}
     assert narration.create_speech_synthesizer(
-        {"tts": "google", "voice": "en-US-Neural2-D", "engine": "neural"}
+        Brief(requirement="topic", tts="google", voice="en-US-Neural2-D", engine="neural")
     ).__qualname__.startswith("create_google_synthesizer")

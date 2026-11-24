@@ -2,15 +2,20 @@
 on the installed Manim. A card that teaches broken code is worse than no card."""
 
 import re
+
 import pytest
 from conftest import REPOSITORY_ROOT, run_tool
 
-TOPICS = REPOSITORY_ROOT / "run-environment/skills/manim-ce-0-20-1-reference/topics"
+TOPICS = REPOSITORY_ROOT / "runtime-environment/skills/manim-ce-0-20-1-reference/topics"
 EXAMPLES = [
     (topic_path.stem, match.group(1))
     for topic_path in sorted(TOPICS.glob("*.md"))
     for match in re.finditer(r"```python\n(.*?)```", topic_path.read_text(), re.S)
 ]
+
+
+def test_topic_cards_are_found():
+    assert len(EXAMPLES) >= 10, f"no topic-card examples under {TOPICS}"  # a wrong path must fail, not skip
 
 
 @pytest.mark.parametrize("topic,code", EXAMPLES, ids=[example_topic for example_topic, _ in EXAMPLES])

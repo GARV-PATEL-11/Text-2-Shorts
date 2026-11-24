@@ -1,0 +1,57 @@
+{
+  "additionalProperties": false,
+  "description": "One row of log.jsonl: a tool call of the session, as shown to the user.",
+  "properties": {
+    "ts": {
+      "title": "Ts",
+      "type": "string"
+    },
+    "event": {
+      "const": "tool",
+      "default": "tool",
+      "title": "Event",
+      "type": "string"
+    },
+    "tool": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tool"
+    },
+    "detail": {
+      "default": "",
+      "title": "Detail",
+      "type": "string"
+    },
+    "agent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the subagent, when the tool call dispatched one",
+      "title": "Agent"
+    },
+    "shown": {
+      "default": "",
+      "description": "the line shown to the user",
+      "title": "Shown",
+      "type": "string"
+    }
+  },
+  "required": [
+    "ts"
+  ],
+  "title": "LogEntry",
+  "type": "object"
+}

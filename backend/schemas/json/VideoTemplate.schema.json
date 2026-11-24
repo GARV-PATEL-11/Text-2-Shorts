@@ -1,0 +1,149 @@
+{
+  "additionalProperties": false,
+  "description": "The video's look and feel (template.json): a starter template from runtime-environment/templates/ with the\nuser's overrides. Overrides preferences.json, which overrides the standard style.",
+  "properties": {
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "background": {
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "title": "Background",
+      "type": "string"
+    },
+    "palette": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "palette role \u2192 Manim colour constant",
+      "propertyNames": {
+        "enum": [
+          "text",
+          "focus",
+          "given",
+          "derived",
+          "warning",
+          "secondary"
+        ]
+      },
+      "title": "Palette",
+      "type": "object"
+    },
+    "font": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Font"
+    },
+    "type_scale": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "default": {
+        "title": 48,
+        "body": 34,
+        "label": 28,
+        "caption": 24
+      },
+      "description": "font_size per role (standards.md)",
+      "propertyNames": {
+        "enum": [
+          "title",
+          "body",
+          "label",
+          "caption"
+        ]
+      },
+      "title": "Type Scale",
+      "type": "object"
+    },
+    "animation_style": {
+      "default": "smooth, unhurried moves; one motion at a time",
+      "minLength": 1,
+      "title": "Animation Style",
+      "type": "string"
+    },
+    "scene_transition": {
+      "default": "fade",
+      "enum": [
+        "cut",
+        "fade",
+        "crossfade"
+      ],
+      "title": "Scene Transition",
+      "type": "string"
+    },
+    "transition_seconds": {
+      "default": 0.5,
+      "maximum": 2,
+      "minimum": 0,
+      "title": "Transition Seconds",
+      "type": "number"
+    },
+    "density": {
+      "default": "balanced",
+      "enum": [
+        "sparse",
+        "balanced",
+        "dense"
+      ],
+      "title": "Density",
+      "type": "string"
+    },
+    "composition": {
+      "default": "one focal element, centred; supporting labels around it",
+      "minLength": 1,
+      "title": "Composition",
+      "type": "string"
+    },
+    "pacing": {
+      "default": "medium",
+      "enum": [
+        "slow",
+        "medium",
+        "fast"
+      ],
+      "title": "Pacing",
+      "type": "string"
+    },
+    "music": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "path to the user's own background music file (none = silence)",
+      "title": "Music"
+    },
+    "music_volume_db": {
+      "default": -24,
+      "description": "music level under the voice",
+      "maximum": 0,
+      "minimum": -40,
+      "title": "Music Volume Db",
+      "type": "number"
+    }
+  },
+  "required": [
+    "name",
+    "background"
+  ],
+  "title": "VideoTemplate",
+  "type": "object"
+}

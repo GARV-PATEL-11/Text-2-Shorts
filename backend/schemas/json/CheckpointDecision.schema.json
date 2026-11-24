@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "description": "How the user decided at a checkpoint (CP0\u2013CP4, or the start of a scene when they asked to confirm each).",
+  "properties": {
+    "checkpoint": {
+      "pattern": "^(requirements|template|outline|script|plan|final|s\\d{2}|start:s\\d{2})$",
+      "title": "Checkpoint",
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "approved",
+        "approved_with_notes",
+        "changes_requested"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "requests": {
+      "description": "change request ids raised with this decision",
+      "items": {
+        "type": "string"
+      },
+      "title": "Requests",
+      "type": "array"
+    },
+    "forced": {
+      "default": false,
+      "title": "Forced",
+      "type": "boolean"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fingerprint"
+    },
+    "decided_at": {
+      "title": "Decided At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "checkpoint",
+    "decision",
+    "decided_at"
+  ],
+  "title": "CheckpointDecision",
+  "type": "object"
+}

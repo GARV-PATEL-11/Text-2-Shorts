@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "description": "TASK.json in a clip-builder folder: what ./check needs to judge the clip.",
+  "properties": {
+    "clip_name": {
+      "pattern": "^clip_\\d{2}$",
+      "title": "Clip Name",
+      "type": "string"
+    },
+    "clip_id": {
+      "examples": [
+        "s03c02"
+      ],
+      "pattern": "^s\\d{2}c\\d{2}$",
+      "title": "Clip Id",
+      "type": "string"
+    },
+    "scene_id": {
+      "examples": [
+        "s03"
+      ],
+      "pattern": "^s\\d{2}$",
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "scene_class_name": {
+      "title": "Scene Class Name",
+      "type": "string"
+    },
+    "clip_seconds": {
+      "description": "lead-in + narration + end hold",
+      "exclusiveMinimum": 0,
+      "title": "Clip Seconds",
+      "type": "number"
+    },
+    "entry": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Entry",
+      "type": "array"
+    },
+    "exit": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exit",
+      "type": "array"
+    },
+    "api_index": {
+      "title": "Api Index",
+      "type": "string"
+    },
+    "beats": {
+      "minimum": 0,
+      "title": "Beats",
+      "type": "integer"
+    },
+    "background": {
+      "default": "",
+      "title": "Background",
+      "type": "string"
+    }
+  },
+  "required": [
+    "clip_name",
+    "clip_id",
+    "scene_id",
+    "scene_class_name",
+    "clip_seconds",
+    "api_index",
+    "beats"
+  ],
+  "title": "ClipTask",
+  "type": "object"
+}
