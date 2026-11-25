@@ -76,7 +76,7 @@ export function Lightbox({ isOpen, onOpenChange, src, fullSrc, alt, caption }: {
                   {fullSrc && sharp === "loading" ? (
                     <div className="lightbox__wait" role="status">
                       <span className="spinner" aria-hidden="true" />
-                      <span><strong>Rendering at 2560 × 1440</strong><br /><Said moment="rendering" /></span>
+                      <span><Said moment="rendering" /></span>
                     </div>
                   ) : null}
                   {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>Full Size Did Not Render: Showing the Preview <Said moment="renderFailed" /></span></div> : null}

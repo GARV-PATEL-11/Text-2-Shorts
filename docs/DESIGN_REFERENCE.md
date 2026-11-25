@@ -137,7 +137,7 @@ to the bottom.
 | Welcome | invitational, brief | "Faraday uses the Claude account already on this computer." |
 | Loading | calm noun | "Loading Your Runs" |
 | Processing | present tense, the mechanism | "Claude Is Working: Renders and Voice Can Take Minutes" |
-| Rendering | honest about time | "Rendering at 2560 × 1440", then a quoted line |
+| Rendering | honest about time | a quoted line beside the spinner |
 | Done | plain fact | "Script Approved: Next, Scene Plans" |
 | Failure | what failed, what to do | "Full Size Did Not Render: Showing the Preview"; load errors are "Could Not Load X" |
 | Critical | sober, cause first | "Claude Code Is Not Signed In" |
