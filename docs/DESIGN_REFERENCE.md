@@ -137,7 +137,7 @@ to the bottom.
 | Welcome | invitational, brief | "Faraday uses the Claude account already on this computer." |
 | Loading | calm noun | "Loading Your Runs" |
 | Processing | present tense, the mechanism | "Claude Is Working: Renders and Voice Can Take Minutes" |
-| Rendering | honest about time | "Rendering at 2560 × 1440" |
+| Rendering | honest about time | "Rendering at 2560 × 1440", then a quoted line |
 | Done | plain fact | "Script Approved: Next, Scene Plans" |
 | Failure | what failed, what to do | "Full Size Did Not Render: Showing the Preview"; load errors are "Could Not Load X" |
 | Critical | sober, cause first | "Claude Code Is Not Signed In" |
@@ -161,15 +161,28 @@ to the bottom.
 
 ## Quotations: Faraday's voice
 
-Quotations are kept to two places (the owner asked to remove them elsewhere, 2026-11-25): Sign In and the homepage's
-closing line. Everything else stays plain. "Curiosity, Illustrated." is never replaced.
+The owner asked for as much of the interface's prose as possible to come from real references: Faraday, films, books
+and games. "Curiosity, Illustrated." is never replaced.
 
 The catalogue lives in `frontend/src/config/voice.ts`. Each line keeps its words, its source and the page it was
 checked against, and each moment lists the lines it may show. `components/ui/Said.tsx` shows one line per visit, like a
 game's splash text, followed by a quiet credit.
 
-**Where lines go:** Sign In (welcome) and the homepage's closing line. Buttons, labels, stage names and every
-system message stay plain.
+**Where lines go:**
+- every non-compact system message, through its kind;
+- the Home lead;
+- the empty Home and empty run list;
+- the Start a Run steps;
+- Claude's Ready to Begin and Asks states;
+- the full-screen render note;
+- the finished final video;
+- an empty checkpoint;
+- empty change requests.
+
+Buttons, labels and stage names stay plain.
+
+**Splash lines** (`splash()` in `voice.ts`): Faraday's own words in the manner of Minecraft's title-screen splash text,
+mixed now and then into loading, pending and rendering.
 
 **Checking:** every line was checked word for word (2026-11-24).
 - **Faraday:** *The Chemical History of a Candle* via the Wikisource API (the lecture numbers in `voice.ts`), and his 1849 journal via *Life and Letters*.
@@ -195,7 +208,6 @@ system message stay plain.
 - **The journey strip showing every stage on Start a Run.** The council suggested removing it; it is kept.
 - **The clips-per-scene chart.** It is kept, fixed rather than removed: bar length follows each scene's clip count, the legend shows only states present, and Failed has its own fill.
 - **A rendered preview for every option, even near-identical ones.** These keep colours exact.
-- **"Thank you for your patience"** in the full-screen waiting note.
 - **Home's sections** (second council kept them): hero with quick actions, Live Run, Usage Limits, closing line.
 
 ## Deferred by the second council

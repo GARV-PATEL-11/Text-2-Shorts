@@ -8,6 +8,7 @@ import { Button } from "../../components/ui/Button";
 import { MarkdownField } from "../../components/ui/fields";
 import { ArrowRight, Claude } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
+import { Said } from "../../components/ui/Said";
 import { useAction } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
 import { streamTurn } from "../../services/http";
@@ -57,6 +58,7 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
         <span className="icon-box icon-box--md" aria-hidden="true"><Claude /></span>
         <div className="claude__titles">
           <h2 className="claude__title">Ready to Begin</h2>
+          <Said moment="readyToBegin" />
         </div>
         <Button icon={<ArrowRight />} onPress={() => send(view.data!.kickoff)} isDisabled={turn.busy}>Start Production</Button>
       </section>
@@ -68,6 +70,7 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
         <span className="icon-box icon-box--md" aria-hidden="true"><Claude /></span>
         <div className="claude__titles">
           <h2 className="claude__title">{turn.busy ? "Claude Is Working" : asks ? "Claude Asks" : "Claude Says"}</h2>
+          {asks ? <p className="note"><Said moment="asks" /></p> : null}
         </div>
       </div>
       <div className="claude__body">

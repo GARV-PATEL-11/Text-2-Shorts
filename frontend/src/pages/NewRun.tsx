@@ -12,6 +12,7 @@ import { Field, FormRow, MarkdownField, RadioCards } from "../components/ui/fiel
 import { ArrowLeft, ArrowRight } from "../components/ui/icons";
 import { Markdown } from "../components/ui/Markdown";
 import { titleCase } from "../components/ui/text";
+import { Said } from "../components/ui/Said";
 import { useAction } from "../hooks/useAction";
 import { STAGE_STEPS } from "../config/stages";
 import { useApi } from "../hooks/useApi";
@@ -122,6 +123,7 @@ export function NewRunPage() {
         <div className="card stack">
           {at.id === "question" ? (
             <>
+              <p className="note"><Said moment="question" /></p>
               <MarkdownField label="What Should the Video Explain?" value={topic} onChange={setTopic} rows={5} isRequired maxLength={2000}
                 placeholder="Why is the sky blue, and why are sunsets red?" hint="A Question Works Best" />
               <Field label="Objectives" value={objectives} onChange={setObjectives} multiline rows={4}
@@ -130,6 +132,7 @@ export function NewRunPage() {
           ) : null}
           {at.id === "audience" ? (
             <>
+              <p className="note"><Said moment="audience" /></p>
               <div className="field">
                 <span className="field__label">How Should It Be Told?</span>
                 <RadioCards label="Approach" value={approach} onChange={setApproach} options={APPROACHES} />
@@ -144,7 +147,7 @@ export function NewRunPage() {
               </div>
             </>
           ) : null}
-          {at.id === "review" ? <p className="note">Starting Checks This Computer, Saves Your Template and Opens the Run</p> : null}
+          {at.id === "review" ? <><p className="note"><Said moment="review" /></p><p className="note">Starting Checks This Computer, Saves Your Template and Opens the Run</p></> : null}
           {foot}
           <Notice note={note} />
         </div>

@@ -13,6 +13,7 @@ import { Check, Moon, Palette, Picture, Sun } from "../../../../components/ui/ic
 import type { TabSpec } from "../../../../components/ui/Tabs";
 import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { titleCase } from "../../../../components/ui/text";
+import { Said } from "../../../../components/ui/Said";
 import { useAction } from "../../../../hooks/useAction";
 import { send } from "../../../../services/http";
 import { starterPreview } from "../../../../services/runs";
@@ -86,7 +87,7 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
     { id: "starters", label: "Starter Templates", content: (
       <div className="stack">
         {/* the switch shows the dark or the light six; a card picks that starter as it is */}
-        <Section title="Starter Templates" actions={
+        <Section title="Starter Templates" description={<Said moment="chooseLook" />} actions={
           <ToggleButtonGroup className="segmented" aria-label="Dark or Light Templates" selectionMode="single" disallowEmptySelection
             selectedKeys={[view]} onSelectionChange={(keys) => {
               const next = [...keys][0];

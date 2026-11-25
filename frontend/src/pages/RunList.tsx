@@ -8,6 +8,7 @@ import { Breadcrumbs } from "../components/navigation/Breadcrumbs";
 import { Button, LinkButton } from "../components/ui/Button";
 import { Plus, Search } from "../components/ui/icons";
 import { runTitle } from "../components/ui/Markdown";
+import { Said } from "../components/ui/Said";
 import { REQUIRED_STEPS, stageName } from "../config/stages";
 import { useRuns } from "../hooks/useRuns";
 import { runHash } from "../services/runs";
@@ -30,7 +31,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
     ) : (
       <SystemMessage kind="empty" title={which === "ongoing" ? "Nothing in Progress" : "No Finished Run Yet"}
         action={<LinkButton href="#/new" size="sm" icon={<Plus />}>Start a Run</LinkButton>}>
-        {which === "ongoing" ? "Start a Run to See It Here" : "A Run Lands Here Once Its Final Video Is Approved"}
+        {which === "ongoing" ? <Said moment="noRuns" /> : "A Run Lands Here Once Its Final Video Is Approved"}
       </SystemMessage>
     );
   } else {

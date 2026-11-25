@@ -485,6 +485,9 @@
 .said q { font-style: italic; quotes: "“" "”"; color: var(--fg-2); }
 .said__source { font-style: normal; font-size: var(--fs-note); color: var(--mute); }
 .said__source::before { content: "— "; }
+.sysmsg__said { margin-top: var(--s-1); font-size: var(--fs-note); }
+.said--lead { display: grid; gap: var(--s-2); }
+.said--lead q { font: italic var(--fw-regular) var(--fs-h2) / var(--lh-h2) var(--serif); color: var(--fg); }
 .epigraph figcaption .said__source::before { content: ""; }
 
 /* ── Home ─────────────────────────────────────────────────────────────────────────────────────────────── */
