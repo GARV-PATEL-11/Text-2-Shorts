@@ -49,7 +49,7 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 | 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by `VideoOutline` and the approach's stages (`backend/schemas/outline_models/approaches.py`) | every stage in order, segment count, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-<approach>.md`, one per approach (generated from the approach table by `runtime-environment/prompts/export_references.py`) |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
 | 4 Visual + audio plans | per scene the Visual Director's `plan.json`: its `execution_plan` (atomic, time-ordered events: what, how, where, look, speech, why) and the fields derived from it: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
-| 5 Clips + video | scene by scene: audio from SSML → the scene's clips one at a time (720p30, beat marks, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** per scene | `scene-production.md` |
+| 5 Scene code + video | scene by scene: audio from SSML → the **scene-builder** writes the scene's one `scene_code.py` (a `_clip_N` method per clip, 720p30 drafts, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** per scene | `scene-production.md` |
 | Final | `final.mp4`, 2560×1440 at 120 fps: stream parameters checked, scenes joined with the template's transition, music and sound effects mixed | media and delivery checks (resolution, 16:9, frame rate, audio, loudness, true peak, silence, black frames, decoding, duration, completeness) → **CP4** | — |
 
 Transitions have two levels: between clips of a scene, continuity with simple moves (the entry state is the
@@ -58,45 +58,89 @@ recap of the previous scene's final image.
 
 ```mermaid
 flowchart TD
-    U(["User request"]) -->|"template.json (template checkpoint, first)"| R
-    subgraph R["1 · Requirements"]
-        B["brief.json — topic · objectives · audience · style<br/>approach: 7 presets · custom"]
-        T["topics.md (request modifier) → content.md"]
-        B --> T
+    %% Faraday's generation flow (0.35): who does each stage, what it reads, what it writes, which gate checks it.
+    %% Legend: ([agent]) subagent · [/prompt or reference/] read · [file] written · {{gate}} text-2-shorts check · ((CP)) the user decides
+
+    subgraph CTRL["Every stage: control"]
+        direction LR
+        WEB["Faraday website<br/>(text-2-shorts serve)"] --> SES(["run session · Haiku<br/>talks with the user, routes, builds nothing"])
+        SES --> NXT{{"text-2-shorts next .<br/>driver.py: the exact next batch"}}
+        CMD[/"workspace/CLAUDE.md<br/>skills/text-2-shorts-produce/SKILL.md"/] -.-> SES
+        HOOK["hooks.json → text-2-shorts hook<br/>session start: state · each tool: log.jsonl, changes.txt"] -.-> SES
     end
-    R -->|"requirements checkpoint · preferences.json"| O
+
+    subgraph T["1 · Template"]
+        TK[/"backend/templates/template_kit/<br/>elements.json · templates/*.json (12 starters)"/] --> TJ["template.json"]
+        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.webp"]
+        VS[/"video_settings.py · audio_settings.py<br/>look_brief(): the TEMPLATE block"/]
+    end
+    T --> CPT(("template<br/>checkpoint"))
+
+    subgraph R["1 · Requirements (session)"]
+        RQ[/"references/requirements.md<br/>references/topic-list.md<br/>(prompts/script_prompts/req_modifier.py)"/] --> RB["brief.json · topics.md · content.md"]
+    end
+    CPT --> R --> CPR(("requirements<br/>checkpoint"))
+
     subgraph O["2 · Outline"]
-        OL["outline.json — the approach's prompt and model<br/>segments: type · timing · talking points · visual plan"]
+        SW1(["script-writer · Opus<br/>agents/script-writer.md"])
+        OR[/"references/outline-<approach>.md, one per approach<br/>eli5 · visual_intuition · story_driven · step_by_step<br/>feynman · technical · case_study · custom<br/>(from outline_models/approaches.py by export_references.py)"/] -.-> SW1
+        SW1 --> OJ["outline.json"] --> OG{{"validate outline"}}
     end
-    O -->|"order · timing · visual-plan rules<br/>CP0 human: approve outline"| S
-    subgraph S["3 · Complete script"]
-        SC["script.json — s01 index scene (what we cover)<br/>then one scene per outline segment: objective · duration<br/>bridge_in (inter-scene transition) · complete narration"]
-        SK{{"script-critic: one round per change asked at CP1<br/>outline-fit · clarity · flow · pacing"}}
-        SR["script_review.json — accuracy-reviewer"]
-        SC --> SR
-        SR -.->|"user asks for changes at CP1"| SK
-        SK -->|"refactor once, back to the user"| SC
+    CPR --> O --> CP0(("CP0"))
+
+    subgraph S["3 · Script"]
+        SW2(["script-writer · Opus"])
+        SRF[/"standards.md · script-writing.md · transitions.md"/] -.-> SW2
+        SW2 --> SJ["script.json"]
+        SJ --> AR1(["accuracy-reviewer · Sonnet<br/>script-review.md"]) --> SRJ["script_review.json"]
+        SJ -.->|"changes asked at CP1"| SCR(["script-critic · Sonnet<br/>critique-protocol.md"]) --> SCJ["script_critique.json"] -.->|refactor| SW2
+        SJ --> SG{{"validate script"}}
     end
-    S -->|"objectives · index · bridges · word budget · length<br/>CP1 human: approve script"| P
-    subgraph P["4 · Scene-wise visual + audio plans"]
-        PL["scenes/sNN/plan.json — composition · transition_in<br/>clips: narration slice · beats · positions · entry/exit<br/>+ SSML: waits · pauses · pace · emphasis"]
-        PC{{"plan-critic: clarity · sync · constructable · design<br/>score ≥ 85 · ≤ 3 rounds per scene"}}
-        PL --> PC -->|revise| PL
-        PR["plan_review.json — accuracy-reviewer"]
-        PC -->|"pass, or round 3: requires attention"| PR
+    CP0 --> S --> CP1(("CP1"))
+
+    subgraph P["4 · Scene plans (per scene)"]
+        PT{{"text-2-shorts plan-task . --scene sNN<br/>visual_director.py fills the task"}}
+        VD[/"visual-director-system.md (D0-D19)<br/>visual-director-output-spec.md (K1-K13)"/] --> PT
+        PTN[/"TEMPLATE block · script scene · outline segment<br/>earlier scenes' object registries"/] --> PT
+        PT --> SP(["scene-planner · Opus<br/>agents/scene-planner.md"])
+        PR2[/"scene-visual-planning.md · audio-ssml.md<br/>transitions.md · standards.md"/] -.-> SP
+        SP --> PJ["scenes/sNN/plan.json<br/>execution_plan (12 sections) + clips, SSML"]
+        PJ --> PG{{"validate plan"}}
+        PJ --> PCR(["plan-critic · Sonnet<br/>critique-protocol.md · K1-K13"]) --> PCJ["plan_critique.json<br/>score ≥ 85 · ≤ 3 rounds"] -.->|revise| SP
+        PJ --> AR2(["accuracy-reviewer · Sonnet"]) --> PRJ["plan_review.json"]
     end
-    P -->|"narration = script · valid SSML · critique done<br/>CP2 human: approve plans"| C
-    subgraph C["5 · Scene by scene (in series): scene code, preview, sync, video critique"]
-        V["voice: audio per clip from its SSML"] --> K["scene-builder: scene_code.py, one _clip_N per clip<br/>./check + accept · 720p30<br/>CHANGES.md"]
-        K --> PV["preview: whole scene incl. transition, 720p30<br/>sync.json = changes-made document"]
-        PV -->|out of sync| AR["audio-refactorer: re-time SSML<br/>→ voice → preview"]
-        AR --> PV
-        PV --> VC{{"video-critic: plan-match · sync · render · design<br/>score ≥ 85 · ≤ 3 rounds · changes.json → changes.txt"}}
-        VC -->|"sync issue"| AR
-        VC -->|"clip issue: feedback → rebuild"| K
+    CP1 --> P --> CP2(("CP2"))
+
+    MR[/"skills/manim-ce-0-20-1-reference/topics/<br/>manim-vocabulary · construction-patterns (PART 9) · common-mistakes<br/>+ text-2-shorts doc Names (API index)"/]
+    MR -.-> SP
+
+    subgraph C["5 · Production (scene by scene, in series)"]
+        VO{{"text-2-shorts voice .<br/>narration.py → Polly or Google TTS"}} --> AU["scenes/sNN/audio/*.mp3 · index.json<br/>word timings"]
+        AU --> TK2{{"text-2-shorts task . sNN<br/>scene_code.py fills codegen-task.md"}}
+        CG[/"codegen-system.md (CG1-CG13, X1-X12)<br/>codegen-task.md"/] --> TK2
+        TK2 --> SB(["scene-builder · Opus<br/>agents/scene-builder.md"])
+        SB --> WC["scenes/sNN/work/scene_code.py · CHANGES.md<br/>TASK.json (SceneTask)"]
+        WC --> CK{{"./check → scene_gates.py<br/>static: validate_manim_code · probe: layout_probe<br/>render: scene_harness (720p30) · frames"}}
+        CK --> AC{{"text-2-shorts accept . sNN<br/>same gates, in the bubblewrap jail"}}
+        AC --> SCD["scenes/sNN/scene_code.py"]
+        SCD --> PV{{"text-2-shorts preview . sNN<br/>scene_harness + assemble_clips"}}
+        PV --> PVF["preview.mp4 · sync.json · preview_sheet_*.png"]
+        PVF -->|"out of sync"| AR(["audio-refactorer · Sonnet<br/>re-times SSML"]) -.-> VO
+        PVF --> VC(["video-critic · Sonnet<br/>critique-protocol.md"]) --> VCJ["video_critique.json · changes.json"]
+        VCJ -.->|"visual issue → feedback, rebuild"| SB
     end
-    C -->|"in sync · critique done · CP3 human: this scene's preview<br/>then the next scene"| F["final: 2560×1440 at 120 fps · stream checks · template transitions<br/>music + sound effects · A/V sync · media and delivery checks"]
-    F -->|"CP4 human: final video"| D(["final.mp4"])
+    CP2 --> C --> CP3(("CP3 per scene"))
+    MR -.-> SB
+    TC -.->|"backdrop, border, fonts"| CK
+
+    subgraph F["Final"]
+        FN{{"text-2-shorts final .<br/>2560×1440 · 120 fps · transitions · music · loudness"}} --> FV["final.mp4 · final_report.json · assembly.json"]
+    end
+    CP3 --> F --> CP4(("CP4"))
+    CP4 -.->|"optional: reshuffle the look on the website<br/>(no Claude) → previews and final again"| F
+
+    NXT -.-> T
+    NXT -.-> C
 ```
 
 ## Architecture

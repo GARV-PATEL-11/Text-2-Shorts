@@ -1,5 +1,5 @@
 flowchart TD
-    %% Faraday's generation flow (0.33): who does each stage, what it reads, what it writes, which gate checks it.
+    %% Faraday's generation flow (0.35): who does each stage, what it reads, what it writes, which gate checks it.
     %% Legend: ([agent]) subagent · [/prompt or reference/] read · [file] written · {{gate}} text-2-shorts check · ((CP)) the user decides
 
     subgraph CTRL["Every stage: control"]
@@ -12,7 +12,7 @@ flowchart TD
 
     subgraph T["1 · Template"]
         TK[/"backend/templates/template_kit/<br/>elements.json · templates/*.json (12 starters)"/] --> TJ["template.json"]
-        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py"]
+        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.webp"]
         VS[/"video_settings.py · audio_settings.py<br/>look_brief(): the TEMPLATE block"/]
     end
     T --> CPT(("template<br/>checkpoint"))
