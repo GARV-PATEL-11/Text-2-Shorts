@@ -17,16 +17,11 @@ import { useAction } from "../hooks/useAction";
 import { STAGE_STEPS } from "../config/stages";
 import { useApi } from "../hooks/useApi";
 import { send } from "../services/http";
+import { APPROACHES } from "../config/approaches";
 import { runHash } from "../services/runs";
 import type { LookCatalogue, LookChoice, RunSummary } from "../types/api";
 import { starterChoice, useTemplateEditor } from "./run/stages/look/useTemplateEditor";
 
-const APPROACHES = [
-  { id: "zoom", label: "Conceptual Zoom", hint: "Big Picture First, Then Closer to the Detail" },
-  { id: "arc", label: "Problem → Solution", hint: "A Puzzle, Then the Idea That Resolves It" },
-  { id: "linear", label: "Classic Lesson", hint: "Step by Step, Each Idea Building on the Last" },
-  { id: "creative", label: "Designed for the Topic", hint: "Claude Designs a Structure for This Subject (or Follows Yours)" },
-];
 const PROVIDERS = [
   { id: "polly", label: "AWS Polly", hint: "Uses Your ~/.aws Credentials" },
   { id: "google", label: "Google Cloud", hint: "Uses Your gcloud Application-Default Login" },
@@ -61,8 +56,9 @@ export function NewRunPage() {
   const [step, setStep] = useState(0);  // index into STEPS
   const [topic, setTopic] = useState("");
   const [objectives, setObjectives] = useState("");
-  const [approach, setApproach] = useState("zoom");
-  const [minutes, setMinutes] = useState("2");
+  const [approach, setApproach] = useState("visual_intuition");
+  const [notes, setNotes] = useState("");
+  const [minutes, setMinutes] = useState("4");
   const [audience, setAudience] = useState("curious beginners");
   const [tts, setTts] = useState("polly");
   const { run, busy, note } = useAction();
@@ -73,7 +69,7 @@ export function NewRunPage() {
   const goals = objectives.split("\n").map((line) => line.trim()).filter(Boolean);
   const ready: Record<string, boolean> = {
     starters: choice !== null, sound: true, whole: true, question: topic.trim().length >= 3,
-    audience: Number(minutes) >= 0.5 && Number(minutes) <= 12 && audience.trim().length > 0, review: true,
+    audience: Number(minutes) >= 3 && Number(minutes) <= 20 && audience.trim().length > 0, review: true,
   };
   const at = STEPS[step];
   const canReach = (index: number) => index <= step || STEPS.slice(0, index).every((candidate) => ready[candidate.id]);
@@ -83,7 +79,7 @@ export function NewRunPage() {
   const start = () =>
     run("Checking Manim, LaTeX, ffmpeg and Voice Credentials, Then Creating the Run…", async () => {
       const created = await send<RunSummary>("/api/runs", {
-        requirement: topic.trim(), objectives: goals, approach, minutes: Number(minutes), audience: audience.trim(), tts, look: choice,
+        requirement: topic.trim(), objectives: goals, approach, minutes: Number(minutes), audience: audience.trim(), tts, look: choice, notes: notes.trim(),
       });
       navigate(runHash(created.id));  // the template is approved: the run opens at its next stage
     });
@@ -135,10 +131,18 @@ export function NewRunPage() {
               <p className="note"><Said moment="audience" /></p>
               <div className="field">
                 <span className="field__label">How Should It Be Told?</span>
-                <RadioCards label="Approach" value={approach} onChange={setApproach} options={APPROACHES} />
+                <RadioCards label="Approach" value={approach} options={APPROACHES} onChange={(id) => {
+                  setApproach(id);
+                  setMinutes(String(APPROACHES.find((candidate) => candidate.id === id)?.minutes ?? 4));
+                }} />
               </div>
+              {approach === "custom" ? (
+                <Field label="How Should It Be Taught?" value={notes} onChange={setNotes} multiline rows={4} maxLength={2000}
+                  placeholder={"conversational, with everyday examples\nstart from a question, end with a challenge"}
+                  hint="Teaching Style, Depth, Examples, Pacing, Visuals or Your Own Scene Order" />
+              ) : null}
               <FormRow>
-                <Field label="Length (Minutes)" type="number" value={minutes} onChange={setMinutes} min={0.5} max={12} step={0.5} isRequired />
+                <Field label="Length (Minutes)" type="number" value={minutes} onChange={setMinutes} min={3} max={20} step={0.5} isRequired hint="3–20 of Teaching; Intro and Closing Are Extra" />
                 <Field label="Audience" value={audience} onChange={setAudience} maxLength={300} isRequired hint="For Example: Curious Beginners, Students" />
               </FormRow>
               <div className="field">

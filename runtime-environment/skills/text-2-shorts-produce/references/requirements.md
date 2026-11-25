@@ -9,8 +9,8 @@ make it complete and confirm it with the user. Schema: `Brief` (repo `backend/sc
 | objectives | 1–5 statements of what the viewer can explain or do afterwards ("explain why…", "compute…") |
 | audience | who watches and what they already know |
 | style | explanation style and tone (default ELI5 / Feynman, see standards.md) |
-| approach | narrative structure: zoom · arc · linear (fixed) · creative (designed for the topic, or the user's own) |
-| minutes, pace | length (any value > 0) and speaking pace (slow 130 · medium 150 · fast 170 words/min) |
+| approach | how it is taught: eli5 · visual_intuition (short, 3–5 min) · story_driven · step_by_step (medium, 4–6) · feynman · technical · case_study (long, 8–10) · custom (the user's own: style, complexity, depth, pace, visual_expectations and notes describe it; ask for what is missing) |
+| minutes, pace | length: 3–20 minutes of teaching narration (the index scene, bridges and closing are extra), and speaking pace (slow 130 · medium 150 · fast 170 words/min) |
 | notes | constraints: must include / must avoid, notation, examples, terms, language level |
 | detail_level | overview · standard · detailed |
 | explanation_depth | intuitive · conceptual · rigorous |

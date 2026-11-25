@@ -1,5 +1,5 @@
 """Draws a template's look in Manim from `video_settings.drawing()`: the backdrop (fill, texture, grid), the border,
-text and maths in the template's font and sizes, and a still subtitle line. One drawing for both uses, so a preview
+text and maths in the template's font and sizes, the Faraday mark (top right) and a still subtitle line. One drawing for both uses, so a preview
 never shows something a video does not get:
   - the scene harness puts the backdrop and border behind every clip of a video (z-index -100 / 400);
   - generate_preview.py renders previews of every option, and of the user's own values.
@@ -16,6 +16,7 @@ import manim as M
 import numpy as np
 
 FONT_DIRECTORY = Path.home() / ".cache" / "text-2-shorts" / "fonts"  # fetched by `generate_preview.py fonts`
+LOGO = Path(__file__).with_name("faraday-logo.webp")  # mark + wordmark, white on transparent (copied with this file)
 BACKDROP_Z, BORDER_Z, SUBTITLE_Z = -100, 400, 500
 
 
@@ -54,9 +55,31 @@ def backdrop(look: dict) -> list[M.Mobject]:
         parts.append(texture(look, width, height))
     if background["grid"]:
         parts.append(grid(look, width, height))
+    if (mark := brand(look)) is not None:
+        parts.append(mark)
     for index, part in enumerate(parts):
         part.set_z_index(BACKDROP_Z + index)
     return parts
+
+
+def brand(look: dict) -> M.ImageMobject | None:
+    """The Faraday mark and wordmark in the top-right corner, tinted with the template's text colour."""
+    spec = look.get("brand")
+    if not spec or not LOGO.exists():
+        return None
+    from PIL import Image
+
+    alpha = np.asarray(Image.open(LOGO).convert("RGBA"))[:, :, 3]
+    red, green, blue = (int(spec["color"].lstrip("#")[i : i + 2], 16) for i in (0, 2, 4))
+    pixels = np.zeros((*alpha.shape, 4), dtype=np.uint8)
+    pixels[:, :, :3] = (red, green, blue)
+    pixels[:, :, 3] = (alpha * spec["opacity"]).astype(np.uint8)
+    mark = M.ImageMobject(pixels).set_resampling_algorithm(M.RESAMPLING_ALGORITHMS["bicubic"])
+    mark.height = spec["height"]
+    inset = look["inset"]
+    return mark.move_to(
+        [M.config.frame_width / 2 - inset - mark.width / 2, M.config.frame_height / 2 - inset - mark.height / 2, 0]
+    )
 
 
 def background_colour(look: dict) -> str:
@@ -243,6 +266,8 @@ def safe_area(look: dict) -> tuple[float, float, float, float]:
     if subtitles["on"] and subtitles["position"]["anchor"] == "bottom":
         bottom = max(bottom, -half_height + subtitles["position"]["reserve"] * 2 * half_height)
     top = half_height - inset
+    if "brand" in look:  # below the Faraday mark's band
+        top -= look["brand"]["height"] + look["brand"]["gap"]
     if subtitles["on"] and subtitles["position"]["anchor"] == "top":
         top = min(top, half_height - subtitles["position"]["reserve"] * 2 * half_height)
     return -half_width + inset, half_width - inset, bottom, top

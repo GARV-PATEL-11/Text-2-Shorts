@@ -1,5 +1,5 @@
 // Requirements: the brief, the topic list and the content the outline is built from.
-import { titleCase } from "../../../components/ui/text";
+import { approachName } from "../../../config/approaches";
 import { Markdown } from "../../../components/ui/Markdown";
 import { useRunFile } from "../../../hooks/useRunFile";
 import { CheckpointPanel } from "../CheckpointPanel";
@@ -17,7 +17,7 @@ export function Requirements(props: StageProps) {
         <dl className="facts facts--wide">
           <div><dt>Explain</dt><dd><Markdown text={run.summary.topic} compact /></dd></div>
           <div><dt>Objectives</dt><dd>{run.objectives.length ? <ul>{run.objectives.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Not Set Yet: Claude Proposes Them With You"}</dd></div>
-          <div><dt>Approach</dt><dd>{titleCase(run.approach ?? "")}</dd></div>
+          <div><dt>Approach</dt><dd>{approachName(run.approach)}</dd></div>
           <div><dt>Length</dt><dd>{run.minutes} min</dd></div>
         </dl>
       ) },

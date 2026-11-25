@@ -1,23 +1,22 @@
-<!-- GENERATED from runtime-environment/prompts/script_prompts/conceptual_zoom.py by runtime-environment/prompts/export_references.py: edit the package, then re-run the export. -->
-# Outline — Conceptual Zoom
+<!-- GENERATED from runtime-environment/prompts/script_prompts/approach_outline.py by runtime-environment/prompts/export_references.py: edit the package (or the approach table), then re-run the export. -->
+# Outline — ELI5: Explain Like I'm Five
 
-**Stage 2 — outline.json (zoom approach).** Apply the prompt below yourself and write only the JSON object to `outline.json` (the hook validates it against the approach's model in `backend/schemas/outline_models/`). Inputs: `raw_content` = `content.md`; `topic`, `duration_minutes` and `pace` from `brief.json`. The prompt contains literal JSON braces: never treat it as a format string. The scene_id values become the `outline_segment` numbers the script narrates in order.
+**Stage 2 — outline.json (eli5 approach).** Apply the prompt below yourself and write only the JSON object to `outline.json` (the hook validates it against `VideoOutline` and the approach's stages in `backend/schemas/outline_models/`). Inputs: `raw_content` = `content.md`; `topic`, `duration_minutes` and `pace` from `brief.json`. The prompt contains literal JSON braces: never treat it as a format string. The scene_id values become the `outline_segment` numbers the script narrates in order.
 
 ---
 
 ============================================================
 ROLE
 ============================================================
-You are an educational video outline architect using the CONCEPTUAL ZOOM
-approach (Approach C). You output one JSON video outline. You do not
-write scripts, voice-overs, or production notes.
+You are an educational video outline architect using the ELI5 approach
+(Explain Like I'm Five). You output one JSON video outline. You do not write
+scripts, voice-overs, or production notes.
 
-Approach C explains a topic the way a map is read: start with the whole
-system, drill down one layer at a time into the internals, then step back
-out to the whole system again.
-    bird's eye view -> zoom in (several layers) -> zoom out
-"Zoom" describes depth of explanation. It does not require camera moves.
-Audience: engineers, researchers, and technical learners.
+Purpose: Simplify. Best for: beginners, introductory concepts, quick understanding.
+Usual length: 3-5 minutes (short form); the input
+duration_minutes decides.
+This approach teaches differently, not just for longer or shorter: keep its
+stages, its pacing and its visual language throughout.
 
 ============================================================
 INPUTS
@@ -25,7 +24,8 @@ INPUTS
   raw_content       required  educational text to outline
   topic             optional  topic name for meta.title; default: inferred
                               from raw_content
-  duration_minutes  optional  target video length; default: 5
+  duration_minutes  optional  teaching length, 3-20 (the intro, bridges
+                              and closing are extra); default: 5
   pace              optional  "slow" | "medium" | "fast"; default: "medium"
 If an optional input is missing, use its default and continue.
 
@@ -60,61 +60,31 @@ G7. These rules apply to any subject. The machine-learning examples
     below show the standard; replace their content with the topic's own.
 
 ============================================================
-APPROACH RULES (C-rules)
+APPROACH RULES (A-rules)
 ============================================================
-Layer map (build internally first)
-  Layer 0  system boundary - where the topic sits in its wider field
-  Layer 1  concept         - the task or goal the topic serves
-  Layer 2  formalism       - its math or formal representation
-  Layer 3  mechanism       - how it works inside
-  Layer N  evaluation      - its properties, strengths, limits
-  Zoom-out synthesis       - all layers joined into one picture
+A1. Segment count: 5-6, and round(total_seconds / 40) when it fits.
+A2. Stages, in this order (hook -> analogy -> explanation -> demonstration -> takeaway):
+    1. hook            a familiar everyday situation and the question it raises
+    2. analogy         one everyday analogy that carries the idea
+    3. explanation     the core idea in plain words, one concept at a time
+    4. demonstration   the idea shown working, with simple shapes
+    5. takeaway        one memorable sentence the viewer keeps
+    Every stage appears at least once; a stage may span several consecutive segments. segment_type is the stage name.
+A3. The first segment is a hook and the last a takeaway.
+A4. Everyday words only; a technical term appears only after the analogy has explained it.
+A5. At most one formula in the whole video, never before the analogy.
+A6. One new idea per segment.
+A7. The takeaway segment is the shortest and ends on one sentence the viewer could repeat.
 
-C1. Segment count: number of layers + 1 (for the zoom-out), clamped to
-    5-8. If duration_minutes < 3, use 3 layers + zoom-out (4 segments).
-    If there are more than 8 layers, merge adjacent layers at the same
-    depth; never merge Layer 3. If there are fewer than 3 layers, split
-    the mechanism into two sub-layers.
-C2. Segment order and types:
-        Layer 0: intro | concept -> Layer 1: concept | intro
-        -> Layer 2: math -> Layer 3: mechanism
-        -> Layer N: tradeoffs | application -> Zoom-out: recap
-C3. Time shares of total_seconds:
-        Layer 0    8-12%
-        Layer 1   12-16%
-        Layer 2   18-22%
-        Layer 3   25-30%   (always the largest)
-        Layer N   16-20%
-        Zoom-out  10-14%
-C4. The mechanism segment names every sub-component and every step.
-    No summarising ("and so on", "various steps").
-C5. Vocabulary by layer: Layers 0 and 1 use no technical terms; Layer 2
-    names each variable and explains it in plain words; Layer 3 is fully
-    technical with every term defined.
-C6. Visual depth by layer:
-        Layer 0   a taxonomy or system diagram built node by node
-        Layer 1   a goal or flow diagram of what the topic is for
-        Layer 2   an equation built term by term, each term annotated
-        Layer 3   the algorithm running step by step, values updating
-        Layer N   a comparison, or a visible failure followed by a pointer
-                  to a stronger method
-        Zoom-out  the full system rebuilt from scratch, with the topic's
-                  internals placed inside it (VP6 still applies: rebuild
-                  the Layer 0 diagram in this segment, never "bring it
-                  back")
-C7. The zoom-out segment introduces no new content. It restates the
-    Layer 0 system view and connects every layer to it.
-C8. Titles: segment 1 is "Bird's Eye: <system context>"; middle segments
-    are "Zoom <N>: <topic at this depth>"; the last is
-    "Zoom Out: <the full picture>".
-C9. transition_to_next uses zoom language only:
-        in:  "Let's zoom in to X." / "X has more inside it - let's go
-             deeper."
-        out: "Let's step back and see how it all fits."
-    No story or problem/solution language.
-C10. narration_hint pace by depth: Layers 0-1 brisk and broad; Layers 2-3
-     slow and deliberate; Layer N analytical and balanced; zoom-out
-     confident and summarising.
+Visual language (Manim): simple shapes, everyday objects built from shapes, object transformations, minimal formulas. Everything on screen is drawn by
+Manim from shapes, text, equations and graphs (VP13).
+Narration: warm, slow and simple; short sentences.
+
+Per-field guidance
+- segment_type: the stage's name exactly as listed in A2.
+- talking_points: plain declarative statements in this approach's voice.
+- narration_hint: tone and pace for this stage.
+- transition_to_next: one sentence that leads into the next stage.
 
 ============================================================
 VISUAL PLAN STANDARD (VP-rules, all approaches)
@@ -192,11 +162,6 @@ Why it fails: it refers to another segment's graph, is written as
 commands, has 5 sentences instead of the target, never says what the
 viewer sees, and has no final-frame sentence.
 
-------------------------------------------------------------
-APPROACH C EXAMPLE (zoom-out segment, 32 seconds, target 22 sentences)
-------------------------------------------------------------
-The scene opens on an empty canvas, held for a moment before anything appears. A small box draws itself at the far left and fills with the label 'data'. An arrow grows to the right from it, and a second box draws itself at the arrow's tip with the label 'model'. A third box labelled 'loss' appears to the right of the model, joined by another arrow. A fourth box labelled 'gradient descent' appears next, and a curved arrow loops from it back to the model box, showing that it adjusts the model. A fifth box labelled 'trained model' appears at the far right, joined by a final arrow. A thin bracket draws itself under all five boxes, and a label beneath it reads 'linear regression pipeline'. The loop arrow pulses twice so the viewer sees that training repeats. The whole pipeline shrinks and slides into the lower left corner. A faint label appears beside it reading 'how it works'. On the right side, a single label reading 'machine learning' appears near the top. Three branches grow downward from it, ending in labels reading 'supervised', 'unsupervised', and 'reinforcement'. The 'supervised' branch brightens while the other two dim. Two smaller branches grow from 'supervised', ending in labels reading 'classification' and 'regression'. The 'regression' label pulses and gains a highlighted outline. The small pipeline lifts out of its corner and travels across the frame toward the regression label. It shrinks further as it moves and settles inside the highlighted outline around 'regression'. The outline brightens once as the pipeline lands, joining the detailed process to its place in the field. A small panel appears at the bottom showing the five pipeline box labels in a single row, as a reminder of each layer covered. The panel fades away. A brief pause holds the full picture still. The scene ends with the machine learning tree, the highlighted regression branch, and the small pipeline sitting inside it all visible together, showing linear regression as one precise process with a precise place in machine learning.
-
 ============================================================
 HOW TO WORK
 ============================================================
@@ -213,41 +178,28 @@ HOW TO WORK
 BUILD LEVELS
 ============================================================
 LEVEL 0 - Skeleton
-  Set the meta fields. Build the layer map. Create the list of
-  {scene_id, segment_type, layer}. (layer is internal; do not output it.)
-  Check: C1 count, C2 order, mechanism exists and is not segment 1, last
-  segment is recap.
-
+  Set the meta fields. Split raw_content into thematic blocks and map
+  each block to a stage. Create the list of {scene_id, segment_type}.
+  Check: A1, A2, A3.
 LEVEL 1 - Frames
-  Give each segment a C8 title and duration_seconds using C3.
-  Check: G1, G2, C3.
-
+  Give each segment a title and duration_seconds.
+  Check: G1, G2.
 LEVEL 2 - Talking points
-  Write talking_points at the depth of their layer.
-  Check: G4, C4, C5.
-
+  Write talking_points for each segment. Check: G4, the approach rules.
 LEVEL 3 - Visual plans
-  Write each visual_plan per VP1-VP15 and C6.
-  Check: VP1-VP15 for every segment, C6, C7.
-
+  Write each visual_plan per VP1-VP15, in the approach's visual language.
 LEVEL 4 - Connectors
-  Write narration_hint and transition_to_next.
-  Check: C9, C10, S13.
+  Write narration_hint and transition_to_next. Check: S13.
 
 ============================================================
 APPROACH CHECKS (run before the shared checks)
 ============================================================
-| ID  | Check                                          | Fix if it fails                                      |
-|-----|------------------------------------------------|------------------------------------------------------|
-| CC1 | C1 segment count                               | Merge or split layers as C1 describes                |
-| CC2 | C2 segments go from broad to deep, then out    | Reorder layers                                       |
-| CC3 | C3 mechanism has the largest share and >= 25%  | Move seconds into the mechanism                      |
-| CC4 | C4 mechanism names every sub-component         | Expand the mechanism's points and visual_plan        |
-| CC5 | C5 no technical terms in Layers 0-1            | Replace with plain words                             |
-| CC6 | C6 visual depth matches the layer              | Rewrite the visual_plan at the right depth           |
-| CC7 | C7 zoom-out rebuilds Layer 0 and adds nothing  | Rewrite: rebuild the system view, place the topic in |
-|     | new                                            | it, remove new content                               |
-| CC8 | C8 titles and C9 zoom-language transitions     | Rename titles; rewrite transitions                   |
+| ID  | Check                                   | Fix if it fails                              |
+|-----|-----------------------------------------|----------------------------------------------|
+| AC1 | A1 segment count                        | Merge or split segments                      |
+| AC2 | A2 every stage present, in order        | Add the missing stage or reorder             |
+| AC3 | A3 first and last segment               | Rewrite segment 1 or the last segment        |
+| AC4 | A4 and later approach rules             | Rewrite the segment that breaks one          |
 
 ============================================================
 SHARED CHECKS (run after the approach checks)
@@ -277,42 +229,42 @@ Field name for the segment ID is "scene_id" (never "id").
 
 {
   "meta": {
-    "title": "<technically framed video title>",
+    "title": "<descriptive video title>",
     "topic": "<topic name>",
     "total_duration_seconds": <integer>,
     "pace": "slow" | "medium" | "fast",
     "target_wpm": <integer>,
-    "approach_name": "Conceptual Zoom",
+    "approach_name": "ELI5",
     "approach_style": "<one line describing this outline's style>"
   },
   "outline": [
     {
       "scene_id": <integer, starting at 1>,
       "segment_type": "<allowed value>",
-      "title": "<title in the C8 format>",
+      "title": "<segment display title>",
       "duration_seconds": <integer>,
       "talking_points": ["<point>", "<point>"],
       "visual_plan": "<one prose paragraph following VP1-VP15>",
-      "narration_hint": "<pace and depth note per C10>",
-      "transition_to_next": "<zoom-in or zoom-out sentence per C9, or null on the last segment>"
+      "narration_hint": "<tone and pace note>",
+      "transition_to_next": "<sentence leading into the next segment, or null on the last segment>"
     }
   ]
 }
 
-Allowed segment_type values:
-  hook | problem | intro | concept | math | visualization | mechanism |
-  application | tradeoffs | recap | cta
+Allowed segment_type values (the approach's stages, in order):
+  hook | analogy | explanation | demonstration | takeaway
 
 ============================================================
 ERROR HANDLING
 ============================================================
 E1. raw_content is missing or empty -> output exactly:
     {"error": "raw_content is required. Provide the educational text to outline.", "code": "MISSING_INPUT"}
-E2. Total word budget (duration_minutes x target_wpm) is under 200 words,
-    or duration_minutes is under 3 -> use 4 segments; VP2 still applies.
-E3. raw_content cannot fill the duration -> add an "application" segment
-    whose visual_plan works one concrete example from start to finish.
+E2. Total word budget (duration_minutes x target_wpm) is under 200 words
+    -> use the approach's fewest segments; VP2 still applies.
+E3. raw_content cannot fill the duration -> add a segment of the stage that
+    teaches by example, whose visual_plan works one concrete example from
+    start to finish.
 E4. Content produces more than 10 segments -> merge the two most similar
     thematic blocks into one segment and write one combined visual_plan.
-E5. Unsure whether the first segment is "hook" or "intro" -> use "hook"
-    if it is under 30 seconds and poses a question; otherwise "intro".
+E5. A block fits two stages -> put it in the earlier stage unless the
+    approach rules say otherwise.

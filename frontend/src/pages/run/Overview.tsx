@@ -2,6 +2,7 @@
 // there are scenes, each scene's clips by state. The stages and what waits for you are the rail's and the approval
 // bar's to show, so they are not repeated here. Greys only: a state is told by its fill (solid, grey, hatched, crossed, outline), and always named in
 // the legend and the tooltip (config/status.tsx).
+import { approachName } from "../../config/approaches";
 import { Chip, Chips } from "../../components/ui/Chip";
 import { Calendar, Outline, RequestChange, Stopwatch, Storyboard } from "../../components/ui/icons";
 import { titleCase } from "../../components/ui/text";
@@ -55,7 +56,7 @@ export function Overview() {
   return (
     <div className="overview">
       <Chips label="At a Glance">
-        {run.approach ? <Chip icon={<Outline />} value={titleCase(run.approach)} label="Approach" /> : null}
+        {run.approach ? <Chip icon={<Outline />} value={approachName(run.approach)} label="Approach" /> : null}
         {run.minutes ? <Chip icon={<Stopwatch />} value={`${run.minutes} Min`} label="Length" /> : null}
         <Chip icon={<Storyboard />} value={run.scenes.length} label="Scenes" />
         {open ? <Chip icon={<RequestChange />} value={open} label="Open Requests" /> : null}

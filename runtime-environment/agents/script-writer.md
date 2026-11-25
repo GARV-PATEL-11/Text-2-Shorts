@@ -14,7 +14,7 @@ anything directly: put questions in your reply and the session will ask them.
 ## Modes (the session names the mode and the target, `outline` or `script`)
 | Mode | Read | Write |
 |---|---|---|
-| outline | `brief.json`, `topics.md`, `content.md`, `preferences.json`, `template.json`; the outline reference the session names (`outline-<approach>.md`; for `creative`, `narrative-structures.md` + `outline-linear.md`) | `outline.json` |
+| outline | `brief.json`, `topics.md`, `content.md`, `preferences.json`, `template.json`; the outline reference the session names (`outline-<approach>.md`, one per approach, `outline-custom.md` included) | `outline.json` |
 | outline refactor | `outline.json` and the change request or CP0 feedback the session quotes | `outline.json` |
 | script | the approved `outline.json`, `brief.json`, `preferences.json`; `standards.md`, `script-writing.md`, `transitions.md`, `script-review.md` | `script.json` |
 | script refactor | `script.json`, plus whichever the session names: the last round of `script_critique.json` (with `critique-protocol.md`), the ERROR findings in `script_review.json`, or a change request | `script.json` |

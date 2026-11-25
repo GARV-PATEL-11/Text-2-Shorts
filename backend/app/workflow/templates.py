@@ -87,14 +87,15 @@ def save_template(run: Path, template: dict) -> list[str]:
 
 def install_template(run: Path) -> Path:
     """Copy the chosen template into the run environment (runtime-environment/template/): template.json, the resolved
-    look the harness draws (look.json) and the renderer that draws it (look_renderer.py). Everything about templates
+    look the harness draws (look.json) and the renderer that draws it (look_renderer.py, with the Faraday mark). Everything about templates
     lives in backend/templates/; the run environment gets only what the chosen one needs. The folder is shared, so the
     last template chosen is the one there; renders still take their run's own look (TEXT_2_SHORTS_LOOK)."""
     target = runtime_template_directory()
     target.mkdir(parents=True, exist_ok=True)
     write_json(target / "template.json", current_template(run))
     write_json(target / "look.json", drawing(run))
-    shutil.copyfile(TEMPLATES_DIRECTORY / "look_renderer.py", target / "look_renderer.py")
+    for name in ("look_renderer.py", "faraday-logo.webp"):  # the renderer and the mark it draws
+        shutil.copyfile(TEMPLATES_DIRECTORY / name, target / name)
     return target
 
 

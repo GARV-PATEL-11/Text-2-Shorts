@@ -98,7 +98,7 @@ config → utilities → sandbox
 |---|---|---|
 | `base.py` | `Strict` base (extra fields rejected), id types, severity | — |
 | `requirements.py` | `Brief`, `Preferences`, `VideoTemplate`, `EnvironmentReport` | `brief.json`, `preferences.json`, `template.json`, `environment_report.json` |
-| `outline_models/` | one outline model per approach | `outline.json` |
+| `outline_models/` | `VideoOutline` (one schema) and `approaches.py` (the eight approaches: stages, segment counts, rules, visual language) | `outline.json` |
 | `script.py` | `Script`, `ScriptScene` | `script.json` |
 | `plans.py` | `ScenePlan`, `ClipPlan`, `ContinuityState`, `SoundEffect` | `scenes/sNN/plan.json` |
 | `reviews.py` | `ReviewReport`, `Critique`, `ChangeRecord`, `ChangeLog` | reviews, critiques, `changes.json` |

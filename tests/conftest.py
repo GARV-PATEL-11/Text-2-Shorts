@@ -65,7 +65,7 @@ def write_brief(run, **fields):
     run.mkdir(parents=True, exist_ok=True)
     brief = {
         "requirement": "topic",
-        "approach": "linear",
+        "approach": "custom",
         "minutes": 1,
         "tts": "polly",
         **fields,
@@ -107,7 +107,6 @@ def make_script(*scene_seconds):
 
 
 TOPICS = ["Why the question matters", "The core idea"]
-LINEAR_TYPES = ["hook", "concept", "math", "visualization", "mechanism", "application", "recap"]
 
 
 def write_requirements(run, topics=TOPICS):
@@ -126,8 +125,8 @@ def visual_plan(seconds):
     return " ".join(["The scene opens on an empty canvas.", *middle, "The scene ends with every element visible."])
 
 
-def make_outline(*segment_seconds, approach="Classic Linear Narrative"):
-    """A Classic Linear Narrative outline: hook first, then types in the approach's order."""
+def make_outline(*segment_seconds, types=None):
+    """An outline with these segment lengths; `types` are their stages (a custom approach's own by default)."""
     return {
         "meta": {
             "title": "T",
@@ -135,13 +134,13 @@ def make_outline(*segment_seconds, approach="Classic Linear Narrative"):
             "total_duration_seconds": sum(segment_seconds),
             "pace": "medium",
             "target_wpm": 150,
-            "approach_name": approach,
+            "approach_name": "Custom",
             "approach_style": "lesson",
         },
         "outline": [
             {
                 "scene_id": i,
-                "segment_type": LINEAR_TYPES[min(i - 1, len(LINEAR_TYPES) - 1)],
+                "segment_type": (types or [f"part_{chr(96 + n)}" for n in range(1, len(segment_seconds) + 1)])[i - 1],
                 "title": f"segment {i}",
                 "duration_seconds": seconds,
                 "talking_points": ["one idea"],

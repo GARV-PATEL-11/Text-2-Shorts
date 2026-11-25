@@ -1,6 +1,6 @@
-"""Shared prompt blocks for the outline prompts (Approaches A, B, C).
+"""Shared prompt blocks for the outline prompts (every approach in backend/schemas/outline_models/approaches.py).
 
-Each approach file composes these blocks with its own rules. Every rule
+approach_outline.py composes these blocks with each approach's own rules. Every rule
 lives in exactly one place, so a change here applies to all approaches.
 
 Plain string concatenation is used (no f-strings, no .format) because the
@@ -17,7 +17,8 @@ INPUTS
   raw_content       required  educational text to outline
   topic             optional  topic name for meta.title; default: inferred
                               from raw_content
-  duration_minutes  optional  target video length; default: 5
+  duration_minutes  optional  teaching length, 3-20 (the intro, bridges
+                              and closing are extra); default: 5
   pace              optional  "slow" | "medium" | "fast"; default: "medium"
 If an optional input is missing, use its default and continue.
 
@@ -210,16 +211,16 @@ Field name for the segment ID is "scene_id" (never "id").
   ]
 }
 
-Allowed segment_type values:
-  hook | problem | intro | concept | math | visualization | mechanism |
-  application | tradeoffs | recap | cta
+Allowed segment_type values (the approach's stages, in order):
+  __SEGMENT_TYPES__
 """.strip()
 
 
-def build_output_schema(approach_name, title_hint, segment_title_hint, narration_hint, transition_hint):
+def build_output_schema(approach_name, title_hint, segment_title_hint, narration_hint, transition_hint, segment_types):
     """Return the shared schema block with approach-specific field hints."""
     return (
         _OUTPUT_SCHEMA_TEMPLATE.replace("__APPROACH_NAME__", approach_name)
+        .replace("__SEGMENT_TYPES__", segment_types)
         .replace("__TITLE_HINT__", title_hint)
         .replace("__SEGMENT_TITLE_HINT__", segment_title_hint)
         .replace("__NARRATION_HINT__", narration_hint)
@@ -236,14 +237,15 @@ ERROR HANDLING
 ============================================================
 E1. raw_content is missing or empty -> output exactly:
     {"error": "raw_content is required. Provide the educational text to outline.", "code": "MISSING_INPUT"}
-E2. Total word budget (duration_minutes x target_wpm) is under 200 words,
-    or duration_minutes is under 3 -> use 4 segments; VP2 still applies.
-E3. raw_content cannot fill the duration -> add an "application" segment
-    whose visual_plan works one concrete example from start to finish.
+E2. Total word budget (duration_minutes x target_wpm) is under 200 words
+    -> use the approach's fewest segments; VP2 still applies.
+E3. raw_content cannot fill the duration -> add a segment of the stage that
+    teaches by example, whose visual_plan works one concrete example from
+    start to finish.
 E4. Content produces more than 10 segments -> merge the two most similar
     thematic blocks into one segment and write one combined visual_plan.
-E5. Unsure whether the first segment is "hook" or "intro" -> use "hook"
-    if it is under 30 seconds and poses a question; otherwise "intro".
+E5. A block fits two stages -> put it in the earlier stage unless the
+    approach rules say otherwise.
 """.strip()
 
 

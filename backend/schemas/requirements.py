@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 from schemas.base import Strict
+from schemas.outline_models.approaches import LEGACY, ApproachName
 
 
 class Brief(Strict):
@@ -14,22 +15,24 @@ class Brief(Strict):
     @model_validator(mode="before")
     @classmethod
     def _drop_settings_the_template_owns_now(cls, data):
-        """Briefs written before 0.20 carried the voice and font; the template owns them now (their runs stay readable)."""
-        return (
-            {key: value for key, value in data.items() if key not in ("voice", "engine", "font")}
-            if isinstance(data, dict)
-            else data
-        )
+        """Briefs written before 0.20 carried the voice and font (the template owns them now); before 0.34 the
+        approach was zoom, arc, linear or creative. Old runs stay readable."""
+        if not isinstance(data, dict):
+            return data
+        data = {key: value for key, value in data.items() if key not in ("voice", "engine", "font")}
+        if data.get("approach") in LEGACY:
+            data["approach"] = LEGACY[data["approach"]]
+        return data
 
     requirement: str = Field(..., min_length=1, description="the topic and request in the user's words")
     objectives: list[str] = Field(default_factory=list, description="what the viewer should be able to do or explain")
     audience: str = "curious beginners"
     style: str = Field("ELI5 / Feynman", description="explanation style and tone")
-    approach: Literal["zoom", "arc", "linear", "creative"] = Field(
-        "zoom",
-        description="narrative structure: three fixed ones, or 'creative' (designed for this topic, or the user's own)",
+    approach: ApproachName = Field(
+        "visual_intuition",
+        description="how the topic is taught: one of seven presets, or 'custom' (outline_models/approaches.py)",
     )
-    minutes: float = Field(2.0, gt=0, le=12)
+    minutes: float = Field(2.0, gt=0, le=20)
     pace: Literal["slow", "medium", "fast"] = "medium"
     notes: str = Field("", description="constraints and anything else the user asked for")
     tts: Literal["polly", "google"] = "polly"

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import faraday_logging
+from schemas.outline_models.approaches import APPROACHES, MINUTES
 
 from app.commands.hook_command import handle_hook_command
 from app.commands.production_commands import (
@@ -36,6 +37,14 @@ from app.workflow.scene_code import prepare_scene
 from app.workflow.templates import choose_template, starter_templates
 
 
+def video_minutes(text: str) -> float:
+    """--minutes: a new video's teaching length (MINUTES)."""
+    minutes = float(text)
+    if not MINUTES[0] <= minutes <= MINUTES[1]:
+        raise argparse.ArgumentTypeError(f"a video is {MINUTES[0]}–{MINUTES[1]} minutes of teaching")
+    return minutes
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="text-2-shorts")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -51,12 +60,14 @@ def build_parser() -> argparse.ArgumentParser:
     command_parser.add_argument("--style", default="ELI5 / Feynman", help="explanation style and tone")
     command_parser.add_argument(
         "--approach",
-        choices=["zoom", "arc", "linear", "creative"],
-        default="zoom",
-        help="narrative structure: zoom (big picture → detail), arc (problem → solution), linear (lesson), "
-        "creative (a structure designed for this topic, or the user's own)",
+        choices=list(APPROACHES),
+        default="visual_intuition",
+        help="how the topic is taught: "
+        + ", ".join(f"{key} ({approach.name}, {approach.form})" for key, approach in APPROACHES.items()),
     )
-    command_parser.add_argument("--minutes", type=float, default=2)
+    command_parser.add_argument(
+        "--minutes", type=video_minutes, default=4, help="teaching narration, 3–20 (intro, bridges, closing extra)"
+    )
     command_parser.add_argument("--pace", choices=["slow", "medium", "fast"], default="medium")
     command_parser.add_argument("--audience", default="curious beginners")
     command_parser.add_argument("--notes", default="")

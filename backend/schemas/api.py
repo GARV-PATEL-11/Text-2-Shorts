@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from schemas.base import Strict
 from schemas.interaction import CheckpointDecision, TrackedRequest
 from schemas.media import MediaFinding
+from schemas.outline_models.approaches import ApproachName
 from schemas.run_state import Status
 from schemas.session import ActionBatch
 
@@ -131,8 +132,9 @@ class NewRunInput(Strict):
 
     requirement: str = Field(..., min_length=3, max_length=2000, description="the topic, in the user's words")
     objectives: list[str] = Field(default_factory=list, max_length=8)
-    approach: Literal["zoom", "arc", "linear", "creative"] = "zoom"
-    minutes: float = Field(2, gt=0, le=12)
+    approach: ApproachName = "visual_intuition"
+    minutes: float = Field(4, ge=3, le=20, description="teaching narration; intro, bridges and closing are extra")
+    notes: str = Field("", max_length=2000, description="for Custom: how the user wants it taught")
     audience: str = Field("curious beginners", max_length=300)
     tts: Literal["polly", "google"] = "polly"
     look: LookInput | None = Field(

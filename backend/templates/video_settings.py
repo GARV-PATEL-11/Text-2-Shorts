@@ -32,6 +32,15 @@ ELEMENTS = VISUAL + SOUND
 TEXT_STYLES = ("title", "heading", "body", "label", "caption")
 ROLES = ("text", "focus", "given", "derived", "warning", "secondary", "accent", "outline", "dim", "surface")
 HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+BRAND = {"height": 0.3, "gap": 0.2, "opacity": 0.85}  # the Faraday mark, top right of every frame (Manim units)
+FRAME_HALF_HEIGHT = 4.0  # Manim's 16:9 frame is 14.22 × 8 units
+
+
+def content_top(inset: float) -> float:
+    """The highest y content may reach: below the Faraday mark's band at the top of the frame."""
+    return round(FRAME_HALF_HEIGHT - inset - BRAND["height"] - BRAND["gap"], 2)
+
+
 # The elements a user may set to their own value, and what the value is: it becomes an override of the variant.
 CUSTOM = {
     "background_color": "color or gradient",  # one color, or "base,shade": the gradient's top and bottom
@@ -254,7 +263,10 @@ def brief(template: dict) -> str:
             f"TEXT: font=\"{look['text_font']['family']}\" for every Text/MarkupText; font_size by style: "
             + ", ".join(f"{style} {sizes[style]}" for style in TEXT_STYLES)
             + f"; MathTex/Tex font_size {sizes['math']}; line_spacing {look['typography'].get('line_spacing', 1)}.",
-            f"SAFE AREA: keep everything {inset} units inside the frame edges.",
+            (
+                f"SAFE AREA: keep everything {inset} units inside the frame edges, and below y = {content_top(inset)}: "
+                "the Faraday mark sits in the top-right corner of every frame (the harness draws it)."
+            ),
             "Never set the background or invent colours or sizes outside these.",
         ]
     )
@@ -317,6 +329,7 @@ def drawing(template: dict) -> dict:
         "line_spacing": look["typography"].get("line_spacing", 1),
         "math_preamble": look["math_font"].get("preamble", ""),
         "inset": max(0.5, look["border_style"].get("inset", 0)),
+        "brand": {**BRAND, "color": roles["text"]},
         "subtitles": {
             "on": look["subtitles"].get("burn_in", False),
             "style": style,

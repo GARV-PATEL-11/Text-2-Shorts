@@ -52,22 +52,34 @@
       "type": "array"
     },
     "approach": {
-      "default": "zoom",
+      "default": "visual_intuition",
       "enum": [
-        "zoom",
-        "arc",
-        "linear",
-        "creative"
+        "eli5",
+        "visual_intuition",
+        "story_driven",
+        "step_by_step",
+        "feynman",
+        "technical",
+        "case_study",
+        "custom"
       ],
       "title": "Approach",
       "type": "string"
     },
     "minutes": {
-      "default": 2,
-      "exclusiveMinimum": 0,
-      "maximum": 12,
+      "default": 4,
+      "description": "teaching narration; intro, bridges and closing are extra",
+      "maximum": 20,
+      "minimum": 3,
       "title": "Minutes",
       "type": "number"
+    },
+    "notes": {
+      "default": "",
+      "description": "for Custom: how the user wants it taught",
+      "maxLength": 2000,
+      "title": "Notes",
+      "type": "string"
     },
     "audience": {
       "default": "curious beginners",

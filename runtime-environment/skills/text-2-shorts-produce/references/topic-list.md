@@ -1,4 +1,4 @@
-<!-- GENERATED from runtime-environment/prompts/script_prompts/req_modifier.py by runtime-environment/prompts/export_references.py: edit the package, then re-run the export. -->
+<!-- GENERATED from runtime-environment/prompts/script_prompts/req_modifier.py by runtime-environment/prompts/export_references.py: edit the package (or the approach table), then re-run the export. -->
 # Topic list (request modifier)
 
 **Stage 1 — topics.md and content.md.** Apply the prompt below yourself with `{user_raw_input}` = the user's request (`brief.json` → `requirement`, plus anything they said). `brief.json`'s length, audience, objectives and constraints override the defaults written into the prompt. Write the numbered list to `topics.md` and confirm it with the user. Then write `content.md`: one `## <topic>` section per topic, in the same order, with the correct educational content the outline is built from (its `raw_content`).

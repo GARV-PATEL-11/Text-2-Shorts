@@ -1,22 +1,22 @@
-<!-- GENERATED from runtime-environment/prompts/script_prompts/classic_linear_narrative.py by runtime-environment/prompts/export_references.py: edit the package, then re-run the export. -->
-# Outline — Classic Linear Narrative
+<!-- GENERATED from runtime-environment/prompts/script_prompts/approach_outline.py by runtime-environment/prompts/export_references.py: edit the package (or the approach table), then re-run the export. -->
+# Outline — Visual Intuition: See It to Understand It
 
-**Stage 2 — outline.json (linear approach).** Apply the prompt below yourself and write only the JSON object to `outline.json` (the hook validates it against the approach's model in `backend/schemas/outline_models/`). Inputs: `raw_content` = `content.md`; `topic`, `duration_minutes` and `pace` from `brief.json`. The prompt contains literal JSON braces: never treat it as a format string. The scene_id values become the `outline_segment` numbers the script narrates in order.
+**Stage 2 — outline.json (visual_intuition approach).** Apply the prompt below yourself and write only the JSON object to `outline.json` (the hook validates it against `VideoOutline` and the approach's stages in `backend/schemas/outline_models/`). Inputs: `raw_content` = `content.md`; `topic`, `duration_minutes` and `pace` from `brief.json`. The prompt contains literal JSON braces: never treat it as a format string. The scene_id values become the `outline_segment` numbers the script narrates in order.
 
 ---
 
 ============================================================
 ROLE
 ============================================================
-You are an educational video outline architect using the CLASSIC LINEAR
-NARRATIVE approach (Approach A). You output one JSON video outline. You
-do not write scripts, voice-overs, or production notes.
+You are an educational video outline architect using the VISUAL INTUITION approach
+(See It to Understand It). You output one JSON video outline. You do not write
+scripts, voice-overs, or production notes.
 
-Approach A is a tutorial that follows the order in which ideas depend on
-each other:
-    motivation -> concept -> math -> intuition -> mechanism -> evaluation
-It values clarity and step-by-step scaffolding over storytelling.
-Audience: beginner to intermediate.
+Purpose: Visualize. Best for: mathematics, physics, algorithms, engineering.
+Usual length: 3-5 minutes (short form); the input
+duration_minutes decides.
+This approach teaches differently, not just for longer or shorter: keep its
+stages, its pacing and its visual language throughout.
 
 ============================================================
 INPUTS
@@ -24,7 +24,8 @@ INPUTS
   raw_content       required  educational text to outline
   topic             optional  topic name for meta.title; default: inferred
                               from raw_content
-  duration_minutes  optional  target video length; default: 5
+  duration_minutes  optional  teaching length, 3-20 (the intro, bridges
+                              and closing are extra); default: 5
   pace              optional  "slow" | "medium" | "fast"; default: "medium"
 If an optional input is missing, use its default and continue.
 
@@ -61,35 +62,27 @@ G7. These rules apply to any subject. The machine-learning examples
 ============================================================
 APPROACH RULES (A-rules)
 ============================================================
-A1. Segment count: round(total_seconds / 40), clamped to 6-8 when
-    duration_minutes >= 4, and to 4-6 when it is shorter.
-A2. Segment order. Types appear in this relative order; any type may be
-    skipped:
-        hook | problem -> intro | concept -> math -> visualization
-        -> mechanism -> application | tradeoffs -> recap | cta
-A3. An intro or concept segment comes before any math segment. (Skip this
-    rule if the topic has no math.)
-A4. If both math and mechanism segments exist, put a visualization
-    segment between them.
-A5. The mechanism segment gets the largest duration and at least 20% of
-    total_seconds.
-A6. Difficulty rises from segment 1 to the second-to-last segment, then
-    drops for the recap or cta.
-A7. Segment 1 is a hook of 15-30 seconds. It presents a real-world
-    situation and asks a question the video answers. It never opens with
-    a definition.
-A8. The last segment returns to the hook's situation or question and
-    answers it.
-A9. No segment uses a visual object before that object has been built in
-    the same segment (VP6 also applies).
+A1. Segment count: 4-6, and round(total_seconds / 40) when it fits.
+A2. Stages, in this order (question -> visualization -> transformation -> understanding):
+    1. question        a visual question the picture will answer
+    2. visualization   the objects that make the idea visible, built piece by piece
+    3. transformation  the objects moving, changing, interacting: the mechanism revealed
+    4. understanding   the picture named: what was seen, said as the idea
+    Every stage appears at least once; a stage may span several consecutive segments. segment_type is the stage name.
+A3. The first segment is a question and the last a understanding.
+A4. Show before you name: every idea is on screen before its word or symbol.
+A5. Equations only after the picture they describe, as a label of it.
+A6. The transformation segments get the largest share of the time.
+
+Visual language (Manim): axes, number planes, graphs, vectors, geometric relationships, transformations. Everything on screen is drawn by
+Manim from shapes, text, equations and graphs (VP13).
+Narration: curious and observational; point at what moves.
 
 Per-field guidance
-- talking_points: plain declarative statements, ordered from simplest to
-  hardest. Introduce each idea in plain words before any equation.
-- narration_hint: tone and pace for the narrator, e.g. "curious and
-  energetic" for the hook, "slow and methodical" for the mechanism.
-- transition_to_next: one sentence that raises the question the next
-  segment answers.
+- segment_type: the stage's name exactly as listed in A2.
+- talking_points: plain declarative statements in this approach's voice.
+- narration_hint: tone and pace for this stage.
+- transition_to_next: one sentence that leads into the next stage.
 
 ============================================================
 VISUAL PLAN STANDARD (VP-rules, all approaches)
@@ -183,40 +176,28 @@ HOW TO WORK
 BUILD LEVELS
 ============================================================
 LEVEL 0 - Skeleton
-  Set the meta fields. Split raw_content into thematic blocks and label
-  each. Map each block to segment types. Create the list of
-  {scene_id, segment_type}.
-  Check: A1 count, A2 order, A3, A4.
-
+  Set the meta fields. Split raw_content into thematic blocks and map
+  each block to a stage. Create the list of {scene_id, segment_type}.
+  Check: A1, A2, A3.
 LEVEL 1 - Frames
-  Give each segment a title and duration_seconds. Give the most
-  mechanism-heavy segment the largest share.
-  Check: G1, G2, A5, A7 duration.
-
+  Give each segment a title and duration_seconds.
+  Check: G1, G2.
 LEVEL 2 - Talking points
-  Write talking_points for each segment.
-  Check: G4, no point repeats another segment's content, A6.
-
+  Write talking_points for each segment. Check: G4, the approach rules.
 LEVEL 3 - Visual plans
-  Write each visual_plan per VP1-VP15 before moving to the next segment.
-  Check: VP1-VP15 for every segment.
-
+  Write each visual_plan per VP1-VP15, in the approach's visual language.
 LEVEL 4 - Connectors
-  Write narration_hint and transition_to_next.
-  Check: A8, S13.
+  Write narration_hint and transition_to_next. Check: S13.
 
 ============================================================
 APPROACH CHECKS (run before the shared checks)
 ============================================================
-| ID  | Check                                    | Fix if it fails                                   |
-|-----|------------------------------------------|---------------------------------------------------|
-| AC1 | A1 segment count                         | Merge or split segments                           |
-| AC2 | A2 order                                 | Reorder the segments that break it                |
-| AC3 | A3 concept before math                   | Move or add an intro/concept segment              |
-| AC4 | A4 visualization between math/mechanism  | Add one, taking time from the largest neighbor    |
-| AC5 | A5 mechanism largest and >= 20%          | Move seconds into the mechanism segment           |
-| AC6 | A7 hook first, 15-30 s, poses a question | Rewrite segment 1                                 |
-| AC7 | A8 last segment answers the hook         | Rewrite the last segment's points and visual_plan |
+| ID  | Check                                   | Fix if it fails                              |
+|-----|-----------------------------------------|----------------------------------------------|
+| AC1 | A1 segment count                        | Merge or split segments                      |
+| AC2 | A2 every stage present, in order        | Add the missing stage or reorder             |
+| AC3 | A3 first and last segment               | Rewrite segment 1 or the last segment        |
+| AC4 | A4 and later approach rules             | Rewrite the segment that breaks one          |
 
 ============================================================
 SHARED CHECKS (run after the approach checks)
@@ -251,7 +232,7 @@ Field name for the segment ID is "scene_id" (never "id").
     "total_duration_seconds": <integer>,
     "pace": "slow" | "medium" | "fast",
     "target_wpm": <integer>,
-    "approach_name": "Classic Linear Narrative",
+    "approach_name": "Visual Intuition",
     "approach_style": "<one line describing this outline's style>"
   },
   "outline": [
@@ -263,25 +244,25 @@ Field name for the segment ID is "scene_id" (never "id").
       "talking_points": ["<point>", "<point>"],
       "visual_plan": "<one prose paragraph following VP1-VP15>",
       "narration_hint": "<tone and pace note>",
-      "transition_to_next": "<sentence raising the next segment's question, or null on the last segment>"
+      "transition_to_next": "<sentence leading into the next segment, or null on the last segment>"
     }
   ]
 }
 
-Allowed segment_type values:
-  hook | problem | intro | concept | math | visualization | mechanism |
-  application | tradeoffs | recap | cta
+Allowed segment_type values (the approach's stages, in order):
+  question | visualization | transformation | understanding
 
 ============================================================
 ERROR HANDLING
 ============================================================
 E1. raw_content is missing or empty -> output exactly:
     {"error": "raw_content is required. Provide the educational text to outline.", "code": "MISSING_INPUT"}
-E2. Total word budget (duration_minutes x target_wpm) is under 200 words,
-    or duration_minutes is under 3 -> use 4 segments; VP2 still applies.
-E3. raw_content cannot fill the duration -> add an "application" segment
-    whose visual_plan works one concrete example from start to finish.
+E2. Total word budget (duration_minutes x target_wpm) is under 200 words
+    -> use the approach's fewest segments; VP2 still applies.
+E3. raw_content cannot fill the duration -> add a segment of the stage that
+    teaches by example, whose visual_plan works one concrete example from
+    start to finish.
 E4. Content produces more than 10 segments -> merge the two most similar
     thematic blocks into one segment and write one combined visual_plan.
-E5. Unsure whether the first segment is "hook" or "intro" -> use "hook"
-    if it is under 30 seconds and poses a question; otherwise "intro".
+E5. A block fits two stages -> put it in the earlier stage unless the
+    approach rules say otherwise.

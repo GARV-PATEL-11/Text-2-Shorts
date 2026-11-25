@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from schemas.outline_models.approaches import APPROACHES
+
 from app.config import ALWAYS_LOADED_TOPICS, RUN_ENVIRONMENT, TOPICS_DIRECTORY
 from app.workflow.artifacts import load_brief, load_outline, load_scene_plans, load_script
 
@@ -130,7 +132,15 @@ def scene_input(run: Path, scene_id: str) -> SceneDirectorInput:
         raise SystemExit(f"{scene_id} is not a scene of the approved script")
     metadata = [f"Title: {script.title}", f"Objectives: {'; '.join(script.objectives)}"]
     if brief:
-        metadata += [f"Subject: {brief.requirement}", f"Audience: {brief.audience} ({brief.technical_complexity})"]
+        approach = APPROACHES[brief.approach]
+        metadata += [
+            f"Subject: {brief.requirement}",
+            f"Audience: {brief.audience} ({brief.technical_complexity})",
+            (
+                f"Approach: {approach.name} ({approach.tagline}); visual language: {approach.visuals}; "
+                f"narration: {approach.narration}"
+            ),
+        ]
     target = [
         f"Title: {scene.title}",
         f"Objective: {scene.objective}",

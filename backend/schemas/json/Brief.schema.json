@@ -28,13 +28,17 @@
       "type": "string"
     },
     "approach": {
-      "default": "zoom",
-      "description": "narrative structure: three fixed ones, or 'creative' (designed for this topic, or the user's own)",
+      "default": "visual_intuition",
+      "description": "how the topic is taught: one of seven presets, or 'custom' (outline_models/approaches.py)",
       "enum": [
-        "zoom",
-        "arc",
-        "linear",
-        "creative"
+        "eli5",
+        "visual_intuition",
+        "story_driven",
+        "step_by_step",
+        "feynman",
+        "technical",
+        "case_study",
+        "custom"
       ],
       "title": "Approach",
       "type": "string"
@@ -42,7 +46,7 @@
     "minutes": {
       "default": 2.0,
       "exclusiveMinimum": 0,
-      "maximum": 12,
+      "maximum": 20,
       "title": "Minutes",
       "type": "number"
     },

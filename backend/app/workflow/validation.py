@@ -6,10 +6,8 @@ import re
 from pathlib import Path
 
 from pydantic import ValidationError
+from schemas.outline_models.approaches import stage_order
 from schemas.outline_models.base_outline import VideoOutline
-from schemas.outline_models.classic_linear_narrative import ClassicLinearNarrativeOutline
-from schemas.outline_models.conceptual_zoom import ConceptualZoomOutline
-from schemas.outline_models.problem_solution_arc import ProblemSolutionArcOutline
 from schemas.plans import ScenePlan
 from schemas.requirements import Brief
 from schemas.reviews import ReviewReport
@@ -34,43 +32,6 @@ def scene_end_problems(plan: ScenePlan) -> list[str]:
 
 
 REVIEW_FILES = {"script": "script_review.json", "plan": "plan_review.json"}
-
-
-OUTLINE_MODELS = {
-    "linear": ClassicLinearNarrativeOutline,
-    "arc": ProblemSolutionArcOutline,
-    "zoom": ConceptualZoomOutline,
-    "creative": VideoOutline,
-}
-
-
-SEGMENT_ORDER = {  # rules A2, B2, C2 of the outline prompts: segment types in this relative order (any may be skipped)
-    "linear": [
-        {"hook", "problem"},
-        {"intro", "concept"},
-        {"math"},
-        {"visualization"},
-        {"mechanism"},
-        {"application", "tradeoffs"},
-        {"recap", "cta"},
-    ],
-    "arc": [
-        {"problem", "hook"},
-        {"intro", "concept"},
-        {"math"},
-        {"mechanism"},
-        {"application"},
-        {"tradeoffs"},
-        {"cta", "recap"},
-    ],
-    "zoom": [{"intro", "concept"}, {"math"}, {"mechanism"}, {"tradeoffs", "application"}, {"recap"}],
-}
-
-
-FIRST_SEGMENT = {"linear": ({"hook"}, "A7"), "arc": ({"problem", "hook"}, "B3")}
-
-
-LAST_SEGMENT = {"zoom": ({"recap"}, "C2: the zoom-out recap closes the video")}
 
 
 def validate_brief(run: Path) -> list[str]:
@@ -114,16 +75,16 @@ def validate_content(run: Path) -> list[str]:
 
 
 def validate_outline(run: Path) -> list[str]:
-    """Stage 2: outline.json against the approach's model (backend/schemas/outline_models) and the outline prompts'
-    checkable rules: segment order and first/last type, 10–120 s per segment, transitions, and the visual-plan
-    standard."""
+    """Stage 2: outline.json against the outline model and its approach's stages (approaches.py): every stage, in
+    order, the first and last as the approach opens and closes; then 10–120 s per segment, transitions, and the
+    visual-plan standard. (The segment count is the prompt's rule A1, like G3.)"""
     for stage in ("template", "requirements"):  # the outline starts from an approved look and confirmed requirements
         if problem := stage_approval_problem(run, stage):
             return [problem]
     brief = load_brief(run)
-    approach = brief.approach if brief else "linear"
+    approach = brief.approach if brief else "visual_intuition"
     try:
-        outline = OUTLINE_MODELS[approach].model_validate_json((run / "outline.json").read_text())
+        outline = VideoOutline.model_validate_json((run / "outline.json").read_text())
     except FileNotFoundError:
         return ["outline.json does not exist"]
     except ValidationError as validation_error:
@@ -131,26 +92,21 @@ def validate_outline(run: Path) -> list[str]:
     segments, errors = outline.outline, []
     if [segment.scene_id for segment in segments] != list(range(1, len(segments) + 1)):
         errors.append("segment scene_id values must be 1, 2, 3, … in order")
-    if approach in SEGMENT_ORDER:
-        order, last_rank = SEGMENT_ORDER[approach], 0
-        for segment in segments:
-            rank = next((i for i, group in enumerate(order) if segment.segment_type in group), None)
-            if rank is None:
-                errors.append(
-                    f"segment {segment.scene_id}: {segment.segment_type} is not used in the {approach} approach"
-                )
-            elif rank < last_rank:
-                errors.append(
-                    f"segment {segment.scene_id} ({segment.segment_type}) breaks the {approach} order: "
-                    + " → ".join("|".join(sorted(group)) for group in order)
-                )
-            else:
-                last_rank = rank
-    if approach in FIRST_SEGMENT and segments[0].segment_type not in FIRST_SEGMENT[approach][0]:
-        allowed, rule = FIRST_SEGMENT[approach]
-        errors.append(f"segment 1 must be a {' or '.join(sorted(allowed))} ({rule})")
-    if approach in LAST_SEGMENT and segments[-1].segment_type not in LAST_SEGMENT[approach][0]:
-        errors.append(f"the last segment must be a recap ({LAST_SEGMENT[approach][1]})")
+    if order := stage_order(approach):  # custom: the writer designs its stages
+        types = [segment.segment_type for segment in segments]
+        ranks = [order.index(kind) if kind in order else None for kind in types]
+        errors += [
+            f"segment {n}: {kind} is not a stage of the {approach} approach ({' → '.join(order)})"
+            for n, (kind, rank) in enumerate(zip(types, ranks), 1)
+            if rank is None
+        ]
+        known = [rank for rank in ranks if rank is not None]
+        if known != sorted(known):
+            errors.append(f"segments break the {approach} order (A2): {' → '.join(order)}")
+        if missing := [stage for stage in order if stage not in types]:
+            errors.append(f"every stage appears at least once (A2); missing: {', '.join(missing)}")
+        if types[0] != order[0] or types[-1] != order[-1]:
+            errors.append(f"the video opens with {order[0]} and closes with {order[-1]} (A3)")
     for number, segment in enumerate(segments, 1):
         label = f"segment {segment.scene_id}"
         if not 10 <= segment.duration_seconds <= 120:

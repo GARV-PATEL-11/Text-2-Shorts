@@ -19,7 +19,7 @@ Voice credentials (AWS Polly or Google Cloud TTS) and details: `docs/guides/depl
 
 ## Use it
 ```bash
-uv run text-2-shorts new "<topic>" --objective "…" --approach zoom --minutes 2 --audience "…" --tts polly --voice Matthew
+uv run text-2-shorts new "<topic>" --objective "…" --approach visual_intuition --minutes 4 --audience "…" --tts polly --voice Matthew
 uv run text-2-shorts open artifacts/runs/<id>     # interactive Claude Code session for this run, inside its jail
 ```
 The run session works through the stages below and asks you at every checkpoint (template · requirements · CP0 outline · CP1 script ·
@@ -45,8 +45,8 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 | Stage | Output | Gate → checkpoint | Guidance (by path) |
 |---|---|---|---|
 | 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery: six dark and six light, each its own design, then optionally Build Your Own below it: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
-| 1 Requirements | `brief.json` (objectives, audience, style, approach: zoom · arc · linear fixed, or creative; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; optional `preferences.json` | schemas → **requirements** checkpoint | `requirements.md`, `topic-list.md` |
-| 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by the approach's model (`backend/schemas/outline_models/`) | segment order, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-linear.md` · `outline-arc.md` · `outline-zoom.md` (generated from `runtime-environment/prompts/script_prompts/`); creative: `narrative-structures.md` |
+| 1 Requirements | `brief.json` (objectives, audience, style, approach: seven presets (ELI5, Visual Intuition, Story-Driven, Step-by-Step, Feynman, Technical, Case Study) or custom; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; optional `preferences.json` | schemas → **requirements** checkpoint | `requirements.md`, `topic-list.md` |
+| 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by `VideoOutline` and the approach's stages (`backend/schemas/outline_models/approaches.py`) | every stage in order, segment count, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-<approach>.md`, one per approach (generated from the approach table by `runtime-environment/prompts/export_references.py`) |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
 | 4 Visual + audio plans | per scene the Visual Director's `plan.json`: its `execution_plan` (atomic, time-ordered events: what, how, where, look, speech, why) and the fields derived from it: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
 | 5 Clips + video | scene by scene: audio from SSML → the scene's clips one at a time (720p30, beat marks, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** per scene | `scene-production.md` |
@@ -60,7 +60,7 @@ recap of the previous scene's final image.
 flowchart TD
     U(["User request"]) -->|"template.json (template checkpoint, first)"| R
     subgraph R["1 · Requirements"]
-        B["brief.json — topic · objectives · audience · style<br/>approach: zoom · arc · linear · creative"]
+        B["brief.json — topic · objectives · audience · style<br/>approach: 7 presets · custom"]
         T["topics.md (request modifier) → content.md"]
         B --> T
     end
@@ -104,7 +104,7 @@ flowchart TD
 runtime-environment/                  the execution environment, defined once (declarative, version-controlled)
   .claude-plugin/plugin.json      a Claude Code plugin, loaded with --plugin-dir
   skills/text-2-shorts-produce/   the staged workflow (requirements, template, CP0–CP4) + one reference per stage, read only at that stage:
-    references/                   requirements · script-writing · narrative-structures · script-review ·
+    references/                   requirements · script-writing · outline-<approach> (8) · script-review ·
                                   scene-visual-planning · audio-ssml · scene-production · transitions · standards
   skills/manim-ce-0-20-1-reference/  version-pinned Manim reference (vocabulary, patterns, mistakes) + scripts
   agents/script-writer.md         subagent (Opus): writes and refactors the outline and the script

@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.34.0 — 2026-11-25
+Eight video approaches: seven ways of teaching a topic and a custom one.
+- **Short (3–5 min)**: ELI5 (hook → analogy → explanation → demonstration → takeaway) · Visual Intuition (question →
+  visualization → transformation → understanding). **Medium (4–6)**: Story-Driven (mystery → conflict → discovery →
+  explanation → resolution) · Step-by-Step Breakdown (components → construction → interaction → system).
+  **Long (8–10)**: Feynman Deep Dive (question → fundamentals → simplification → reconstruction → misconceptions →
+  mastery) · Mathematical & Technical (foundation → derivation → visualization → application → verification) ·
+  Real-World Case Study (problem → analysis → application → simulation → results). **Custom**: the user's own
+  teaching style, depth, pace, visuals and structure; any length up to 20 minutes.
+- **One table** (`backend/schemas/outline_models/approaches.py`): each approach's stages, segment count, rules,
+  Manim visual language and narration. It drives the outline prompts, the outline gate and the website; the scene
+  planner gets the approach's visual language too. Approach (how it is taught), template (how it looks) and the
+  delivery format (how it is produced) stay separate.
+- **One outline schema** (`VideoOutline`) replaces the three near-identical approach models; `segment_type` is the
+  approach's stage. The gate checks every stage appears, in order, opening and closing as the approach does.
+- **One prompt builder** (`script_prompts/approach_outline.py`) writes `references/outline-<approach>.md` for all
+  eight from the shared rules; the three hand-written outline prompts and `narrative-structures.md` are gone.
+- **Start a Run** offers the eight with their usual length (picking one sets it); Custom asks how it should be taught
+  (saved as the brief's notes). Runs from before keep working: zoom → Feynman, arc → Story-Driven,
+  linear → Step-by-Step, creative → Custom.
+- **Length**: a new video is 3–20 minutes of teaching narration (website, `new --minutes`); the index scene, bridges
+  and closing come on top. Older runs keep their length.
+- **The Faraday mark** (logo and wordmark) sits in the top-right corner of every frame, in clips and previews alike,
+  tinted with the template's text colour; content stays below its band (`SAFE AREA` in the template block).
+
 ## 0.33.0 — 2026-11-25
 Twelve starter templates, each its own design: six dark, six light.
 - **Dark**: Obsidian (near-black, cream type, gold, hairline frame) · Midnight (deep blue, centre glow, Palatino maths)

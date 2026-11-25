@@ -51,7 +51,7 @@ def approved_script_run(run, *scene_seconds):
 def test_brief_is_validated(tmp_path):
     write_brief(tmp_path, objectives=["see why orbits are ellipses"], style="ELI5")
     assert validation.validate_brief(tmp_path) == []
-    write_json_file(tmp_path / "brief.json", {"approach": "zoom", "minutes": 1})
+    write_json_file(tmp_path / "brief.json", {"approach": "feynman", "minutes": 1})
     assert any("requirement" in error for error in validation.validate_brief(tmp_path))
 
 
@@ -202,14 +202,14 @@ def test_new_turns_the_requirements_into_a_valid_brief():
             "--style",
             "story-driven",
             "--approach",
-            "creative",
+            "custom",
             "--tts",
             "polly",
         ]
     )
     brief = run_workspace.brief_from_arguments(arguments)
     assert brief.objectives == ["explain why orbits are ellipses", "use the third law"]
-    assert brief.style == "story-driven" and brief.approach == "creative" and brief.tts == "polly"
+    assert brief.style == "story-driven" and brief.approach == "custom" and brief.tts == "polly"
     assert isinstance(brief, Brief)  # validated on the way in
 
 
@@ -238,13 +238,15 @@ def test_the_script_opens_with_an_index_scene_that_previews_every_later_scene(tm
 
 def test_there_are_three_fixed_approaches_and_one_creative_one():
     from app import cli
+    from schemas.outline_models.approaches import APPROACHES, LEGACY
     from schemas.requirements import Brief
 
-    for approach in ("zoom", "arc", "linear", "creative"):
+    for approach in APPROACHES:  # seven presets and custom
         assert cli.build_parser().parse_args(["new", "t", "--approach", approach]).approach == approach
     with pytest.raises(SystemExit):
-        cli.build_parser().parse_args(["new", "t", "--approach", "custom"])
-    Brief.model_validate({"requirement": "t", "approach": "creative"})
+        cli.build_parser().parse_args(["new", "t", "--approach", "zoom"])
+    for old, new in LEGACY.items():  # briefs from before 0.34 stay readable
+        assert Brief.model_validate({"requirement": "t", "approach": old}).approach == new
 
 
 def test_each_clip_plans_its_audio_as_ssml_over_exactly_its_narration(tmp_path):
@@ -395,7 +397,7 @@ def test_next_hands_out_the_exact_next_batch(tmp_path):
         "script-writer",
         "outline",
     )
-    assert any(path.endswith("references/outline-linear.md") for path in batch.actions[0].read)
+    assert any(path.endswith("references/outline-custom.md") for path in batch.actions[0].read)
 
     plans = two_scenes_after_cp2(tmp_path)
     batch = driver.next_actions(tmp_path)  # CP2 approved, audio there: s01's code, one file for the scene
@@ -441,22 +443,29 @@ def test_requirements_end_with_a_topic_list_and_the_content_the_outline_is_built
     assert any("The core idea" in error for error in validation.validate_content(tmp_path))
 
 
-def test_the_outline_follows_its_approach_model_and_rules(tmp_path):
+def test_the_outline_follows_its_approach_stages_and_rules(tmp_path):
+    from schemas.outline_models.approaches import APPROACHES, stage_order
+
     write_brief(tmp_path)
     write_requirements(tmp_path)
 
-    def errors_with(change, approach="linear"):
+    def errors_with(change, approach="eli5"):
         write_brief(tmp_path, approach=approach)
         confirm_requirements(tmp_path)  # the brief changed: confirmed again
-        outline = make_outline(30, 30, 30)
+        order = stage_order(approach) or ["hook", "idea", "close"]
+        outline = make_outline(*[30] * len(order), types=order)
         change(outline)
         write_json_file(tmp_path / "outline.json", outline)
         return " | ".join(validation.validate_outline(tmp_path))
 
     segments = lambda outline: outline["outline"]
-    assert errors_with(lambda o: None) == ""
-    assert "hook" in errors_with(lambda o: segments(o)[0].update(segment_type="concept"))  # A7: hook first
-    assert "order" in errors_with(lambda o: segments(o)[1].update(segment_type="recap"))  # A2 relative order
+    for approach in APPROACHES:  # every approach's own stages, in order, pass
+        assert errors_with(lambda o: None, approach) == "", approach
+    assert "opens with hook" in errors_with(lambda o: segments(o)[0].update(segment_type="analogy"))  # A3
+    assert "order" in errors_with(lambda o: segments(o)[1].update(segment_type="takeaway"))  # A2 order
+    assert "missing: analogy" in errors_with(lambda o: segments(o)[1].update(segment_type="hook"))  # A2 every stage
+    assert "not a stage" in errors_with(lambda o: segments(o)[2].update(segment_type="recap"))  # not this approach's
+    assert "snake_case" not in errors_with(lambda o: None, "custom")  # custom: its own stage names
     assert "10" in errors_with(lambda o: segments(o)[1].update(duration_seconds=5))  # G2
     assert "transition_to_next" in errors_with(lambda o: segments(o)[0].update(transition_to_next=None))  # S13
     assert "sentences" in errors_with(
@@ -471,8 +480,6 @@ def test_the_outline_follows_its_approach_model_and_rules(tmp_path):
         lambda o: segments(o)[1].update(visual_plan=segments(o)[1]["visual_plan"].replace("Element 3", 'Label "x"'))
     )  # VP5
     assert "visual_plan" in errors_with(lambda o: segments(o)[1].pop("visual_plan"))  # the model's schema
-    assert "visualization" in errors_with(lambda o: segments(o)[1].update(segment_type="visualization"), "arc")
-    assert "recap" in errors_with(lambda o: None, "zoom")  # C2: the zoom-out recap closes the video
 
 
 def test_the_script_waits_for_cp0_and_narrates_every_outline_segment_in_order(tmp_path):

@@ -48,11 +48,15 @@ def test_no_llm_orchestration_in_app():
         "standards",
         "requirements",
         "topic-list",
-        "outline-linear",
-        "outline-arc",
-        "outline-zoom",
+        "outline-eli5",
+        "outline-visual_intuition",
+        "outline-story_driven",
+        "outline-step_by_step",
+        "outline-feynman",
+        "outline-technical",
+        "outline-case_study",
+        "outline-custom",
         "script-writing",
-        "narrative-structures",
         "script-review",
         "scene-visual-planning",
         "audio-ssml",
@@ -88,7 +92,7 @@ def test_provision_creates_the_run_workspace(tmp_path):
 
     run = tmp_path / "20261120-000000-topic"
     run_workspace.provision_run_workspace(
-        run, Brief(requirement="topic", approach="zoom", minutes=1), environment_report()
+        run, Brief(requirement="topic", approach="feynman", minutes=1), environment_report()
     )
     assert utilities.read_json(run / "brief.json")["requirement"] == "topic"
     assert utilities.read_json(run / "environment_report.json")["problems"] == []
@@ -143,7 +147,9 @@ def run_hook(payload: dict):
 def test_hooks_resume_validate_and_log(tmp_path):
 
     run = tmp_path / "run"
-    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
+    run_workspace.provision_run_workspace(
+        run, Brief(requirement="t", approach="feynman", minutes=1), environment_report()
+    )
     result = run_hook({"hook_event_name": "SessionStart", "cwd": str(run), "transcript_path": "/x/t.jsonl"})
     assert result.returncode == 0 and "next:" in result.stdout and "topics.md does not exist" in result.stdout
     assert utilities.read_json(run / "state.json")["sessions"] == ["/x/t.jsonl"]
@@ -278,7 +284,9 @@ def test_api_index_lives_outside_the_read_only_repo():
 def test_hook_finds_the_run_from_a_subfolder(tmp_path):
 
     run = tmp_path / "run"
-    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
+    run_workspace.provision_run_workspace(
+        run, Brief(requirement="t", approach="feynman", minutes=1), environment_report()
+    )
     (run / "scenes" / "s01").mkdir(parents=True)
     (run / "scenes" / "s01" / "plan.json").write_text("{}")
     result = run_hook(
@@ -374,8 +382,13 @@ def test_the_command_is_named_after_the_project():
 
 def test_the_workflow_skill_lists_every_reference_by_path():
     skill = (RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "SKILL.md").read_text()
+    from schemas.outline_models.approaches import APPROACHES
+
     for reference in sorted(REFERENCES_DIRECTORY.glob("*.md")):
-        assert f"references/{reference.name}" in skill, reference.name
+        if reference.stem.removeprefix("outline-") in APPROACHES:  # one per approach, named by the pattern
+            assert "references/outline-<approach>.md" in skill and reference.stem[8:] in skill, reference.name
+        else:
+            assert f"references/{reference.name}" in skill, reference.name
 
 
 def test_outline_and_topic_references_are_generated_from_the_script_prompts_package():
@@ -416,7 +429,9 @@ def test_conversation_on_haiku_builders_and_refactorers_on_opus_critics_and_audi
 def test_every_write_and_command_is_shown_to_the_user(tmp_path):
 
     run = tmp_path / "run"
-    run_workspace.provision_run_workspace(run, Brief(requirement="t", approach="zoom", minutes=1), environment_report())
+    run_workspace.provision_run_workspace(
+        run, Brief(requirement="t", approach="feynman", minutes=1), environment_report()
+    )
     (run / "preferences.json").write_text('{"tone": "warm"}')
     result = run_hook(
         {

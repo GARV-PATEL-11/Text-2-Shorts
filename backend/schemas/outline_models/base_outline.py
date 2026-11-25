@@ -1,7 +1,7 @@
 """
 base_outline.py
 ---------------
-Shared Pydantic v2 schemas used across the video outline approaches, plus `VideoOutline` for the creative approach.
+The outline.json schema, one for every approach; each approach's stages and order are data (approaches.py).
 """
 
 from __future__ import annotations
@@ -20,20 +20,6 @@ class Pace(str, Enum):
     fast = "fast"
 
 
-class SegmentType(str, Enum):
-    hook = "hook"
-    problem = "problem"
-    intro = "intro"
-    concept = "concept"
-    math = "math"
-    visualization = "visualization"
-    mechanism = "mechanism"
-    application = "application"
-    tradeoffs = "tradeoffs"
-    recap = "recap"
-    cta = "cta"
-
-
 # ── Shared sub-schemas ────────────────────────────────────────────────────────
 
 
@@ -49,9 +35,10 @@ class OutlineSegment(BaseModel):
         alias="id",
         description="1-indexed segment identifier.",
     )
-    segment_type: SegmentType = Field(
+    segment_type: str = Field(
         ...,
-        description="Allowed type from the shared SegmentType enum.",
+        pattern=r"^[a-z][a-z_]*$",
+        description="The approach's stage this segment belongs to (approaches.py), snake_case.",
     )
     title: str = Field(
         ...,
@@ -113,7 +100,7 @@ class BaseVideoMeta(BaseModel):
 
 
 class VideoOutline(BaseModel):
-    """Outline for the creative approach: the shared meta and segments, with no approach-specific rules."""
+    """outline.json: the shared meta and segments; the approach's rules are checked by validate_outline."""
 
     meta: BaseVideoMeta = Field(..., description="Video-level metadata.")
     outline: list[OutlineSegment] = Field(..., min_length=1, description="Ordered segments, ids 1-indexed.")

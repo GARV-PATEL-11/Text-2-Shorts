@@ -13,17 +13,18 @@ from pathlib import Path
 
 PROMPTS_DIRECTORY = Path(__file__).resolve().parent
 REFERENCES_DIRECTORY = PROMPTS_DIRECTORY.parent / "skills" / "text-2-shorts-produce" / "references"
-sys.path.insert(0, str(PROMPTS_DIRECTORY))
+sys.path[:0] = [str(PROMPTS_DIRECTORY), str(PROMPTS_DIRECTORY.parents[1] / "backend")]
 
 import script_prompts
+from schemas.outline_models.approaches import APPROACHES
 
 GENERATED = (
     "<!-- GENERATED from runtime-environment/prompts/script_prompts/{module}.py by "
-    "runtime-environment/prompts/export_references.py: edit the package, then re-run the export. -->\n"
+    "runtime-environment/prompts/export_references.py: edit the package (or the approach table), then re-run the export. -->\n"
 )
 OUTLINE_USE = (
     "**Stage 2 — outline.json ({approach} approach).** Apply the prompt below yourself and write only the JSON "
-    "object to `outline.json` (the hook validates it against the approach's model in `backend/schemas/outline_models/`). "
+    "object to `outline.json` (the hook validates it against `VideoOutline` and the approach's stages in `backend/schemas/outline_models/`). "
     "Inputs: `raw_content` = `content.md`; `topic`, `duration_minutes` and `pace` from `brief.json`. The prompt "
     "contains literal JSON braces: never treat it as a format string. The scene_id values become the "
     "`outline_segment` numbers the script narrates in order.\n"
@@ -37,33 +38,22 @@ TOPIC_USE = (
 )
 PROMPTS = {
     "topic-list.md": ("req_modifier", "Topic list (request modifier)", TOPIC_USE, "REQ_MODIFIER_SYSTEM"),
-    "outline-linear.md": (
-        "classic_linear_narrative",
-        "Outline — Classic Linear Narrative",
-        OUTLINE_USE.format(approach="linear"),
-        "CLASSIC_LINEAR_NARRATIVE_SYSTEM",
-    ),
-    "outline-arc.md": (
-        "problem_to_solution_arc",
-        "Outline — Problem → Solution Arc",
-        OUTLINE_USE.format(approach="arc"),
-        "PROBLEM_TO_SOLUTION_ARC_SYSTEM",
-    ),
-    "outline-zoom.md": (
-        "conceptual_zoom",
-        "Outline — Conceptual Zoom",
-        OUTLINE_USE.format(approach="zoom"),
-        "CONCEPTUAL_ZOOM_SYSTEM",
-    ),
 }
 
 
 def references() -> dict[str, str]:
-    """Reference file name → its full text."""
-    return {
+    """Reference file name → its full text: the topic list, then one outline reference per approach."""
+    texts = {
         name: GENERATED.format(module=module) + f"# {title}\n\n{use}\n---\n\n{getattr(script_prompts, constant)}\n"
         for name, (module, title, use, constant) in PROMPTS.items()
     }
+    for key, approach in APPROACHES.items():
+        texts[f"outline-{key}.md"] = (
+            GENERATED.format(module="approach_outline")
+            + f"# Outline — {approach.name}: {approach.tagline}\n\n{OUTLINE_USE.format(approach=key)}\n---\n\n"
+            + f"{script_prompts.outline_system(key)}\n"
+        )
+    return texts
 
 
 if __name__ == "__main__":

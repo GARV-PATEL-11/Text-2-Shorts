@@ -281,15 +281,16 @@ def test_a_run_is_started_from_the_website(web, monkeypatch):
     new = {
         "requirement": "Why is the sky blue?",
         "objectives": ["explain scattering"],
-        "approach": "linear",
-        "minutes": 2,
+        "approach": "step_by_step",
+        "minutes": 4,
     }
     response = client.post("/api/runs", json=new, headers=ORIGIN)
     assert response.status_code == 201, response.text
     run_id = response.json()["id"]
     assert re.match(r"^\d{8}-\d{6}-why-is-the-sky-blue$", run_id)
     assert json.loads((runs / run_id / "brief.json").read_text())["objectives"] == ["explain scattering"]
-    assert client.post("/api/runs", json={**new, "minutes": 0}, headers=ORIGIN).status_code == 400
+    for minutes in (0, 2.5, 21):  # a new video is 3–20 minutes of teaching
+        assert client.post("/api/runs", json={**new, "minutes": minutes}, headers=ORIGIN).status_code == 400
     blocked = environment_report().model_copy(update={"problems": ["ffmpeg missing"]})
     monkeypatch.setattr(run_workspace, "environment_check", lambda: blocked)
     response = client.post("/api/runs", json=new, headers=ORIGIN)
@@ -304,7 +305,7 @@ def test_start_a_run_begins_with_the_template_which_is_saved_and_approved(web, m
     signed_in(client)
     monkeypatch.setattr(run_workspace, "environment_check", environment_report)
     monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
-    new = {"requirement": "Why do **tides** happen?", "minutes": 2, "look": {"template": "paper", "elements": {}}}
+    new = {"requirement": "Why do **tides** happen?", "minutes": 4, "look": {"template": "paper", "elements": {}}}
     unreadable = {**new, "look": {"template": "obsidian", "custom": {"background_color": "#ffffff"}}}
     refused = client.post("/api/runs", json=unreadable, headers=ORIGIN)
     assert refused.status_code == 409 and not list(runs.iterdir())  # refused before any run is made
@@ -569,3 +570,21 @@ def test_usage_limits_follow_claude_codes_rate_limit_events(web, monkeypatch, tm
     monkeypatch.setattr(usage, "probe", lambda: '{"type": "system"}\n' + json.dumps(fresher) + "\n")
     checked = client.post("/api/usage", headers=ORIGIN).json()  # Check Now: one probe turn
     assert checked["windows"][0]["used_percent"] == 30.0
+
+
+def test_the_website_offers_exactly_the_backends_approaches():
+    import re
+
+    from schemas.outline_models.approaches import APPROACHES
+
+    offered = re.findall(r'\{ id: "(\w+)", label:', (FRONTEND / "src" / "config" / "approaches.ts").read_text())
+    assert offered == list(APPROACHES)
+
+
+def test_every_frame_carries_the_faraday_mark_above_the_content():
+    import video_settings
+
+    template = video_settings.starter("ivory")
+    drawing = video_settings.drawing(template)
+    assert drawing["brand"]["color"] == video_settings.resolve(template)["roles"]["text"]  # readable in both modes
+    assert f"below y = {video_settings.content_top(drawing['inset'])}" in video_settings.brief(template)

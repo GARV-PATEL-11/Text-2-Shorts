@@ -211,11 +211,9 @@ def next_actions(run: Path) -> ActionBatch:
             ],
         )
     brief = load_brief(run)
-    approach = brief.approach if brief else "linear"
+    approach = brief.approach if brief else "visual_intuition"
     if errors := validate_outline(run):
-        guide = (
-            ["narrative-structures.md", "outline-linear.md"] if approach == "creative" else [f"outline-{approach}.md"]
-        )
+        guide = [f"outline-{approach}.md"]
         return batch(
             "2 outline",
             [
