@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.35.0 — 2026-11-25
+Previews that look like a frame of the video, and a sharper website.
+- **Previews** (starters and every Build Your Own option) are one frame of a real lesson: a titled parabola with
+  labelled axes, ten right-endpoint strips, the area and a callout; a to-scale zoom on one strip (Δx by f(x)) with
+  the sums closing in on the area (6.88, 6.02, 5.21); the integral in numbered steps with the result boxed. Every
+  number is exact; colours, fonts and sizes are the template's; the layout version is part of the preview cache key.
+- **Sharper website**: bold text uses the loaded semi-bold (no synthesised bold); gallery cards show a 1280×720 copy
+  of their preview (`?card=true`), the full 2560×1440 frame only full screen.
+
 ## 0.34.0 — 2026-11-25
 Eight video approaches: seven ways of teaching a topic and a custom one.
 - **Short (3–5 min)**: ELI5 (hook → analogy → explanation → demonstration → takeaway) · Visual Intuition (question →

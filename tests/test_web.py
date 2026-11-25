@@ -481,10 +481,16 @@ def test_a_reshuffle_is_shown_before_it_is_applied_and_the_same_seed_gives_the_s
 
 def test_starter_templates_and_options_have_full_size_pictures(web):
     _, client = web
+    import io
+
+    from PIL import Image
+
     signed_in(client)
     starter = client.get("/previews/starters/obsidian.webp")  # each starter in its own mode
     assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
     assert client.get("/previews/starters/nope.webp").status_code == 404
+    card = client.get("/previews/starters/obsidian.webp?card=true")  # the gallery card's own, smaller copy
+    assert card.status_code == 200 and Image.open(io.BytesIO(card.content)).size == (1280, 720)
     assert client.get("/previews/custom/0123456789abcdef0123.webp").status_code == 404  # nothing to render it from
 
 
@@ -516,7 +522,11 @@ def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
     pictures = answer.json()["pictures"]
     assert len(pictures) >= 3 and all(picture["url"] for picture in pictures)
     image = Image.open(io.BytesIO(client.get(pictures[0]["url"]).content)).convert("RGB")
-    assert image.getpixel((427, 300)) == (0x12, 0x34, 0x56)  # the user's own background, to the exact value (lossless)
+    assert image.getpixel((4, 240)) == (
+        0x12,
+        0x34,
+        0x56,
+    )  # the user's own background (outside the frame), exact (lossless)
     full = client.get(pictures[0]["full"])  # 2560×1440, rendered when first opened
     assert full.status_code == 200 and Image.open(io.BytesIO(full.content)).size == (2560, 1440)
     unknown = client.post("/api/look/options", json={"look": look, "element": "voice"}, headers=ORIGIN)

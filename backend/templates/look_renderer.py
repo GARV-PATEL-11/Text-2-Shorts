@@ -367,38 +367,105 @@ def luminance(hex_colour: str) -> float:
 
 # ── the preview: every part of the look in one frame ─────────────────────────────────────────────────────────
 CAPTION = "The area under x squared, from zero to a, is a cubed over three."
-ROLES = ("text", "focus", "given", "derived", "warning", "secondary", "accent")
 
 
-def swatch(look: dict) -> list[M.Mobject]:
+def swatch(look: dict, floor: float | None = None) -> list[M.Mobject]:
+    """One frame of a lesson, as a video shows it, in three columns under a title: a parabola with its strips, area,
+    labelled axes and a callout; a zoom on one strip (Δx by f(x)) and how the sum closes in on the area as the strips
+    thin; the integral worked in numbered steps with the result boxed. Every colour, font and size is the look's.
+    `floor`: the lowest y content may reach (above the subtitle line when it is shown)."""
     x_min, x_max, y_min, y_max = safe_area(look)
+    y_min = y_min if floor is None else max(y_min, floor)
     roles = look["roles"]
-    title = text(look, "Curves and Areas", "title")
-    body = text(look, "How much space sits under a parabola?", "body")
-    function = maths(look, r"f(x) = x^2 + 2x + 1", role="given")
-    integral = maths(look, r"\int_0^a x^2\,dx = \frac{a^3}{3}", role="derived")
-    label = text(look, "label · caption 123", "label", "secondary")
-    column = M.VGroup(title, body, function, integral, label).arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.3)
-    chips = M.VGroup(
-        *[M.Circle(radius=0.26).set_stroke(width=0).set_fill(colour(roles[role]), 1) for role in ROLES]
-    ).arrange(M.RIGHT, buff=0.14)
-    axes = M.Axes(x_range=[0, 2, 1], y_range=[0, 4, 1], x_length=3.2, y_length=2.6, tips=False,
-                  axis_config={"color": colour(roles["outline"]), "stroke_width": 2})  # fmt: skip
-    curve = axes.plot(lambda x: x**2, x_range=[0, 2], color=colour(roles["focus"]), stroke_width=4)
-    area = axes.get_area(curve, x_range=[0, 1.5], color=colour(roles["accent"]), opacity=0.35)
-    marker = text(look, "a", "label", "secondary").next_to(axes.c2p(1.5, 0), M.DOWN, buff=0.12)
-    triangle = M.Polygon([0, 0, 0], [1.8, 0, 0], [1.8, 1.35, 0]).set_stroke(colour(roles["given"]), 4)
-    figures = M.VGroup(M.VGroup(axes, area, curve, marker), triangle).arrange(M.RIGHT, buff=0.5, aligned_edge=M.DOWN)
-    side = M.VGroup(chips, figures).arrange(M.DOWN, buff=0.45, aligned_edge=M.RIGHT)
-    for group in (column, side):
-        if group.width > (x_max - x_min) / 2 - 0.2:
-            group.scale_to_fit_width((x_max - x_min) / 2 - 0.2)
-        if group.height > y_max - y_min:
-            group.scale_to_fit_height(y_max - y_min)
-    middle = (y_max + y_min) / 2  # centred in the safe area, at the video's real sizes
-    column.move_to([x_min + column.width / 2, middle, 0])
-    side.move_to([x_max - side.width / 2, middle, 0])
-    return [column, side]
+    tint = lambda role: colour(roles[role])
+    small = lambda tex, role="secondary", size=0.62: maths(look, tex, role=role).scale(size)
+
+    title = text(look, "The Area Under a Parabola", "title")
+    subtitle_line = text(look, "Cut it into strips, add them up, let the strips get thin.", "label", "secondary")
+    heading = M.VGroup(title, subtitle_line).arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.12)
+    heading.move_to([x_min + heading.width / 2, y_max - heading.height / 2, 0])
+    top = heading.get_bottom()[1] - 0.35
+
+    # column 1: the graph
+    axes = M.Axes(x_range=[0, 3.2, 1], y_range=[0, 10, 2], x_length=5.8, y_length=4.2, tips=True,
+                  axis_config={"color": tint("outline"), "stroke_width": 2, "tip_length": 0.18})  # fmt: skip
+    ticks = M.VGroup(
+        *[small(str(n)).next_to(axes.c2p(n, 0), M.DOWN, buff=0.12) for n in (1, 2)],
+        *[small(str(n)).next_to(axes.c2p(0, n), M.LEFT, buff=0.12) for n in (2, 4, 6, 8)],
+        small("x").next_to(axes.x_axis.get_end(), M.DOWN, buff=0.12),
+        small("y").next_to(axes.y_axis.get_end(), M.LEFT, buff=0.12),
+    )
+    curve = axes.plot(lambda x: x**2, x_range=[0, 3.1], color=tint("focus"), stroke_width=5)
+    strips = axes.get_riemann_rectangles(curve, x_range=[0, 2.5], dx=0.25, input_sample_type="right",
+                                         color=tint("given"), fill_opacity=0.25, stroke_width=1,
+                                         stroke_color=tint("given"))  # fmt: skip
+    chosen = strips[7]  # the strip the zoom shows
+    chosen.set_fill(tint("accent"), opacity=0.55).set_stroke(tint("accent"), 2)
+    point = M.Dot(axes.c2p(2.5, 6.25), radius=0.08, color=tint("focus"))
+    guide = M.DashedLine(axes.c2p(2.5, 0), axes.c2p(2.5, 6.25), color=tint("secondary"), stroke_width=2)
+    a_mark = small("a", "focus", 0.7).next_to(axes.c2p(2.5, 0), M.DOWN, buff=0.12)  # a is an x-value: on the axis
+    f_label = small("f(x) = x^2", "focus", 0.8).next_to(axes.c2p(3.1, 9.6), M.LEFT, buff=0.25)
+    callout = text(look, "area so far", "label", "accent").move_to(axes.c2p(0.85, 6.4))
+    pointer = M.Arrow(callout.get_bottom(), axes.c2p(1.5, 1.0), buff=0.1, color=tint("accent"), stroke_width=3,
+                      max_tip_length_to_length_ratio=0.12)  # fmt: skip
+    graph = M.VGroup(axes, ticks, strips, curve, guide, point, a_mark, f_label, callout, pointer)
+
+    # column 2: one strip up close, and the sums closing in
+    strip = M.Rectangle(width=1.1, height=2.0).set_stroke(tint("accent"), 3).set_fill(tint("accent"), 0.3)
+    left, bottom = strip.get_corner(M.DL)[:2]  # the zoom maps x 1.75..2 across the strip, y 0..f(2) = 4 up it
+    top_edge = M.ParametricFunction(
+        lambda x: [left + (x - 1.75) / 0.25 * strip.width, bottom + x**2 / 4 * strip.height, 0], t_range=[1.75, 2.0]
+    ).set_stroke(tint("focus"), 4)  # x² itself: enters at f(1.75)/f(2) ≈ 77 %, meets the top-right corner
+    width_brace = M.Brace(strip, M.DOWN, buff=0.08, color=tint("secondary"))
+    height_brace = M.Brace(strip, M.LEFT, buff=0.08, color=tint("secondary"))
+    zoom = M.VGroup(
+        strip, top_edge, width_brace, height_brace,
+        small(r"\Delta x").next_to(width_brace, M.DOWN, buff=0.08),
+        small("f(x)").next_to(height_brace, M.LEFT, buff=0.08),
+    )  # fmt: skip
+    product = small(r"\text{strip} \approx f(x)\,\Delta x", "text", 0.7).next_to(zoom, M.DOWN, buff=0.25)
+    rows = [("n", r"\text{sum}"), ("5", "6.88"), ("10", "6.02"), (r"\infty", "5.21")]
+    table = M.VGroup(
+        *[
+            small(cell, "derived" if r == 3 else ("secondary" if r == 0 else "text"), 0.66)
+            for r, row in enumerate(rows)
+            for cell in row
+        ]
+    ).arrange_in_grid(rows=len(rows), cols=2, buff=(0.7, 0.16), col_alignments="rr")
+    rule = M.Line(table[0].get_left() + [-0.1, -0.2, 0], table[1].get_right() + [0.1, -0.2, 0])
+    rule.set_stroke(tint("outline"), 1.5)
+    caption = text(look, "a = 2.5, right ends", "caption", "secondary").next_to(table, M.DOWN, buff=0.18)
+    inset = M.VGroup(M.VGroup(zoom, product), M.VGroup(table, rule, caption)).arrange(M.DOWN, buff=0.45)
+    frame = M.SurroundingRectangle(inset, buff=0.25, corner_radius=0.1, color=tint("outline"), stroke_width=1.5)
+    frame.set_fill(tint("surface"), 0.04)
+    middle = M.VGroup(frame, inset)
+
+    # column 3: the working, step by step
+    steps = M.VGroup()
+    for number, tex, role in ((1, r"\int_0^a x^2\,dx", "given"), (2, r"= \left[\frac{x^3}{3}\right]_0^a", "text"),
+                              (3, r"= \frac{a^3}{3}", "derived")):  # fmt: skip
+        badge = M.VGroup(M.Circle(radius=0.2).set_stroke(tint("secondary"), 2), small(str(number), "secondary", 0.6))
+        steps.add(M.VGroup(badge, maths(look, tex, role=role)).arrange(M.RIGHT, buff=0.3))
+    steps.arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.35)
+    result = M.SurroundingRectangle(steps[2][1], buff=0.14, color=tint("derived"), stroke_width=3, corner_radius=0.08)
+    check = small(r"a = 2.5:\;\; \frac{a^3}{3} \approx 5.21", "secondary", 0.72)
+    note = text(look, "Thinner strips, closer fit.", "body", "text")
+    working = M.VGroup(M.VGroup(steps, result), check, note).arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.35)
+
+    room_height, room_width, gap = top - y_min, x_max - x_min, 0.45
+    shares = (0.44, 0.24, 0.32)
+    for group, share in zip((graph, middle, working), shares):
+        width = share * room_width - gap
+        if group.width > width or group.height > room_height:  # at the video's sizes unless it cannot fit
+            group.scale(min(width / group.width, room_height / group.height))
+    centre = (top + y_min) / 2
+    left = x_min
+    for group, share in zip((graph, middle, working), shares):
+        group.move_to([left + group.width / 2, centre, 0])
+        left += share * room_width
+    link = M.DashedLine(chosen.get_top(), middle.get_left() + [0, middle.height * 0.22, 0], stroke_width=1.5)
+    link.set_stroke(tint("accent"), opacity=0.7)  # from the strip to its zoom
+    return [heading, graph, middle, working, link]
 
 
 class LookScene(M.Scene):
@@ -411,6 +478,8 @@ class LookScene(M.Scene):
         self.add(*backdrop(self.look))
         if (frame := border(self.look)) is not None:
             self.add(frame)
-        self.add(*swatch(self.look))
-        if self.look["subtitles"]["on"]:
-            self.add(subtitle(self.look, CAPTION.split(), 6))
+        line = subtitle(self.look, CAPTION.split(), 6) if self.look["subtitles"]["on"] else None
+        bottom_anchored = line is not None and self.look["subtitles"]["position"]["anchor"] == "bottom"
+        self.add(*swatch(self.look, line.get_top()[1] + 0.2 if bottom_anchored else None))
+        if line is not None:
+            self.add(line)

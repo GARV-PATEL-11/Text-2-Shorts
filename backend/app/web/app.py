@@ -421,9 +421,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
         return LookStill(url=f"/previews/custom/{path.name}", note=generate_preview.font_note(template))
 
     @app.get("/previews/starters/{name}.webp", dependencies=[Depends(signed_in_account)])
-    def starter_preview(name: str) -> FileResponse:
+    def starter_preview(name: str, card: bool = False) -> FileResponse:
         """A starter template, in its own mode, as one frame at 2560×1440 (generate_preview.py starters), rendered now
-        if missing."""
+        if missing; `?card=true`: the 1280×720 copy its gallery card shows."""
         if name not in templates.template_names():
             raise ApiProblem(404, f"no starter template {name}")
         path = generate_preview.starter_path(name)
@@ -432,7 +432,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
                 generate_preview.render_in_subprocess(["starters", "--only", name])
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
                 raise ApiProblem(502, f"the starter could not be rendered: {failed}") from failed
-        return FileResponse(path, media_type="image/webp")
+        return FileResponse(generate_preview.starter_card(name) if card else path, media_type="image/webp")
 
     @app.post("/api/look/options", response_model=LookOptionPictures, dependencies=[Depends(signed_in_account)])
     def look_options(wanted: LookOptionsInput) -> LookOptionPictures:

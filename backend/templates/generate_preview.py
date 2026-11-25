@@ -37,6 +37,7 @@ log = logging.getLogger("generate_preview")
 PREVIEW_DIRECTORY = Path(__file__).resolve().parent / "previews"
 CUSTOM_DIRECTORY = Path.home() / ".cache" / "text-2-shorts" / "previews"
 SIZE = (854, 480)  # the option cards
+LAYOUT = "frame-3"  # the preview layout (look_renderer.swatch): part of every cache key, so a new layout re-renders
 FULL = (2560, 1440)  # full screen and the look's still: the delivery size, pixel for pixel
 SOUND_ONLY = {"voice", "speaking_speed", "narration_tone"}  # heard, not seen
 PREVIEWED = [name for name in video_settings.ELEMENTS if name not in SOUND_ONLY | {"frame", "theme_mode"}]
@@ -129,16 +130,32 @@ def starter_path(name: str) -> Path:
     return PREVIEW_DIRECTORY / "starters" / f"{name}.webp"
 
 
+CARD = (1280, 720)  # a gallery card: twice its on-screen width, so it is sharp on high-density screens
+
+
+def starter_card(name: str) -> Path:
+    """The starter's frame scaled down for its gallery card (made from the full frame once; shrinking 2560 px into a
+    400 px card in the browser makes thin lines shimmer and downloads what the card never shows)."""
+    from PIL import Image
+
+    card = PREVIEW_DIRECTORY / "starters" / f"{name}-card.webp"
+    if not card.exists() or card.stat().st_mtime < starter_path(name).stat().st_mtime:
+        Image.open(starter_path(name)).resize(CARD, Image.Resampling.LANCZOS).save(card, quality=92)
+    return card
+
+
 def still_path(template: dict) -> Path:
     """A whole look as one 2560×1440 frame (cached by what it draws)."""
-    key = hashlib.sha256((json.dumps(video_settings.drawing(template), sort_keys=True) + "|full").encode()).hexdigest()[
-        :20
-    ]
+    key = hashlib.sha256(
+        (json.dumps(video_settings.drawing(template), sort_keys=True) + "|full|" + LAYOUT).encode()
+    ).hexdigest()[:20]
     return CUSTOM_DIRECTORY / f"{key}.webp"
 
 
 def custom_path(template: dict) -> Path:
-    key = hashlib.sha256(json.dumps(video_settings.drawing(template), sort_keys=True).encode()).hexdigest()[:20]
+    key = hashlib.sha256((json.dumps(video_settings.drawing(template), sort_keys=True) + LAYOUT).encode()).hexdigest()[
+        :20
+    ]
     return CUSTOM_DIRECTORY / f"{key}.webp"
 
 
@@ -242,6 +259,8 @@ def main() -> None:
             if arguments.force or not starter_path(name).exists()
         ]
         render(jobs, FULL)
+        for name in names:
+            starter_card(name)
         print(f"rendered {len(jobs)} starter templates into {PREVIEW_DIRECTORY / 'starters'}")
     elif arguments.command == "warm":
         small, full = warm_jobs([arguments.only] if arguments.only else video_settings.starter_names())

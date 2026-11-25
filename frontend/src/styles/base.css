@@ -10,6 +10,7 @@ body {
 #root { display: contents; }
 main { flex: 1; outline: none; }
 h1, h2, h3, h4 { margin: 0; font-weight: var(--fw-semibold); }
+strong, b, th { font-weight: var(--fw-semibold); }  /* Geist is loaded up to 600: a 700 would be a smeared fake bold */
 p { margin: 0; max-width: var(--measure); }
 ul, ol { margin: 0; }
 img, svg { display: block; }

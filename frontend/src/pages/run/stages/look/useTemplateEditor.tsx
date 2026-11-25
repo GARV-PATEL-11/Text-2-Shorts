@@ -100,7 +100,7 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
           <RadioCards label={`${titleCase(view)} Starter Templates`} value={choice.template} layout="templates" onChange={choose}
             options={starters.map((template) => ({
               id: template.name, label: titleCase(template.name), srLabel: template.description,
-              image: { src: starterPreview(template.name), full: starterPreview(template.name), alt: `${titleCase(template.name)}: ${template.description}` },
+              image: { src: starterPreview(template.name, true), full: starterPreview(template.name), alt: `${titleCase(template.name)}: ${template.description}` },
             }))} />
           <div className="build-own">
             <span>Want to Make It Your Own?</span>
