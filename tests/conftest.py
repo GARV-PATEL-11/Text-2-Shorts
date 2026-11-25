@@ -154,7 +154,7 @@ def make_outline(*segment_seconds, approach="Classic Linear Narrative"):
     }
 
 
-def confirm_requirements(run, template="standard"):
+def confirm_requirements(run, template="obsidian"):
     """A template chosen and approved (the first stage), then the requirements checkpoint."""
 
     templates.choose_template(run, template, [])

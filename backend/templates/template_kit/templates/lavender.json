@@ -1,0 +1,28 @@
+{
+  "name": "lavender",
+  "description": "Pale lavender with a gentle centre glow, violet accents, Merriweather serif.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "glow",
+    "background_color": "lavender",
+    "grid_type": "dots",
+    "grid_color": "accent",
+    "grid_opacity": "whisper",
+    "primary_palette": "ink",
+    "secondary_palette": "plum",
+    "accent_color": "violet",
+    "text_font": "merriweather",
+    "math_font": "computer_modern",
+    "typography": "standard",
+    "border_style": "none",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

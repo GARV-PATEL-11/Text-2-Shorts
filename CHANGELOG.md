@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.33.0 — 2026-11-25
+Twelve starter templates, each its own design: six dark, six light.
+- **Dark**: Obsidian (near-black, cream type, gold, hairline frame) · Midnight (deep blue, centre glow, Palatino maths)
+  · Graphite (slate graph paper, IBM Plex, sans maths, corner brackets) · Aurora (teal-to-violet gradient, neon
+  colours, Space Grotesk) · Monochrome (black, white, grey and one red; large Atkinson type) · Cosmic (indigo star
+  field with orbit rings, JetBrains Mono, Utopia maths).
+- **Light** (pastel grounds): Ivory (cream gradient, EB Garamond, double frame) · Sage (grain, ruled lines,
+  handwriting, Euler maths) · Lavender (glow, Merriweather, violet) · Arctic (icy blue, isometric grid, dashed frame)
+  · Peach (peach gradient, Nunito, sans maths, rounded frame) · Paper (parchment grain, dot grid, Lora, Times maths).
+- Built from the existing elements (no new template system): six new background colours (obsidian, aurora, ivory,
+  lavender, arctic, peach) and four fonts (Space Grotesk, EB Garamond, Nunito, Lora; Google Fonts, OFL). Standard,
+  Blueprint, Chalkboard, Documentary and Accessible Lecture are gone; the default is Obsidian.
+- **Previews** are real Manim frames, one per starter in its own mode (`previews/starters/<name>.webp`), with the
+  same sample in every template: a title, f(x) = x² + 2x + 1, the integral of x² from 0 to a, a parabola with its
+  area, a triangle, the colour roles and a subtitle line, centred at the video's real sizes.
+- **Website**: the Dark | Light switch shows that mode's six; a card picks the starter as it is.
+- A neutral light ground now keeps every graphic colour readable (contrast 3:1), as tinted ones already did.
+
 ## 0.32.0 — 2026-11-25
 Code generation per scene (codegen v3), plans kept in JSON, templates in the backend.
 - **One Python file per scene.** The new **scene-builder** subagent (Opus; replaces the clip-builder) turns the

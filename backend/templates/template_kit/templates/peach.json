@@ -1,0 +1,28 @@
+{
+  "name": "peach",
+  "description": "Soft peach to coral, rounded Nunito type, sans maths, rounded inset frame.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "gradient",
+    "background_color": "peach",
+    "grid_type": "dots",
+    "grid_color": "accent",
+    "grid_opacity": "whisper",
+    "primary_palette": "classic",
+    "secondary_palette": "warm_stone",
+    "accent_color": "coral",
+    "text_font": "nunito",
+    "math_font": "cm_bright",
+    "typography": "comfortable",
+    "border_style": "rounded",
+    "border_color": "accent",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

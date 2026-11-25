@@ -169,7 +169,6 @@ export function HomePage() {
           <Logo height={40} />
           <h1 className="page-header__title page-header__title--display">Curiosity, Illustrated.</h1>
           <p className="page-header__lead">A Question In, a Narrated Explainer Video Out: Claude Writes It, Manim Draws It, You Approve Every Stage</p>
-          <p><Said moment="homeLead" lead /></p>
           <nav className="quick" aria-label="Quick Actions">
             <LinkButton href="#/new" icon={<Plus />}>Start a Run</LinkButton>
             {live ? <LinkButton href={runHash(live.id)} variant="secondary" icon={<ArrowRight />}>Continue</LinkButton> : null}
@@ -186,7 +185,7 @@ export function HomePage() {
             : live ? <LiveRun run={live} others={others} />
             : (
               <SystemMessage kind="empty" title="Nothing in Progress" compact>
-                <Said moment="nothingInProgress" />
+                Start a Run to See It Here
               </SystemMessage>
             )}
           <UsageLimits />

@@ -44,7 +44,7 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 
 | Stage | Output | Gate → checkpoint | Guidance (by path) |
 |---|---|---|---|
-| 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery, six starters, each dark or light, then optionally Build Your Own below it: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
+| 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery: six dark and six light, each its own design, then optionally Build Your Own below it: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
 | 1 Requirements | `brief.json` (objectives, audience, style, approach: zoom · arc · linear fixed, or creative; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; optional `preferences.json` | schemas → **requirements** checkpoint | `requirements.md`, `topic-list.md` |
 | 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by the approach's model (`backend/schemas/outline_models/`) | segment order, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-linear.md` · `outline-arc.md` · `outline-zoom.md` (generated from `runtime-environment/prompts/script_prompts/`); creative: `narrative-structures.md` |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
@@ -114,7 +114,7 @@ runtime-environment/                  the execution environment, defined once (d
   agents/script-critic.md         subagent: one critique round of the script per change the user asks for at CP1
   agents/plan-critic.md           subagent: one scored critique round of a scene plan (≤ 3 per scene)
   agents/video-critic.md          subagent: one scored critique round of a scene preview (≤ 3 per scene)
-  template_kit/                   look-and-sound kit: elements.json, 7 starter templates, gallery of every option
+  template_kit/                   look-and-sound kit: elements.json, 12 starter templates (6 dark, 6 light), gallery of every option
   video_settings.py · audio_settings.py   the template's look and sound — the one source clips and narration use
   look_renderer.py                our Manim drawing of a look: previews and the backdrop behind every clip
   generate_preview.py             previews: starters (previews/starters/), options in the user's look, the whole look, a voice sample

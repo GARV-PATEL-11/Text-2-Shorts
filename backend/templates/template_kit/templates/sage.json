@@ -1,0 +1,28 @@
+{
+  "name": "sage",
+  "description": "Soft sage field notebook: grain, ruled lines, handwriting, Euler maths.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "textured_grid",
+    "background_color": "green",
+    "grid_type": "ruled",
+    "grid_color": "secondary",
+    "grid_opacity": "faint",
+    "primary_palette": "chalk_pastel",
+    "secondary_palette": "sage",
+    "accent_color": "teal",
+    "text_font": "patrick_hand",
+    "math_font": "euler",
+    "typography": "comfortable",
+    "border_style": "rounded",
+    "border_color": "secondary",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

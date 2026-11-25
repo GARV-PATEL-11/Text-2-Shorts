@@ -1,6 +1,6 @@
 [project]
 name = "text-2-shorts"
-version = "0.32.0"
+version = "0.33.0"
 description = "Faraday — Curiosity, Illustrated: topic in, narrated Manim explainer video out; every LLM stage is a sandboxed Claude Code run"
 readme = "README.md"
 requires-python = ">=3.12"

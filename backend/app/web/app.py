@@ -420,13 +420,13 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
                 raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
         return LookStill(url=f"/previews/custom/{path.name}", note=generate_preview.font_note(template))
 
-    @app.get("/previews/starters/{name}/{mode}.webp", dependencies=[Depends(signed_in_account)])
-    def starter_preview(name: str, mode: str) -> FileResponse:
-        """A starter template in dark or light mode as one frame at 2560×1440 (generate_preview.py starters), rendered
-        now if missing."""
-        if name not in templates.template_names() or mode not in generate_preview.MODES:
-            raise ApiProblem(404, f"no starter template {name} in {mode} mode")
-        path = generate_preview.starter_path(name, mode)
+    @app.get("/previews/starters/{name}.webp", dependencies=[Depends(signed_in_account)])
+    def starter_preview(name: str) -> FileResponse:
+        """A starter template, in its own mode, as one frame at 2560×1440 (generate_preview.py starters), rendered now
+        if missing."""
+        if name not in templates.template_names():
+            raise ApiProblem(404, f"no starter template {name}")
+        path = generate_preview.starter_path(name)
         if not path.exists():
             try:
                 generate_preview.render_in_subprocess(["starters", "--only", name])

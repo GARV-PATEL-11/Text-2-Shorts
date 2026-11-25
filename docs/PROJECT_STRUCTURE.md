@@ -135,13 +135,13 @@ Code transcripts are formats this project does not own.
 | `agents/*.md` | One file per subagent: script-writer, scene-planner and scene-builder (Opus: builders and refactors); critics, accuracy-reviewer, audio-refactorer (Sonnet). The session itself runs on Haiku |
 | `skills/text-2-shorts-produce/` | The workflow skill; `references/` = one guide per stage, read by path |
 | `skills/manim-ce-0-20-1-reference/` | The Manim reference in three files, all loaded in every clip task: `topics/manim-construction-patterns.md` (how to write clips; PART 9 is this project's harness conventions), `manim-vocabulary.md` (which names exist), `manim-common-mistakes.md` (what still goes wrong); their examples are validated and dry-rendered by `tests/test_topic_cards.py`; `scripts/` link to `backend/tools/` |
-| `template_kit/` | The template kit as given: `elements.json` (22 look-and-sound elements and their options), `templates/*.json` (7 starters), `gallery/*.png` (every option rendered, dark and light), its Python (`template_kit.py`, `gallery.py`, `narration.py`, `install_fonts.py`, `example_scene.py`; not run by the pipeline yet) |
+| `template_kit/` | The template kit as given: `elements.json` (22 look-and-sound elements and their options), `templates/*.json` (12 starters: 6 dark, 6 light), `gallery/*.png` (every option rendered, dark and light), its Python (`template_kit.py`, `gallery.py`, `narration.py`, `install_fonts.py`, `example_scene.py`; not run by the pipeline yet) |
 | `faraday_logging.py` | Logging for backend, frontend and runtime in one format: `configure(component, run)`, `channel("frontend")` |
 | `video_settings.py` | The look from `template.json`: background, colour roles, font, text sizes, safe area; checks (contrast); the TEMPLATE block of every TASK.md |
 | `audio_settings.py` | The sound from `template.json`: voice per provider, speaking rate, pauses, narration tone |
 | `look_renderer.py` | Our Manim drawing of a look (backdrop, grids, borders, text, maths, a subtitle line): previews and the backdrop behind every clip |
-| `generate_preview.py` | Fonts; the starter stills; every option drawn in the user's look (`option_in_look`, lossless, cached; `warm` pre-renders each starter's in both modes); the whole look; a voice sample |
-| `previews/starters/<name>-<mode>.webp` | Each starter template, dark and light, as one 2560×1440 frame (the Template gallery, dark or light). Option previews are drawn in the user's own look and cached in `~/.cache/text-2-shorts/previews` (`generate_preview.py warm` pre-renders every starter's) |
+| `generate_preview.py` | Fonts; the starter stills; every option drawn in the user's look (`option_in_look`, lossless, cached; `warm` pre-renders each starter's); the whole look; a voice sample |
+| `previews/starters/<name>.webp` | Each starter template, in its own mode, as one 2560×1440 Manim frame (the Template gallery). Option previews are drawn in the user's own look and cached in `~/.cache/text-2-shorts/previews` (`generate_preview.py warm` pre-renders every starter's) |
 | `prompts/` | The topic-list and outline prompts as Python, exported to `references/` by `export_references.py` |
 
 ## A run workspace (`artifacts/runs/<id>/`)

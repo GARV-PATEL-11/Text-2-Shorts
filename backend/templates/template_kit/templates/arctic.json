@@ -1,0 +1,28 @@
+{
+  "name": "arctic",
+  "description": "Icy blue on an isometric grid, colour-blind-safe palette, clean sans.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "plain_grid",
+    "background_color": "arctic",
+    "grid_type": "isometric",
+    "grid_color": "given",
+    "grid_opacity": "faint",
+    "primary_palette": "okabe_ito",
+    "secondary_palette": "steel",
+    "accent_color": "coral",
+    "text_font": "source_sans",
+    "math_font": "latin_modern",
+    "typography": "standard",
+    "border_style": "dashed",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "paper",
-  "description": "Print-like diagrams in dark ink on cream paper with a faint dot grid.",
+  "description": "Parchment with paper grain and a fine dot grid, editorial Lora type, ink diagrams.",
   "elements": {
     "theme_mode": "light",
     "frame": "fhd_1080p30",
@@ -12,17 +12,17 @@
     "primary_palette": "ink",
     "secondary_palette": "warm_stone",
     "accent_color": "coral",
-    "text_font": "source_sans",
-    "math_font": "palatino",
+    "text_font": "lora",
+    "math_font": "times",
     "typography": "standard",
     "border_style": "hairline",
     "border_color": "outline",
-    "voice": "gb_female",
+    "voice": "us_male_steady",
     "speaking_speed": "natural",
-    "narration_tone": "formal_academic",
+    "narration_tone": "friendly_teacher",
     "subtitles": "on",
-    "subtitle_style": "minimal",
+    "subtitle_style": "clean_bar",
     "caption_position": "bottom_center",
-    "word_highlighting": "dim_past"
+    "word_highlighting": "current_color"
   }
 }

@@ -305,7 +305,7 @@ def test_start_a_run_begins_with_the_template_which_is_saved_and_approved(web, m
     monkeypatch.setattr(run_workspace, "environment_check", environment_report)
     monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
     new = {"requirement": "Why do **tides** happen?", "minutes": 2, "look": {"template": "paper", "elements": {}}}
-    unreadable = {**new, "look": {"template": "standard", "custom": {"background_color": "#ffffff"}}}
+    unreadable = {**new, "look": {"template": "obsidian", "custom": {"background_color": "#ffffff"}}}
     refused = client.post("/api/runs", json=unreadable, headers=ORIGIN)
     assert refused.status_code == 409 and not list(runs.iterdir())  # refused before any run is made
     created = client.post("/api/runs", json=new, headers=ORIGIN)
@@ -405,18 +405,18 @@ def test_the_look_and_sound_tree_starts_on_defaults_saves_choices_and_custom_val
     signed_in(client)
     catalogue = client.get("/api/look").json()
     elements = {element["id"]: element for element in catalogue["elements"]}
-    assert len(catalogue["templates"]) == 6 and "frame" not in elements  # the delivery format is ours
+    assert len(catalogue["templates"]) == 12 and "frame" not in elements  # the delivery format is ours
     assert elements["background_color"]["custom"] == "color or gradient" and elements["grid_type"]["custom"] is None
     assert elements["grid_type"]["previewed"] and not elements["voice"]["previewed"]
     assert {element["kind"] for element in elements.values()} == {"visual", "sound"}
     look = client.get(f"/api/runs/{run.name}/look").json()  # nothing chosen yet: the default starter
-    assert look["template"] == "standard" and look["saved"] is False and look["elements"]["voice"]
+    assert look["template"] == "obsidian" and look["saved"] is False and look["elements"]["voice"]
     assert elements["voice"]["options"][0]["detail"].startswith("Polly")
 
     choice = {"template": "paper", "elements": {"accent_color": "coral"}, "custom": {"text_font": "Lato"}}
     saved = client.post(f"/api/runs/{run.name}/look", json=choice, headers=ORIGIN).json()
     assert saved["saved"] and saved["elements"]["accent_color"] == "coral" and saved["custom"] == {"text_font": "Lato"}
-    unreadable = {"template": "standard", "custom": {"background_color": "#ffffff"}}
+    unreadable = {"template": "obsidian", "custom": {"background_color": "#ffffff"}}
     refused = client.post(f"/api/runs/{run.name}/look", json=unreadable, headers=ORIGIN)
     assert refused.status_code == 409 and any("contrast" in problem for problem in refused.json()["problems"])
 
@@ -439,7 +439,7 @@ def test_the_look_can_be_previewed_as_one_rendered_frame(web):
     run = runs / "20261124-140000-still"
     write_brief(run, objectives=["understand the topic"])
     signed_in(client)
-    still = client.post(f"/api/runs/{run.name}/look/still", json={"template": "blueprint"}, headers=ORIGIN)
+    still = client.post(f"/api/runs/{run.name}/look/still", json={"template": "graphite"}, headers=ORIGIN)
     assert still.status_code == 200, still.text
     assert (run / "look_preview.webp").read_bytes()[8:12] == b"WEBP"
     assert client.get(still.json()["url"].split("?")[0]).headers["content-type"] == "image/webp"
@@ -452,7 +452,7 @@ def test_a_custom_value_is_drawn_in_the_users_look_with_its_options(web):
     answer = client.post("/api/look/options", json={"look": look, "element": "accent_color"}, headers=ORIGIN).json()
     custom = next(picture for picture in answer["pictures"] if picture["option"] == "__custom__")
     assert client.get(custom["url"]).headers["content-type"] == "image/webp"
-    unreadable = {"template": "standard", "elements": {}, "custom": {"background_color": "#ffffff"}}
+    unreadable = {"template": "obsidian", "elements": {}, "custom": {"background_color": "#ffffff"}}
     answer = client.post("/api/look/options", json={"look": unreadable, "element": "background_color"}, headers=ORIGIN)
     custom = next(picture for picture in answer.json()["pictures"] if picture["option"] == "__custom__")
     assert custom["url"] is None  # white text on white: no picture, the card says why
@@ -466,7 +466,7 @@ def test_a_reshuffle_is_shown_before_it_is_applied_and_the_same_seed_gives_the_s
     wanted = {"seed": 7, "groups": ["colours", "fonts"]}
     refused = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN)
     assert refused.status_code == 409  # nothing to reshuffle before the template is chosen
-    client.post(f"/api/runs/{run.name}/look", json={"template": "standard"}, headers=ORIGIN)
+    client.post(f"/api/runs/{run.name}/look", json={"template": "obsidian"}, headers=ORIGIN)
     first = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN).json()
     again = client.post(f"/api/runs/{run.name}/reshuffle", json=wanted, headers=ORIGIN).json()
     assert first == again and first["changes"] and not first["applied"]
@@ -481,11 +481,9 @@ def test_a_reshuffle_is_shown_before_it_is_applied_and_the_same_seed_gives_the_s
 def test_starter_templates_and_options_have_full_size_pictures(web):
     _, client = web
     signed_in(client)
-    for mode in ("dark", "light"):  # every starter has a dark and a light twin
-        starter = client.get(f"/previews/starters/standard/{mode}.webp")
-        assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
-    assert client.get("/previews/starters/nope/dark.webp").status_code == 404
-    assert client.get("/previews/starters/standard/sepia.webp").status_code == 404
+    starter = client.get("/previews/starters/obsidian.webp")  # each starter in its own mode
+    assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
+    assert client.get("/previews/starters/nope.webp").status_code == 404
     assert client.get("/previews/custom/0123456789abcdef0123.webp").status_code == 404  # nothing to render it from
 
 
@@ -511,7 +509,7 @@ def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
 
     _, client = web
     signed_in(client)
-    look = {"template": "standard", "elements": {"grid_opacity": "faint"}, "custom": {"background_color": "#123456"}}
+    look = {"template": "obsidian", "elements": {"grid_opacity": "faint"}, "custom": {"background_color": "#123456"}}
     answer = client.post("/api/look/options", json={"look": look, "element": "accent_color"}, headers=ORIGIN)
     assert answer.status_code == 200, answer.text
     pictures = answer.json()["pictures"]

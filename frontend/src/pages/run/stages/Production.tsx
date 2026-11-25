@@ -4,7 +4,6 @@ import { StatusPill } from "../../../components/feedback/StatusPill";
 import { SystemMessage } from "../../../components/feedback/SystemMessage";
 import { VideoPreview } from "../../../components/media/VideoPreview";
 import { titleCase } from "../../../components/ui/text";
-import { Said } from "../../../components/ui/Said";
 import { Markdown, runTitle } from "../../../components/ui/Markdown";
 import { sceneName } from "../Overview";
 import { useRunFile } from "../../../hooks/useRunFile";
@@ -139,7 +138,6 @@ export function Final(props: StageProps) {
     <StageTabs {...props} label="Final Video" tabs={[
       { id: "video", label: "Video", content: (
         <div className="stack">
-          {run.final_video ? <p className="note"><Said moment="complete" /></p> : null}
           <VideoPreview src={run.final_video} label={`Final Video: ${runTitle(run.summary.topic)}`} empty="No Final Video Yet" emptyHint="Rendered at 2560 × 1440 Once Every Scene Is Approved" />
         </div>
       ) },

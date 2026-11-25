@@ -1,0 +1,28 @@
+{
+  "name": "aurora",
+  "description": "Teal-to-violet night gradient, luminous colours, a whisper of dots, geometric type.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p30",
+    "background_type": "gradient_grid",
+    "background_color": "aurora",
+    "grid_type": "dots",
+    "grid_color": "accent",
+    "grid_opacity": "whisper",
+    "primary_palette": "neon",
+    "secondary_palette": "plum",
+    "accent_color": "teal",
+    "text_font": "space_grotesk",
+    "math_font": "computer_modern",
+    "typography": "standard",
+    "border_style": "none",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

@@ -76,7 +76,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
       </Page>
     );
   }
-  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" said="openingRun" /></Page>;
+  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" /></Page>;
 
   const finished = isFinished(run.summary);
   const list = finished ? { label: "Previous Runs", href: "#/previous" } : { label: "Ongoing Runs", href: "#/ongoing" };

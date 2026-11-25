@@ -382,7 +382,7 @@ def test_every_clip_of_a_scene_shares_the_scene_key(tmp_path):
 def test_next_hands_out_the_exact_next_batch(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
     assert driver.next_actions(tmp_path).stage == "1 template"  # the look comes first, on the website
-    templates.choose_template(tmp_path, "standard", [])
+    templates.choose_template(tmp_path, "obsidian", [])
     approve(tmp_path, "template")
     batch = driver.next_actions(tmp_path)
     assert batch.stage == "1 requirements" and batch.actions[0].file == "topics.md"
@@ -413,6 +413,21 @@ def test_next_hands_out_the_exact_next_batch(tmp_path):
         )
     batch = driver.next_actions(tmp_path)
     assert batch.actions[0].command == "text-2-shorts preview . s01"  # s02 waits for s01
+
+
+def test_twelve_starters_six_dark_six_light_each_its_own_design():
+    from collections import Counter
+
+    import video_settings
+
+    starters = [video_settings.starter(name) for name in video_settings.starter_names()]
+    assert Counter(s["elements"]["theme_mode"] for s in starters) == {"dark": 6, "light": 6}
+    assert not [problem for s in starters for problem in video_settings.problems(s)]
+    designs = {tuple(s["elements"][k] for k in ("background_color", "background_type", "text_font")) for s in starters}
+    assert len(designs) == 12  # no two starters share a background and a typeface
+    for s in starters:  # dark ones dark, light ones pastel-light
+        base = video_settings.resolve(s)["background"]["base"]
+        assert (video_settings.luminance(base) < 0.05) == (s["elements"]["theme_mode"] == "dark"), s["name"]
 
 
 def test_requirements_end_with_a_topic_list_and_the_content_the_outline_is_built_from(tmp_path):
@@ -544,7 +559,7 @@ def test_standing_preferences_and_the_template_shape_every_stage(tmp_path):
     key_before = fingerprints.clip_key(tmp_path, plan, plan.clips[0])
     write_json_file(tmp_path / "preferences.json", {"tone": "warm", "pause_ms": 800, "confirm_each_scene": True})
     assert preferences.validate_preferences(tmp_path) == []
-    templates.choose_template(tmp_path, "standard", ["accent_color=coral", "speaking_speed=slow"])
+    templates.choose_template(tmp_path, "obsidian", ["accent_color=coral", "speaking_speed=slow"])
     approve(tmp_path, "template")
     assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) != key_before  # new look → rebuild
     speech = preferences.clip_speech(tmp_path, '<speak>Look [pause] here</speak>', set())
@@ -711,14 +726,14 @@ def test_requirements_capture_depth_and_expectations_and_are_confirmed_at_their_
     assert "Look & sound" in driver.next_actions(tmp_path).actions[0].what
     with pytest.raises(SystemExit, match="template"):  # and requirements cannot be approved before it
         approve(tmp_path, "requirements")
-    templates.choose_template(tmp_path, "standard", [])
+    templates.choose_template(tmp_path, "obsidian", [])
     approve(tmp_path, "template")
     assert driver.next_actions(tmp_path).actions[0].do == "ask_user"
     assert any("requirements" in error for error in validation.validate_outline(tmp_path))  # then the requirements
 
 
 def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path):
-    assert {"standard", "chalkboard", "paper", "blueprint"} <= set(templates.template_names())
+    assert {"obsidian", "sage", "paper", "graphite"} <= set(templates.template_names())
     write_brief(tmp_path, objectives=["understand the topic"])
     write_requirements(tmp_path)
     assert "Look & sound" in driver.next_actions(tmp_path).actions[0].what  # the first stage
@@ -727,7 +742,7 @@ def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path)
     with pytest.raises(SystemExit, match="grid_type"):
         templates.choose_template(tmp_path, "paper", ["grid_type=hexagons"])  # not a variant
     with pytest.raises(SystemExit, match="contrast"):  # the user's own colour, unreadable under white text
-        templates.choose_template(tmp_path, "standard", ["custom.background_color=#ffffff"])
+        templates.choose_template(tmp_path, "obsidian", ["custom.background_color=#ffffff"])
     templates.choose_template(
         tmp_path,
         "paper",
@@ -811,9 +826,9 @@ def test_sound_effects_and_music_come_from_the_users_own_files(tmp_path):
     (tmp_path / "assets" / "pop.mp3").write_bytes(b"x")
     assert validation.validate_plan(tmp_path, "s01") == []
     with pytest.raises(SystemExit, match="music"):
-        templates.choose_template(tmp_path, "standard", ["music=assets/song.mp3"])
+        templates.choose_template(tmp_path, "obsidian", ["music=assets/song.mp3"])
     (tmp_path / "assets" / "song.mp3").write_bytes(b"x")
-    templates.choose_template(tmp_path, "standard", ["music=assets/song.mp3"])
+    templates.choose_template(tmp_path, "obsidian", ["music=assets/song.mp3"])
     assert templates.validate_template(tmp_path) == []
 
 
@@ -860,12 +875,12 @@ def test_every_starter_template_is_usable_in_dark_and_light_mode():
 def test_a_custom_background_can_be_one_colour_or_a_gradient(tmp_path):
     write_brief(tmp_path)
     templates.choose_template(
-        tmp_path, "standard", ["background_type=gradient", "custom.background_color=#101820,#000000"]
+        tmp_path, "obsidian", ["background_type=gradient", "custom.background_color=#101820,#000000"]
     )
     assert templates.look_view(tmp_path).custom == {"background_color": "#101820,#000000"}  # read back as entered
     assert templates.drawing(tmp_path)["background"]["shade"] == "#000000"  # the gradient's bottom
     with pytest.raises(SystemExit, match="RRGGBB"):
-        templates.choose_template(tmp_path, "standard", ["custom.background_color=#101820,black"])
+        templates.choose_template(tmp_path, "obsidian", ["custom.background_color=#101820,black"])
 
 
 def test_a_reshuffle_is_deterministic_recolours_built_clips_and_keeps_them_built(tmp_path):
@@ -873,7 +888,7 @@ def test_a_reshuffle_is_deterministic_recolours_built_clips_and_keeps_them_built
     from app.workflow import reshuffle
     from schemas.plans import ScenePlan
 
-    starter = video_settings.starter("standard")
+    starter = video_settings.starter("obsidian")
     first = video_settings.reshuffle(starter, 7, ["colours", "fonts"])
     assert first == video_settings.reshuffle(starter, 7, ["fonts", "colours"])  # same seed → same look
     assert first != video_settings.reshuffle(starter, 8, ["colours", "fonts"])
@@ -952,7 +967,7 @@ def test_dark_mode_is_deep_and_light_mode_is_pastel_and_everything_stays_readabl
             box = subtitles["style"].get("box")
             behind = box["color"] if box and box.get("opacity", 1) >= 0.6 else ground
             assert v.contrast(subtitles["text_color"], behind) >= 4.5, (name, mode)
-    own = v.starter("standard")
+    own = v.starter("obsidian")
     own["elements"]["theme_mode"] = "light"
     own["overrides"] = {"accent_color": v.custom_override("accent_color", "#123456", "light")}
     assert v.resolve(own)["roles"]["accent"] == "#123456"  # the user's own colour is never toned

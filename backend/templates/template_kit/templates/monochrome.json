@@ -1,0 +1,28 @@
+{
+  "name": "monochrome",
+  "description": "Black, white and grey with one red for focus; big hyperlegible type, nothing else.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p30",
+    "background_type": "plain",
+    "background_color": "neutral",
+    "grid_type": "square",
+    "grid_color": "outline",
+    "grid_opacity": "whisper",
+    "primary_palette": "mono_red",
+    "secondary_palette": "neutral_grey",
+    "accent_color": "coral",
+    "text_font": "atkinson",
+    "math_font": "times",
+    "typography": "large",
+    "border_style": "none",
+    "border_color": "background_shade",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

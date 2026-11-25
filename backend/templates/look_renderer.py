@@ -341,29 +341,38 @@ def luminance(hex_colour: str) -> float:
 
 
 # ── the preview: every part of the look in one frame ─────────────────────────────────────────────────────────
-CAPTION = "Square the short sides, add them, and you get the long side squared."
+CAPTION = "The area under x squared, from zero to a, is a cubed over three."
 ROLES = ("text", "focus", "given", "derived", "warning", "secondary", "accent")
 
 
 def swatch(look: dict) -> list[M.Mobject]:
     x_min, x_max, y_min, y_max = safe_area(look)
-    title = text(look, "Title Aa 123", "title")
-    body = text(look, "Body text, read aloud", "body")
-    label = text(look, "label · caption", "label", "secondary")
-    formula = maths(look, r"c=\sqrt{a^2+b^2}", role="derived")
-    column = M.VGroup(title, body, label, formula).arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.3)
+    roles = look["roles"]
+    title = text(look, "Curves and Areas", "title")
+    body = text(look, "How much space sits under a parabola?", "body")
+    function = maths(look, r"f(x) = x^2 + 2x + 1", role="given")
+    integral = maths(look, r"\int_0^a x^2\,dx = \frac{a^3}{3}", role="derived")
+    label = text(look, "label · caption 123", "label", "secondary")
+    column = M.VGroup(title, body, function, integral, label).arrange(M.DOWN, aligned_edge=M.LEFT, buff=0.3)
     chips = M.VGroup(
-        *[M.Circle(radius=0.26).set_stroke(width=0).set_fill(colour(look["roles"][role]), 1) for role in ROLES]
+        *[M.Circle(radius=0.26).set_stroke(width=0).set_fill(colour(roles[role]), 1) for role in ROLES]
     ).arrange(M.RIGHT, buff=0.14)
-    triangle = M.Polygon([0, 0, 0], [2.6, 0, 0], [2.6, 1.95, 0]).set_stroke(colour(look["roles"]["given"]), 4)
-    side = M.VGroup(chips, triangle).arrange(M.DOWN, buff=0.45, aligned_edge=M.RIGHT)
+    axes = M.Axes(x_range=[0, 2, 1], y_range=[0, 4, 1], x_length=3.2, y_length=2.6, tips=False,
+                  axis_config={"color": colour(roles["outline"]), "stroke_width": 2})  # fmt: skip
+    curve = axes.plot(lambda x: x**2, x_range=[0, 2], color=colour(roles["focus"]), stroke_width=4)
+    area = axes.get_area(curve, x_range=[0, 1.5], color=colour(roles["accent"]), opacity=0.35)
+    marker = text(look, "a", "label", "secondary").next_to(axes.c2p(1.5, 0), M.DOWN, buff=0.12)
+    triangle = M.Polygon([0, 0, 0], [1.8, 0, 0], [1.8, 1.35, 0]).set_stroke(colour(roles["given"]), 4)
+    figures = M.VGroup(M.VGroup(axes, area, curve, marker), triangle).arrange(M.RIGHT, buff=0.5, aligned_edge=M.DOWN)
+    side = M.VGroup(chips, figures).arrange(M.DOWN, buff=0.45, aligned_edge=M.RIGHT)
     for group in (column, side):
         if group.width > (x_max - x_min) / 2 - 0.2:
             group.scale_to_fit_width((x_max - x_min) / 2 - 0.2)
         if group.height > y_max - y_min:
             group.scale_to_fit_height(y_max - y_min)
-    column.move_to([x_min + column.width / 2, y_max - column.height / 2, 0])
-    side.move_to([x_max - side.width / 2, y_max - side.height / 2, 0])
+    middle = (y_max + y_min) / 2  # centred in the safe area, at the video's real sizes
+    column.move_to([x_min + column.width / 2, middle, 0])
+    side.move_to([x_max - side.width / 2, middle, 0])
     return [column, side]
 
 

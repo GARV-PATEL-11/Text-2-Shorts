@@ -1,0 +1,28 @@
+{
+  "name": "graphite",
+  "description": "Slate drafting table: graph paper, technical type, sans maths, corner brackets.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p30",
+    "background_type": "plain_grid",
+    "background_color": "slate",
+    "grid_type": "graph_paper",
+    "grid_color": "secondary",
+    "grid_opacity": "subtle",
+    "primary_palette": "okabe_ito",
+    "secondary_palette": "cool_slate",
+    "accent_color": "amber",
+    "text_font": "ibm_plex_sans",
+    "math_font": "cm_bright",
+    "typography": "compact",
+    "border_style": "corners",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

@@ -52,7 +52,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
             </li>
           ))}
         </ul>
-      ) : <SystemMessage kind="empty" title="No Changes Requested" compact said="noChanges" />}
+      ) : <SystemMessage kind="empty" title="No Changes Requested" compact />}
     </Section>
   );
 }

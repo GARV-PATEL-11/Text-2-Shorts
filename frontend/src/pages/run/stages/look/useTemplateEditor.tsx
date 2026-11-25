@@ -1,5 +1,5 @@
 // Choosing a template, shared by Start a Run (its first step) and a run's Template stage: the starter gallery (a Dark |
-// Light switch over that mode's six starters, 2 × 3), an optional Build Your Own pane with every visual element (each
+// Light switch over that mode's six starters, 2 × 3, each its own design), an optional Build Your Own pane with every visual element (each
 // option previewed and openable full screen at 2560×1440), audio and subtitles, and the whole look as one frame.
 // Returns the tabs and the overlays (the pane, the custom-value editor); the caller owns the choice.
 import { type Dispatch, type ReactNode, type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -13,7 +13,6 @@ import { Check, Moon, Palette, Picture, Sun } from "../../../../components/ui/ic
 import type { TabSpec } from "../../../../components/ui/Tabs";
 import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { titleCase } from "../../../../components/ui/text";
-import { Said } from "../../../../components/ui/Said";
 import { useAction } from "../../../../hooks/useAction";
 import { send } from "../../../../services/http";
 import { starterPreview } from "../../../../services/runs";
@@ -45,8 +44,8 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
   const stillAction = useAction();
   const defaults = useMemo(() => catalogue.templates.find((template) => template.name === choice.template)?.elements ?? {}, [catalogue, choice.template]);
   const mode = choice.elements.theme_mode === "light" ? "light" : "dark";
-  const starters = catalogue.templates;  // each shown in the mode the switch is on
-  const card = `${choice.template}:${mode}`;
+  const [view, setView] = useState(mode);  // which six the gallery shows; opens on the chosen template's mode
+  const starters = catalogue.templates.filter((template) => (template.elements.theme_mode ?? "dark") === view);
   const [building, setBuilding] = useState(false);  // the Build Your Own pane
 
   const onOpen = useCallback((element: string) => {  // an element's options drawn in this look, asked once per look
@@ -81,30 +80,26 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
       onPick={pick} onCustom={setEditing} initiallyOpen={open} />
   );
 
-  const choose = (id: string) => {
-    const [name, chosenMode] = id.split(":");
-    const base = starterChoice(catalogue, name);
-    if (base) setChoice({ ...base, elements: { ...base.elements, theme_mode: chosenMode } });
-  };
+  const choose = (name: string) => setChoice((current) => starterChoice(catalogue, name) ?? current);
 
   const tabs: TabSpec[] = [
     { id: "starters", label: "Starter Templates", content: (
       <div className="stack">
-        {/* the switch is the chosen template's mode: switching keeps the template (and anything built on it) */}
-        <Section title="Starter Templates" description={<Said moment="chooseLook" />} actions={
+        {/* the switch shows the dark or the light six; a card picks that starter as it is */}
+        <Section title="Starter Templates" actions={
           <ToggleButtonGroup className="segmented" aria-label="Dark or Light Templates" selectionMode="single" disallowEmptySelection
-            selectedKeys={[mode]} onSelectionChange={(keys) => {
+            selectedKeys={[view]} onSelectionChange={(keys) => {
               const next = [...keys][0];
-              if (next) setChoice((current) => (current ? { ...current, elements: { ...current.elements, theme_mode: String(next) } } : current));
+              if (next) setView(next === "light" ? "light" : "dark");
             }}>
             <ToggleButton id="dark" className="segmented__option"><Moon aria-hidden="true" />Dark</ToggleButton>
             <ToggleButton id="light" className="segmented__option"><Sun aria-hidden="true" />Light</ToggleButton>
           </ToggleButtonGroup>
         }>
-          <RadioCards label={`${titleCase(mode)} Starter Templates`} value={card} layout="templates" onChange={choose}
+          <RadioCards label={`${titleCase(view)} Starter Templates`} value={choice.template} layout="templates" onChange={choose}
             options={starters.map((template) => ({
-              id: `${template.name}:${mode}`, label: titleCase(template.name), srLabel: titleCase(mode),
-              image: { src: starterPreview(template.name, mode), full: starterPreview(template.name, mode), alt: `${titleCase(template.name)}, ${titleCase(mode)}` },
+              id: template.name, label: titleCase(template.name), srLabel: template.description,
+              image: { src: starterPreview(template.name), full: starterPreview(template.name), alt: `${titleCase(template.name)}: ${template.description}` },
             }))} />
           <div className="build-own">
             <span>Want to Make It Your Own?</span>

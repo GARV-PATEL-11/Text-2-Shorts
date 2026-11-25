@@ -9,9 +9,8 @@ export function useLine(moment: Moment): Line {
   return lines[index] ?? lines[0];
 }
 
-/** The line, quoted when it is a quotation, with its credit. `block` sets it apart as an epigraph; `lead` sets it as
- * a page's lead line (Home). */
-export function Said({ moment, block, lead }: { moment: Moment; block?: boolean; lead?: boolean }) {
+/** The line, quoted when it is a quotation, with its credit. `block` sets it apart as an epigraph. */
+export function Said({ moment, block }: { moment: Moment; block?: boolean }) {
   const line = useLine(moment);
   if (!line.source) return <>{line.text}</>;
   const credit = <cite className="said__source">{line.source}</cite>;
@@ -21,6 +20,6 @@ export function Said({ moment, block, lead }: { moment: Moment; block?: boolean;
       <figcaption>{credit}</figcaption>
     </figure>
   ) : (
-    <span className={lead ? "said said--lead" : "said"}><q cite={line.url}>{line.text}</q> {credit}</span>
+    <span className="said"><q cite={line.url}>{line.text}</q> {credit}</span>
   );
 }

@@ -215,6 +215,90 @@
       "shade": "#e9e0cd",
       "glow": "#fffaf0"
      }
+    },
+    {
+     "id": "obsidian",
+     "label": "Obsidian",
+     "dark": {
+      "base": "#0e0e10",
+      "shade": "#060607",
+      "glow": "#1a1a1d"
+     },
+     "light": {
+      "base": "#f4f4f5",
+      "shade": "#e7e7ea",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "aurora",
+     "label": "Aurora",
+     "dark": {
+      "base": "#0b2226",
+      "shade": "#0a0816",
+      "glow": "#1d4a46"
+     },
+     "light": {
+      "base": "#e9f6f3",
+      "shade": "#e6e2f4",
+      "glow": "#ffffff"
+     }
+    },
+    {
+     "id": "ivory",
+     "label": "Ivory",
+     "dark": {
+      "base": "#1f1c14",
+      "shade": "#13110b",
+      "glow": "#302b1f"
+     },
+     "light": {
+      "base": "#f8f1dc",
+      "shade": "#efe4c4",
+      "glow": "#fffaea"
+     }
+    },
+    {
+     "id": "lavender",
+     "label": "Lavender",
+     "dark": {
+      "base": "#1b1626",
+      "shade": "#100c18",
+      "glow": "#2b2340"
+     },
+     "light": {
+      "base": "#f1ecf9",
+      "shade": "#e3dbf3",
+      "glow": "#fbf9ff"
+     }
+    },
+    {
+     "id": "arctic",
+     "label": "Arctic",
+     "dark": {
+      "base": "#0c1e26",
+      "shade": "#061218",
+      "glow": "#163644"
+     },
+     "light": {
+      "base": "#eaf5f9",
+      "shade": "#d6eaf2",
+      "glow": "#f9fdff"
+     }
+    },
+    {
+     "id": "peach",
+     "label": "Peach",
+     "dark": {
+      "base": "#26170f",
+      "shade": "#170d08",
+      "glow": "#3a2418"
+     },
+     "light": {
+      "base": "#fcede4",
+      "shade": "#f6dccd",
+      "glow": "#fff8f3"
+     }
     }
    ]
   },
@@ -766,6 +850,58 @@
      "title_weight": "BOLD",
      "body_weight": "NORMAL",
      "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "space_grotesk",
+     "label": "Space Grotesk",
+     "category": "geometric",
+     "family": "Space Grotesk",
+     "fallbacks": [
+      "Inter",
+      "DejaVu Sans"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "eb_garamond",
+     "label": "EB Garamond",
+     "category": "serif",
+     "family": "EB Garamond",
+     "fallbacks": [
+      "Georgia",
+      "DejaVu Serif"
+     ],
+     "title_weight": "SEMIBOLD",
+     "body_weight": "NORMAL",
+     "code_family": "Source Code Pro"
+    },
+    {
+     "id": "nunito",
+     "label": "Nunito",
+     "category": "rounded",
+     "family": "Nunito",
+     "fallbacks": [
+      "Source Sans 3",
+      "DejaVu Sans"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "JetBrains Mono"
+    },
+    {
+     "id": "lora",
+     "label": "Lora",
+     "category": "serif",
+     "family": "Lora",
+     "fallbacks": [
+      "Georgia",
+      "DejaVu Serif"
+     ],
+     "title_weight": "BOLD",
+     "body_weight": "NORMAL",
+     "code_family": "Source Code Pro"
     }
    ]
   },

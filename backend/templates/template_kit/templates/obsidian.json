@@ -1,0 +1,28 @@
+{
+  "name": "obsidian",
+  "description": "Near-black charcoal, warm cream type, gold accents, one hairline frame.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p30",
+    "background_type": "plain",
+    "background_color": "obsidian",
+    "grid_type": "square",
+    "grid_color": "outline",
+    "grid_opacity": "whisper",
+    "primary_palette": "earth",
+    "secondary_palette": "warm_stone",
+    "accent_color": "gold",
+    "text_font": "inter",
+    "math_font": "latin_modern",
+    "typography": "standard",
+    "border_style": "hairline",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

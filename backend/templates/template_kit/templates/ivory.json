@@ -1,0 +1,28 @@
+{
+  "name": "ivory",
+  "description": "Warm ivory fading to beige, Garamond type, Palatino maths, a fine double frame.",
+  "elements": {
+    "theme_mode": "light",
+    "frame": "fhd_1080p30",
+    "background_type": "gradient",
+    "background_color": "ivory",
+    "grid_type": "square",
+    "grid_color": "outline",
+    "grid_opacity": "whisper",
+    "primary_palette": "earth",
+    "secondary_palette": "sand",
+    "accent_color": "amber",
+    "text_font": "eb_garamond",
+    "math_font": "palatino",
+    "typography": "comfortable",
+    "border_style": "double",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

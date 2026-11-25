@@ -1,16 +1,16 @@
 """Previews of the look and sound, rendered by Manim through look_renderer.py (no Claude, no kit code).
 
     uv run python backend/templates/generate_preview.py fonts        fetch the templates' fonts (OFL, Google Fonts)
-    uv run python backend/templates/generate_preview.py starters     every starter template, dark and light, as 2560×1440 frames
+    uv run python backend/templates/generate_preview.py starters     every starter template, in its own mode, as one 2560×1440 frame
     uv run python backend/templates/generate_preview.py warm         every option of every element, drawn in every
-        [--small-only] [--only STARTER]                                     starter's look in both modes → the cache
+        [--small-only] [--only STARTER]                                     starter's look → the cache
     uv run python backend/templates/generate_preview.py batch JOBS_JSON      what the website asks for, in one process
     uv run python backend/templates/generate_preview.py still TEMPLATE_JSON OUT     the whole chosen look
     uv run python backend/templates/generate_preview.py voice TEMPLATE_JSON OUT [--provider polly|google]
 
 An option preview is the user's own look with that one element changed (option_in_look), saved losslessly, so its
 colours are exactly the video's. Previews are cached by what they draw in ~/.cache/text-2-shorts/previews: 854×480
-for the cards, 2560×1440 for full screen. `warm` fills the cache for every starter template as it comes (both modes),
+for the cards, 2560×1440 for full screen. `warm` fills the cache for every starter template as it comes,
 so a new run's options open at once; anything else is rendered when the website first asks for it.
 """
 
@@ -36,7 +36,6 @@ log = logging.getLogger("generate_preview")
 
 PREVIEW_DIRECTORY = Path(__file__).resolve().parent / "previews"
 CUSTOM_DIRECTORY = Path.home() / ".cache" / "text-2-shorts" / "previews"
-MODES = ("dark", "light")
 SIZE = (854, 480)  # the option cards
 FULL = (2560, 1440)  # full screen and the look's still: the delivery size, pixel for pixel
 SOUND_ONLY = {"voice", "speaking_speed", "narration_tone"}  # heard, not seen
@@ -54,6 +53,10 @@ FONTS = {  # family → files in github.com/google/fonts (all SIL Open Font Lice
     "JetBrains Mono": ["ofl/jetbrainsmono/JetBrainsMono[wght].ttf"],
     "Source Code Pro": ["ofl/sourcecodepro/SourceCodePro[wght].ttf"],
     "IBM Plex Mono": ["ofl/ibmplexmono/IBMPlexMono-Regular.ttf", "ofl/ibmplexmono/IBMPlexMono-Bold.ttf"],
+    "Space Grotesk": ["ofl/spacegrotesk/SpaceGrotesk[wght].ttf"],
+    "EB Garamond": ["ofl/ebgaramond/EBGaramond[wght].ttf"],
+    "Nunito": ["ofl/nunito/Nunito[wght].ttf"],
+    "Lora": ["ofl/lora/Lora[wght].ttf"],
 }
 FONTS_URL = "https://raw.githubusercontent.com/google/fonts/main/"
 
@@ -99,40 +102,31 @@ def option_in_look(template: dict, element: str, variant: str | None = None, cus
 
 
 def warm_jobs(names: list[str]) -> tuple[list[tuple[dict, Path]], list[tuple[dict, Path]]]:
-    """Every option of every previewed element in each starter's look, in both modes: the pictures the website asks
-    for before anything is changed (same templates, so the same cache names). Missing ones only, each once."""
+    """Every option of every previewed element in each starter's look: the pictures the website asks for before
+    anything is changed (same templates, so the same cache names). Missing ones only, each once."""
     library, small, full, seen = video_settings.library(), {}, {}, set()
     for name in names:
-        for mode in MODES:
-            base = video_settings.starter(name)
-            base["elements"] = {**base["elements"], "theme_mode": mode}
-            for element in PREVIEWED:
-                for variant in library[element]["variants"]:
-                    template = option_in_look(base, element, variant)
-                    key = json.dumps(video_settings.drawing(template), sort_keys=True)
-                    if key in seen or video_settings.problems(template):
-                        continue
-                    seen.add(key)
-                    card, large = custom_path(template), still_path(template)
-                    if not card.exists():
-                        small[card] = template
-                    if not large.exists():
-                        full[large] = template
-                        large.parent.mkdir(parents=True, exist_ok=True)
-                        (large.parent / f"{large.stem}.json").write_text(json.dumps(template))
+        base = video_settings.starter(name)  # one look per starter: its own mode
+        for element in PREVIEWED:
+            for variant in library[element]["variants"]:
+                template = option_in_look(base, element, variant)
+                key = json.dumps(video_settings.drawing(template), sort_keys=True)
+                if key in seen or video_settings.problems(template):
+                    continue
+                seen.add(key)
+                card, large = custom_path(template), still_path(template)
+                if not card.exists():
+                    small[card] = template
+                if not large.exists():
+                    full[large] = template
+                    large.parent.mkdir(parents=True, exist_ok=True)
+                    (large.parent / f"{large.stem}.json").write_text(json.dumps(template))
     return [(t, p) for p, t in small.items()], [(t, p) for p, t in full.items()]
 
 
-def starter_in_mode(name: str, mode: str) -> dict:
-    """A starter template in dark or light mode (light: its own colours toned to pastels, video_settings.mode_tones)."""
-    template = video_settings.starter(name)
-    template["elements"] = {**template["elements"], "theme_mode": mode}
-    return template
-
-
-def starter_path(name: str, mode: str) -> Path:
-    """A starter template in one mode, as one frame at the delivery size (generate_preview.py starters)."""
-    return PREVIEW_DIRECTORY / "starters" / f"{name}-{mode}.webp"
+def starter_path(name: str) -> Path:
+    """A starter template, in its own mode, as one frame at the delivery size (generate_preview.py starters)."""
+    return PREVIEW_DIRECTORY / "starters" / f"{name}.webp"
 
 
 def still_path(template: dict) -> Path:
@@ -243,10 +237,9 @@ def main() -> None:
     elif arguments.command == "starters":
         names = [arguments.only] if arguments.only else video_settings.starter_names()
         jobs = [
-            (starter_in_mode(name, mode), starter_path(name, mode))
+            (video_settings.starter(name), starter_path(name))
             for name in names
-            for mode in MODES
-            if arguments.force or not starter_path(name, mode).exists()
+            if arguments.force or not starter_path(name).exists()
         ]
         render(jobs, FULL)
         print(f"rendered {len(jobs)} starter templates into {PREVIEW_DIRECTORY / 'starters'}")

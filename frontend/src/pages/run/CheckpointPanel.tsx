@@ -43,7 +43,7 @@ export function CheckpointPanel({ target }: { target: string }) {
       <div className="stack">
         {approved
           ? <SystemMessage kind="success" title="You Approved This Checkpoint">Changing What It Covers Asks You Again</SystemMessage>
-          : <SystemMessage kind="pending" title="Nothing to Decide Yet" said="nothingToDecide">Claude Asks When This Stage Is Ready</SystemMessage>}
+          : <SystemMessage kind="pending" title="Nothing to Decide Yet">Claude Asks When This Stage Is Ready</SystemMessage>}
         {history}
       </div>
     );

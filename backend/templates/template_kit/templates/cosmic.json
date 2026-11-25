@@ -1,0 +1,28 @@
+{
+  "name": "cosmic",
+  "description": "Deep indigo star field with faint orbit rings, pastel light, mission-control type.",
+  "elements": {
+    "theme_mode": "dark",
+    "frame": "fhd_1080p30",
+    "background_type": "textured_grid",
+    "background_color": "indigo",
+    "grid_type": "polar",
+    "grid_color": "secondary",
+    "grid_opacity": "faint",
+    "primary_palette": "chalk_pastel",
+    "secondary_palette": "plum",
+    "accent_color": "magenta",
+    "text_font": "jetbrains_mono",
+    "math_font": "utopia",
+    "typography": "standard",
+    "border_style": "none",
+    "border_color": "outline",
+    "voice": "us_male_steady",
+    "speaking_speed": "natural",
+    "narration_tone": "friendly_teacher",
+    "subtitles": "on",
+    "subtitle_style": "clean_bar",
+    "caption_position": "bottom_center",
+    "word_highlighting": "current_color"
+  }
+}

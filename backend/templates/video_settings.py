@@ -19,7 +19,7 @@ from pathlib import Path
 KIT_DIRECTORY = Path(__file__).resolve().parent / "template_kit"
 TEMPLATES_DIRECTORY = KIT_DIRECTORY / "templates"
 GALLERY_DIRECTORY = KIT_DIRECTORY / "gallery"
-DEFAULT_TEMPLATE = "standard"
+DEFAULT_TEMPLATE = "obsidian"
 
 VISUAL = (
     "theme_mode", "frame", "background_type", "background_color", "grid_type", "grid_color", "grid_opacity",
@@ -181,14 +181,11 @@ def mode_tones(background: dict, roles: dict, mode: str) -> tuple[dict, dict]:
             "base": from_hls(hue, 0.14, saturation),
             "shade": from_hls(shade_hue, 0.09, shade_saturation),
         }
-    if mode == "light" and saturation < NEUTRAL:
-        return background, roles
     ground, light = background["base"], mode == "light"
+    pastel = light and saturation >= NEUTRAL  # a tinted light ground; a neutral one keeps the kit's colours
     toned = dict(roles)
-    for (
-        role
-    ) in GRAPHIC_ROLES:  # light: always the pastel-most readable tone; dark: the kit's own, brightened only if dim
-        if role in toned and (light or contrast(toned[role], ground) < 3.0):
+    for role in GRAPHIC_ROLES:  # pastel: always the pastel-most readable tone; otherwise the kit's own, fixed if dim
+        if role in toned and (pastel or contrast(toned[role], ground) < 3.0):
             toned[role] = readable(toned[role], ground, 3.0, lightest=light, max_saturation=0.6 if light else 1.0)
     for role, ratio in (("secondary", 4.5), ("text", 7.0)):
         if role in toned and contrast(toned[role], ground) < ratio:
