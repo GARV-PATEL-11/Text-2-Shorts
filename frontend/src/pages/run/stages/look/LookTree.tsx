@@ -3,14 +3,22 @@
 // for its options drawn in the user's own look (onOpen); until they arrive each card says they are being rendered.
 import { useEffect, useState } from "react";
 import { RadioCards } from "../../../../components/ui/fields";
+import { ChevronDown, ChevronRight } from "../../../../components/ui/icons";
 import { titleCase } from "../../../../components/ui/text";
 import type { LookChoice, LookElement, OptionPictures } from "../../../../types/api";
 
 const GROUP_NAMES: Record<string, string> = {
-  mode: "Mode", background: "Background", grid: "Grid", color: "Colour", type: "Type", border: "Border",
+  mode: "Mode", background: "Background", grid: "Grid", colour: "Color", type: "Type", border: "Border",
   narration: "Narration", subtitles: "Subtitles",
 };
 export const CUSTOM = "__custom__";
+/** The tree's open/closed mark: Untitled UI chevrons, one shown at a time by CSS from the details' [open]. */
+const Chevron = () => (
+  <>
+    <span className="tree__chevron tree__chevron--closed" aria-hidden="true"><ChevronRight /></span>
+    <span className="tree__chevron tree__chevron--open" aria-hidden="true"><ChevronDown /></span>
+  </>
+);
 
 export function LookTree({ elements, choice, defaults, mode, pictures, onOpen, onPick, onCustom, initiallyOpen = [] }: {
   elements: LookElement[]; choice: LookChoice; defaults: Record<string, string>; mode: string;
@@ -33,7 +41,7 @@ export function LookTree({ elements, choice, defaults, mode, pictures, onOpen, o
       {groups.map((group) => (
         <li key={group}>
           <details open={open.has(group)} onToggle={(event) => toggle(group, (event.target as HTMLDetailsElement).open)}>
-            <summary><span className="tree__name">{GROUP_NAMES[group] ?? titleCase(group)}</span></summary>
+            <summary><Chevron /><span className="tree__name">{GROUP_NAMES[group] ?? titleCase(group)}</span></summary>
             <ul>
               {elements.filter((element) => element.group === group).map((element) => {
                 const custom = choice.custom[element.id];
@@ -51,7 +59,7 @@ export function LookTree({ elements, choice, defaults, mode, pictures, onOpen, o
                 return (
                   <li key={element.id}>
                     <details open={open.has(element.id)} onToggle={(event) => toggle(element.id, (event.target as HTMLDetailsElement).open)}>
-                      <summary>
+                      <summary><Chevron />
                         <span className="tree__name">{titleCase(element.label)}</span>
                         <span className="tree__value">{custom || titleCase(chosen?.label ?? "")}</span>
                         {mark === "default" ? null : <span className="badge badge--solid">{titleCase(mark)}</span>}

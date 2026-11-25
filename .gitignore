@@ -220,9 +220,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Text-2-Shorts generated output: video runs and the trash folder (artifacts/reports stays tracked)
-artifacts/runs/
-artifacts/trash/
+# Text-2-Shorts generated output: the whole artifacts/ folder (runs, logs, reports, trash) stays local
 
 # ── Text-2-Shorts local/generated files ──────────────────────────────────────
 # Virtualenvs (any name/location)
@@ -235,6 +233,9 @@ Logs/
 # Manim render output and Tex caches (scene folders, dev-package tests)
 media_final/
 media_probe/
+/media/
+# The chosen template, copied into the run environment when a run picks it (backend/app/workflow/templates.py)
+runtime-environment/template/
 # Archives / local backups
 *.zip
 # Local-only Claude Code settings
@@ -244,3 +245,4 @@ media_probe/
 # Frontend: dependencies and the build (`npm ci && npm run build` in frontend/)
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo

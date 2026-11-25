@@ -28,7 +28,7 @@ export function LookSound(props: StageProps) {
   }, [saved.data, choice]);
 
   if (catalogue.error || saved.error) {
-    return <SystemMessage kind="unavailable" title="The Template Did Not Load">{(catalogue.error ?? saved.error)?.message}</SystemMessage>;
+    return <SystemMessage kind="unavailable" title="Could Not Load the Template">{(catalogue.error ?? saved.error)?.message}</SystemMessage>;
   }
   if (!catalogue.data || !choice || !saved.data) return <SystemMessage kind="loading" title="Loading Options" />;
   return <TemplateStage {...props} catalogue={catalogue.data} choice={choice} setChoice={setChoice} saved={saved.data.saved} />;
@@ -42,9 +42,9 @@ function TemplateStage({ catalogue, choice, setChoice, saved, ...props }: StageP
   const action = useAction();
   const [audio, setAudio] = useState<string | null>(null);
   useEffect(() => setAudio(null), [choice]);  // the voice sample belongs to the choice it was made from
-  const hear = () => action.run("Synthesizing a few seconds with your voice provider…", async () => {
+  const hear = () => action.run("Synthesizing a Few Seconds…", async () => {
     setAudio((await send<{ url: string }>(runPath(id, "/look/voice"), choice)).url);
-    return "Voice sample ready.";
+    return "Voice Sample Ready";
   });
   const editor = useTemplateEditor({
     catalogue, choice, setChoice,
@@ -52,8 +52,8 @@ function TemplateStage({ catalogue, choice, setChoice, saved, ...props }: StageP
   });
   const save = () => action.run("Saving…", async () => {
     await send(runPath(id, "/look"), choice);
-    refresh("Template saved. Approve it in the Checkpoint tab; the requirements come next.");
-    return "Saved.";
+    refresh("Template Saved: Approve It in the Checkpoint Tab, Then the Requirements Come Next");
+    return "Saved";
   });
   const tabs = editor.tabs.map((tab) => (tab.id === "sound" && audio
     ? { ...tab, content: <div className="stack"><AudioPreview src={audio} label="Voice Sample" />{tab.content}</div> } : tab));
@@ -66,7 +66,7 @@ function TemplateStage({ catalogue, choice, setChoice, saved, ...props }: StageP
         </>}
         tabs={[...tabs, { id: "checkpoint", label: "Checkpoint", count: waiting(run.awaiting, "template"), content: <CheckpointPanel target="template" /> }]}
       />
-      {!saved ? <p className="note">Nothing saved yet: the defaults shown are what the video will use.</p> : null}
+      {!saved ? <p className="note">Showing Defaults: The Video Uses These Until You Save</p> : null}
       <Notice note={action.note ?? editor.stillAction.note} />
       {editor.note ? <p className="note" role="status">{editor.note}</p> : null}
       {editor.overlay}

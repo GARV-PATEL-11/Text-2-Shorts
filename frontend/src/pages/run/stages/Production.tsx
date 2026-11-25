@@ -4,7 +4,8 @@ import { StatusPill } from "../../../components/feedback/StatusPill";
 import { SystemMessage } from "../../../components/feedback/SystemMessage";
 import { VideoPreview } from "../../../components/media/VideoPreview";
 import { titleCase } from "../../../components/ui/text";
-import { runTitle } from "../../../components/ui/Markdown";
+import { Said } from "../../../components/ui/Said";
+import { Markdown, runTitle } from "../../../components/ui/Markdown";
 import { sceneName } from "../Overview";
 import { useRunFile } from "../../../hooks/useRunFile";
 import { CheckpointPanel } from "../CheckpointPanel";
@@ -14,6 +15,38 @@ import { type StageProps, StageTabs, waiting } from "./StageTabs";
 
 interface ClipPlan { clip_id: string; objective: string; visual_intent: string; beats: string[]; est_seconds: number }
 interface ScenePlan { scene_id: string; title: string; composition: string; transition_in: string; clips: ClipPlan[] }
+
+/** The Visual Director's Scene Execution Plan (plan.json's execution_plan): its tagged sections as headings. */
+function ExecutionPlan({ sceneId }: { sceneId: string }) {
+  const { run } = useRun();
+  const plan = useRunFile<{ execution_plan?: string }>(run.summary.id, `scenes/${sceneId}/plan.json`);
+  if (plan.loading && !plan.data) return <SystemMessage kind="loading" title={`Loading the Execution Plan of ${sceneName(sceneId)}`} compact />;
+  if (!plan.data?.execution_plan) return <SystemMessage kind="missing" title={`No Execution Plan for ${sceneName(sceneId)}`} compact />;
+  const text = plan.data.execution_plan
+    .replace(/^<\/[A-Z_]+>\s*$/gm, "")
+    .replace(/^<([A-Z_]+)>\s*$/gm, (_, tag: string) => `### ${titleCase(tag.toLowerCase().replace(/_/g, " "))}`);
+  return (
+    <article className="card stack">
+      <div className="row row--tight"><span className="badge">{sceneName(sceneId)}</span><h3 className="card__title">Execution Plan</h3></div>
+      <Markdown text={text} />
+    </article>
+  );
+}
+
+/** The scene's accepted Manim code (scene_code.py: one _clip_N method per clip) and the builder's notes on it. */
+function SceneCode({ sceneId }: { sceneId: string }) {
+  const { run } = useRun();
+  const code = useRunFile<string>(run.summary.id, `scenes/${sceneId}/scene_code.py`, "text");
+  const changes = useRunFile<string>(run.summary.id, `scenes/${sceneId}/work/CHANGES.md`, "text");
+  if (!code.data) return null;
+  return (
+    <article className="card stack">
+      <h3 className="card__title">Scene Code</h3>
+      {changes.data ? <Markdown text={changes.data} /> : null}
+      <pre className="document" tabIndex={0} aria-label={`Manim code of ${sceneName(sceneId)}`}><code>{code.data}</code></pre>
+    </article>
+  );
+}
 
 function PlanCard({ sceneId }: { sceneId: string }) {
   const { run } = useRun();
@@ -46,17 +79,18 @@ function PlanCard({ sceneId }: { sceneId: string }) {
 function SceneCritique({ sceneId, kind }: { sceneId: string; kind: "plan" | "video" }) {
   const { run } = useRun();
   const critique = useRunFile<{ rounds: Round[] }>(run.summary.id, `scenes/${sceneId}/${kind}_critique.json`);
-  if (!critique.data) return <SystemMessage kind="pending" title={`No ${titleCase(kind)} Critique for ${sceneName(sceneId)} Yet`} compact>Critics review it once it exists.</SystemMessage>;
+  if (!critique.data) return <SystemMessage kind="pending" title={`No ${titleCase(kind)} Critique for ${sceneName(sceneId)} Yet`} compact />;
   return <CritiqueRounds title={`${sceneName(sceneId)} · ${titleCase(kind)} Critique`} rounds={critique.data.rounds} />;
 }
 
 export function Plans(props: StageProps) {
   const { run } = useRun();
   const review = useRunFile<{ findings: Finding[] }>(run.summary.id, "plan_review.json");
-  if (!run.scenes.length) return <NotYet what="Scene Plans">The scene-planner writes them after you approve the script.</NotYet>;
+  if (!run.scenes.length) return <NotYet what="Scene Plans">Written After You Approve the Script</NotYet>;
   return (
     <StageTabs {...props} label="Scene Plans" tabs={[
       { id: "plans", label: "Plans", content: <div className="stack">{run.scenes.map((scene) => <PlanCard key={scene.scene_id} sceneId={scene.scene_id} />)}</div> },
+      { id: "execution", label: "Execution Plans", content: <div className="stack">{run.scenes.map((scene) => <ExecutionPlan key={scene.scene_id} sceneId={scene.scene_id} />)}</div> },
       { id: "critiques", label: "Critiques", content: <div className="stack">{run.scenes.map((scene) => <SceneCritique key={scene.scene_id} sceneId={scene.scene_id} kind="plan" />)}</div> },
       { id: "accuracy", label: "Accuracy", content: review.data ? <Findings findings={review.data.findings} /> : <NotYet what="Accuracy Review" /> },
       { id: "checkpoint", label: "Checkpoint", count: waiting(run.awaiting, "plan"), content: <CheckpointPanel target="plan" /> },
@@ -66,7 +100,7 @@ export function Plans(props: StageProps) {
 
 export function Scenes(props: StageProps) {
   const { run } = useRun();
-  if (!run.scenes.length) return <NotYet what="Scenes">Scenes are built one at a time after the scene plans are approved.</NotYet>;
+  if (!run.scenes.length) return <NotYet what="Scenes">Built One at a Time After the Scene Plans Are Approved</NotYet>;
   return (
     <StageTabs {...props} label="Scenes" tabs={run.scenes.map((scene) => {
       const built = scene.clips.filter((clip) => ["completed", "approved"].includes(clip.status)).length;
@@ -75,7 +109,7 @@ export function Scenes(props: StageProps) {
         id: scene.scene_id, label: sceneName(scene.scene_id), count: decision ? 1 : 0,
         content: (
           <div className="scene-view">
-            <VideoPreview src={scene.preview} label={`Preview of ${scene.title}`} empty="No Preview Yet" emptyHint="Appears once every clip is built." />
+            <VideoPreview src={scene.preview} label={`Preview of ${scene.title}`} empty="No Preview Yet" emptyHint="Appears Once the Scene's Code Is Built" />
             <div className="stack">
               <div className="row row--tight"><h3 className="card__title">{titleCase(scene.title)}</h3><StatusPill value={scene.status} /></div>
               <ProgressBar label="Clips Built" value={built} max={scene.clips.length} valueLabel={`${built} of ${scene.clips.length}`} />
@@ -85,10 +119,11 @@ export function Scenes(props: StageProps) {
                   <tbody>{scene.clips.map((clip) => <tr key={clip.clip_id}><td className="id">{clip.clip_id}</td><td>{clip.objective}</td><td><StatusPill value={clip.status} /></td></tr>)}</tbody>
                 </table>
               </div>
-              {scene.sync_problems.length ? <ul className="problems">{scene.sync_problems.map((problem) => <li key={problem}>{problem}</li>)}</ul> : null}
+              {scene.sync_problems.length ? <ul className="points">{scene.sync_problems.map((problem) => <li key={problem}>{problem}</li>)}</ul> : null}
             </div>
             <div className="scene-view__wide stack">
               <SceneCritique sceneId={scene.scene_id} kind="video" />
+              <SceneCode sceneId={scene.scene_id} />
               {decision ? <CheckpointPanel target={decision.target} /> : null}
             </div>
           </div>
@@ -102,7 +137,12 @@ export function Final(props: StageProps) {
   const { run } = useRun();
   return (
     <StageTabs {...props} label="Final Video" tabs={[
-      { id: "video", label: "Video", content: <VideoPreview src={run.final_video} label={`Final Video: ${runTitle(run.summary.topic)}`} empty="No Final Video Yet" emptyHint="Rendered at 2560 × 1440 once every scene is approved." /> },
+      { id: "video", label: "Video", content: (
+        <div className="stack">
+          {run.final_video ? <p className="note"><Said moment="complete" /></p> : null}
+          <VideoPreview src={run.final_video} label={`Final Video: ${runTitle(run.summary.topic)}`} empty="No Final Video Yet" emptyHint="Rendered at 2560 × 1440 Once Every Scene Is Approved" />
+        </div>
+      ) },
       { id: "checks", label: "Media Checks", count: run.final_checks.length, content: !run.final_video ? <NotYet what="Media Checks" /> : run.final_checks.length ? (
         <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
           <table className="table table--compact">

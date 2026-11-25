@@ -14,7 +14,7 @@ function Routes() {
   const { account, checked } = useSession();
   let page;
   if (route.page === "signin") page = <SignInPage />;
-  else if (!checked || !account) page = <div className="page"><SystemMessage kind="loading" title="Opening Your Workspace…">Checking which Claude account this computer uses.</SystemMessage></div>;
+  else if (!checked || !account) page = <div className="page"><SystemMessage kind="loading" title="Opening Your Workspace…">Checking Which Claude Account This Computer Uses</SystemMessage></div>;
   else if (route.page === "run") page = <RunPage key={route.run} run={route.run} stage={route.stage} tab={route.tab} />;
   else if (route.page === "new") page = <NewRunPage />;
   else if (route.page === "ongoing" || route.page === "previous") page = <RunListPage key={route.page} which={route.page} />;

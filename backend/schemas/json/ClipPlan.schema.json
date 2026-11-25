@@ -158,7 +158,7 @@
       "type": "array"
     },
     "manim_topics": {
-      "description": "topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']",
+      "description": "extra Manim reference files to load; usually empty, since the three reference files (manim-construction-patterns, manim-vocabulary, manim-common-mistakes) are in every clip task",
       "items": {
         "type": "string"
       },

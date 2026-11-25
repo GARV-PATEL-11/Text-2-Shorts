@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "BrowserLogEntry": {
+      "additionalProperties": false,
+      "description": "One thing the browser reports: an error, a failed request, an action.",
+      "properties": {
+        "level": {
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 2000,
+          "title": "Message",
+          "type": "string"
+        },
+        "at": {
+          "default": "",
+          "description": "the browser's time",
+          "maxLength": 40,
+          "title": "At",
+          "type": "string"
+        },
+        "page": {
+          "default": "",
+          "description": "the route it happened on",
+          "maxLength": 300,
+          "title": "Page",
+          "type": "string"
+        },
+        "details": {
+          "default": "",
+          "maxLength": 4000,
+          "title": "Details",
+          "type": "string"
+        }
+      },
+      "required": [
+        "level",
+        "message"
+      ],
+      "title": "BrowserLogEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "POST /api/logs: what the browser has to report, in batches (frontend.log).",
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/BrowserLogEntry"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "entries"
+  ],
+  "title": "BrowserLogBatch",
+  "type": "object"
+}

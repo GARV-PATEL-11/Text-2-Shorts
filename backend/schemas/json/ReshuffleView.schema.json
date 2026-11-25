@@ -1,0 +1,85 @@
+{
+  "$defs": {
+    "LookInput": {
+      "additionalProperties": false,
+      "description": "POST /api/runs/<run>/look (and \u2026/look/voice): a starter template, the elements changed, custom values.",
+      "properties": {
+        "template": {
+          "minLength": 1,
+          "title": "Template",
+          "type": "string"
+        },
+        "elements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 variant; others keep the default",
+          "title": "Elements",
+          "type": "object"
+        },
+        "custom": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 the user's own value",
+          "title": "Custom",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "LookInput",
+      "type": "object"
+    },
+    "ReshuffleChange": {
+      "additionalProperties": false,
+      "properties": {
+        "element": {
+          "title": "Element",
+          "type": "string"
+        },
+        "before": {
+          "title": "Before",
+          "type": "string"
+        },
+        "after": {
+          "title": "After",
+          "type": "string"
+        }
+      },
+      "required": [
+        "element",
+        "before",
+        "after"
+      ],
+      "title": "ReshuffleChange",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The reshuffled look (as a LookInput, for the still preview) and what changed; applied when it was saved.",
+  "properties": {
+    "look": {
+      "$ref": "#/$defs/LookInput"
+    },
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/ReshuffleChange"
+      },
+      "title": "Changes",
+      "type": "array"
+    },
+    "applied": {
+      "title": "Applied",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "look",
+    "changes",
+    "applied"
+  ],
+  "title": "ReshuffleView",
+  "type": "object"
+}

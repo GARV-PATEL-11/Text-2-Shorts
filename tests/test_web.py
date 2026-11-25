@@ -405,7 +405,7 @@ def test_the_look_and_sound_tree_starts_on_defaults_saves_choices_and_custom_val
     signed_in(client)
     catalogue = client.get("/api/look").json()
     elements = {element["id"]: element for element in catalogue["elements"]}
-    assert len(catalogue["templates"]) == 7 and "frame" not in elements  # the delivery format is ours
+    assert len(catalogue["templates"]) == 6 and "frame" not in elements  # the delivery format is ours
     assert elements["background_color"]["custom"] == "color or gradient" and elements["grid_type"]["custom"] is None
     assert elements["grid_type"]["previewed"] and not elements["voice"]["previewed"]
     assert {element["kind"] for element in elements.values()} == {"visual", "sound"}
@@ -481,9 +481,11 @@ def test_a_reshuffle_is_shown_before_it_is_applied_and_the_same_seed_gives_the_s
 def test_starter_templates_and_options_have_full_size_pictures(web):
     _, client = web
     signed_in(client)
-    starter = client.get("/previews/starters/paper.webp")
-    assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
-    assert client.get("/previews/starters/nope.webp").status_code == 404
+    for mode in ("dark", "light"):  # every starter has a dark and a light twin
+        starter = client.get(f"/previews/starters/standard/{mode}.webp")
+        assert starter.status_code == 200 and starter.headers["content-type"] == "image/webp"
+    assert client.get("/previews/starters/nope/dark.webp").status_code == 404
+    assert client.get("/previews/starters/standard/sepia.webp").status_code == 404
     assert client.get("/previews/custom/0123456789abcdef0123.webp").status_code == 404  # nothing to render it from
 
 
@@ -520,3 +522,52 @@ def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
     assert full.status_code == 200 and Image.open(io.BytesIO(full.content)).size == (2560, 1440)
     unknown = client.post("/api/look/options", json={"look": look, "element": "voice"}, headers=ORIGIN)
     assert unknown.status_code == 404
+
+
+def test_every_borrowed_line_is_credited_and_linked_and_the_brand_line_is_untouched():
+    import re
+
+    voice = (FRONTEND / "src" / "config" / "voice.ts").read_text()
+    lines = re.findall(r'^  (\w+): \{ text: "([^"]+)", source: [`"]([^`"]+)[`"], url: (\S+) \},$', voice, re.MULTILINE)
+    declared = re.findall(r"^  (\w+): \{ text:", voice, re.MULTILINE)
+    assert lines and len(lines) == len(declared)  # every line has its text, its source and its link
+    for name, text, source, url in lines:
+        assert source.strip() and url.startswith(('"https://', "candle(")), name
+    used = set(re.findall(r"LINES\.(\w+)", voice))
+    assert used <= set(declared) and set(declared) <= used  # no unused or undefined line
+    assert not any("Curiosity, Illustrated" in text for _, text, _, _ in lines)  # the brand line is never replaced
+    home = (FRONTEND / "src" / "pages" / "Home.tsx").read_text()
+    assert "Curiosity, Illustrated." in home
+
+
+def test_usage_limits_follow_claude_codes_rate_limit_events(web, monkeypatch, tmp_path):
+    import json
+
+    from app.web import usage
+
+    _, client = web
+    monkeypatch.setattr(usage, "USAGE_FILE", tmp_path / "usage.json")
+    assert client.get("/api/usage").status_code == 401  # signed in only
+    signed_in(client)
+    assert client.get("/api/usage").json()["windows"] == []  # nothing reported yet
+    event = {
+        "type": "rate_limit_event",
+        "rate_limit_info": {
+            "unifiedWindows": {
+                "five_hour": {"utilization": 0.25, "resetsAt": 1795599000, "status": "allowed"},
+                "seven_day": {"utilization": 0.49, "resetsAt": 1795867200, "status": "allowed"},
+            }
+        },
+    }
+    assert not usage.record({"type": "assistant"}) and usage.record(event)  # a console turn's event is kept
+    view = client.get("/api/usage").json()
+    assert [(w["id"], w["used_percent"], w["resets_at"]) for w in view["windows"]] == [
+        ("five_hour", 25.0, 1795599000),
+        ("seven_day", 49.0, 1795867200),
+    ]
+    assert view["plan"] == ACCOUNT.plan and view["checked_at"]
+    fresher = json.loads(json.dumps(event))
+    fresher["rate_limit_info"]["unifiedWindows"]["five_hour"]["utilization"] = 0.3
+    monkeypatch.setattr(usage, "probe", lambda: '{"type": "system"}\n' + json.dumps(fresher) + "\n")
+    checked = client.post("/api/usage", headers=ORIGIN).json()  # Check Now: one probe turn
+    assert checked["windows"][0]["used_percent"] == 30.0

@@ -1,4 +1,38 @@
 {
+  "$defs": {
+    "LookInput": {
+      "additionalProperties": false,
+      "description": "POST /api/runs/<run>/look (and \u2026/look/voice): a starter template, the elements changed, custom values.",
+      "properties": {
+        "template": {
+          "minLength": 1,
+          "title": "Template",
+          "type": "string"
+        },
+        "elements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 variant; others keep the default",
+          "title": "Elements",
+          "type": "object"
+        },
+        "custom": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 the user's own value",
+          "title": "Custom",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "LookInput",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "description": "POST /api/runs: a run started from the website (what `text-2-shorts new` asks).",
   "properties": {
@@ -49,6 +83,18 @@
       ],
       "title": "Tts",
       "type": "string"
+    },
+    "look": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LookInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the template chosen in Start a Run's first step (saved and approved)"
     }
   },
   "required": [

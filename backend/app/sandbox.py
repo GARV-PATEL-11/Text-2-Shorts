@@ -8,7 +8,15 @@ import shutil
 import sys
 from pathlib import Path
 
-from app.config import EFFORT, REPOSITORY_ROOT, RUN_ENVIRONMENT, SCHEMAS_DIRECTORY, SESSION_MODEL, USER_CACHE_DIRECTORY
+from app.config import (
+    EFFORT,
+    REPOSITORY_ROOT,
+    RUN_ENVIRONMENT,
+    SCHEMAS_DIRECTORY,
+    SESSION_MODEL,
+    USER_CACHE_DIRECTORY,
+    runtime_template_directory,
+)
 
 RENDER_JAIL_PREFIX = [
     "bwrap",
@@ -27,6 +35,14 @@ RENDER_JAIL_PREFIX = [
     "--unshare-net",
     "--die-with-parent",
 ]
+
+
+def render_jail_prefix() -> list[str]:
+    """The render jail, plus the chosen template's copy when it lives outside the repo (tests move it to /tmp)."""
+    template = runtime_template_directory()
+    if template.is_dir() and REPOSITORY_ROOT not in template.resolve().parents:
+        return [*RENDER_JAIL_PREFIX, "--ro-bind", str(template), str(template)]
+    return list(RENDER_JAIL_PREFIX)
 
 
 def build_jail_command(run: Path, command: list[str]) -> list[str]:
@@ -72,6 +88,9 @@ def build_jail_command(run: Path, command: list[str]) -> list[str]:
     argv += ["--ro-bind", str(REPOSITORY_ROOT), str(REPOSITORY_ROOT)]
     if (REPOSITORY_ROOT / ".env").exists():
         argv += ["--ro-bind", "/dev/null", str(REPOSITORY_ROOT / ".env")]  # repo secrets stay outside the session
+    template = runtime_template_directory()  # the chosen template's copy; already in the repo unless moved (tests)
+    if template.is_dir() and not is_within(template.resolve(), REPOSITORY_ROOT):
+        argv += ["--ro-bind", str(template), str(template)]
     argv += ["--bind", str(run), str(run)]
     for directory in (home / ".claude", home / ".cache"):
         directory.mkdir(exist_ok=True)
@@ -124,7 +143,27 @@ def session_command() -> list[str]:
 
 def console_claude_arguments(message: str, session_id: str | None) -> list[str]:
     """One turn of the run session from the website's console: the user's message, streamed back as JSON events,
-    resuming the same session each turn. The only place Python starts Claude Code with a message, and the message
-    is always the user's own (no prompts are written here)."""
+    resuming the same session each turn. With usage_check_arguments, the only places Python starts Claude Code with a
+    message: here the message is always the user's own (no prompts are written here)."""
     arguments = ["claude", "-p", message, "--output-format", "stream-json", "--verbose", *session_flags()]
     return arguments + (["--resume", session_id] if session_id else [])
+
+
+USAGE_CHECK_MESSAGE = "Reply with OK."
+
+
+def usage_check_arguments() -> list[str]:
+    """A one-line Haiku turn, no tools, used only for the rate_limit_event Claude Code streams with every turn (Home's
+    usage limits, app/web/usage.py). Its fixed message asks for nothing; no run, plugin or prompt is involved."""
+    return [
+        "claude",
+        "-p",
+        USAGE_CHECK_MESSAGE,
+        "--output-format",
+        "stream-json",
+        "--verbose",
+        "--model",
+        "haiku",
+        "--tools",
+        "",
+    ]

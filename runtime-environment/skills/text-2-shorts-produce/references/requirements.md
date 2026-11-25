@@ -37,7 +37,7 @@ Steps
    depth, complexity, expectations), topics.md and content.md; on approval `text-2-shorts approve . requirements`.
 8. Template (look and sound) — the run's first stage, chosen before the requirements: the user picks it on the
    website's Template stage (a gallery of starters, or Build Your Own): a starter template (7, from
-   `runtime-environment/template_kit/`), then any element changed (background, grid, palettes, accent, fonts, type
+   `backend/templates/template_kit/`), then any element changed (background, grid, palettes, accent, fonts, type
    sizes, border, voice, speaking speed, narration tone, subtitles), five of them to their own value (background
    colour, accent colour, text font, voice, speed). Untouched elements keep the starter's default; each element
    shows every option rendered, and the voice can be heard before saving. If they ask you instead:

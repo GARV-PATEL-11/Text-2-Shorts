@@ -7,7 +7,7 @@ from pathlib import Path
 
 from schemas.plans import ScenePlan
 
-from app.config import CLIP_BUILDER_AGENT_PATH
+from app.config import SCENE_BUILDER_AGENT_PATH
 from app.utilities import content_hash, read_json
 from app.workflow.artifacts import load_scene_plans
 from app.workflow.change_requests import requests_for
@@ -57,15 +57,18 @@ def scene_video_hash(run: Path, scene_id: str) -> str | None:
 
 
 def clip_key(run: Path, plan: ScenePlan, clip) -> str:
-    """Everything a clip's code depends on. The entry contract is its interface to the clips before it, so their code
-    is not part of it (a rebuilt clip does not cascade); nor are its SSML and audio, which are re-timed to the
-    built video."""
+    """Everything a clip's code depends on. One file per scene (scene_code.py), so every clip of a scene shares the
+    scene's key: the whole plan (execution plan included), its colour roles, the scene's change requests, the template
+    and the scene-builder's instructions. Not the SSML or audio, which are re-timed to the built video."""
+    del clip  # kept in the signature: callers ask per clip, the answer is the scene's
     return content_hash(
-        clip.model_dump(exclude={"ssml", "sound_effects"}),
-        plan.color_roles,
-        [(r.id, r.kind, r.text) for r in requests_for(run, plan.scene_id, clip.clip_id)],
+        plan.model_dump(exclude={"clips": {"__all__": {"ssml", "sound_effects"}}}),
+        [
+            (r.id, r.kind, r.text)
+            for r in requests_for(run, plan.scene_id, *(scene_clip.clip_id for scene_clip in plan.clips))
+        ],
         look(run),  # the template's background, colour roles, font, sizes and safe area
-        CLIP_BUILDER_AGENT_PATH.read_text() if CLIP_BUILDER_AGENT_PATH.exists() else "",
+        SCENE_BUILDER_AGENT_PATH.read_text() if SCENE_BUILDER_AGENT_PATH.exists() else "",
     )
 
 

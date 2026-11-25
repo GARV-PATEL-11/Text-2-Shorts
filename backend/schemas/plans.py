@@ -49,7 +49,9 @@ class ClipPlan(Strict):
     depends_on: list[ClipId] = Field(default_factory=list)
     sound_effects: list[SoundEffect] = Field(default_factory=list, description="mixed in at assembly")
     manim_topics: list[str] = Field(
-        default_factory=list, description="topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']"
+        default_factory=list,
+        description="extra Manim reference files to load; usually empty, since the three reference files "
+        "(manim-construction-patterns, manim-vocabulary, manim-common-mistakes) are in every clip task",
     )
 
 
@@ -66,6 +68,11 @@ class ScenePlan(Strict):
     )
     clips: list[ClipPlan] = Field(..., min_length=1, max_length=8)
     color_roles: dict[str, str] = Field(default_factory=dict, description="semantic role → Manim color constant")
+    execution_plan: str = Field(
+        "",
+        description="the Visual Director's Scene Execution Plan: its tagged sections <SCENE_OVERVIEW> … "
+        "<IMPLEMENTATION_NOTES> (visual-director-output-spec.md), what the code generator implements",
+    )
 
     @model_validator(mode="after")
     def _clip_ids_belong_to_scene(self):

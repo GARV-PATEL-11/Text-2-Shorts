@@ -79,19 +79,11 @@ def next_steps(run: Path) -> list[str]:
     for plan in plans:
         if any(clip.clip_id in stale for clip in plan.clips):
             continue
-        next_clip_id = next(
-            (
-                clip.clip_id
-                for clip in plan.clips
-                if (build := state.clips.get(clip.clip_id)) is None or build.key != clip_key(run, plan, clip)
-            ),
-            None,
-        )
-        if next_clip_id:
-            steps.append(
-                f"build {next_clip_id} (text-2-shorts task → clip-builder → text-2-shorts accept), "
-                f"then the rest of {plan.scene_id}"
-            )
+        if any(
+            (build := state.clips.get(clip.clip_id)) is None or build.key != clip_key(run, plan, clip)
+            for clip in plan.clips
+        ):
+            steps.append(f"build {plan.scene_id} (text-2-shorts task → scene-builder → text-2-shorts accept)")
         else:
             steps += preview_problems(run, plan) or [
                 f"video critique: {problem}" for problem in critique_problems(run, plan.scene_id, "video")

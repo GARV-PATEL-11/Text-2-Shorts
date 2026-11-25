@@ -12,6 +12,7 @@
           "enum": [
             "you",
             "claude",
+            "question",
             "tool",
             "system",
             "error"
@@ -20,8 +21,17 @@
           "type": "string"
         },
         "text": {
+          "description": "Markdown",
           "title": "Text",
           "type": "string"
+        },
+        "options": {
+          "description": "a question's choices, answered with one click",
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
         }
       },
       "required": [

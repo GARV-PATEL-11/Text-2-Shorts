@@ -29,12 +29,12 @@ from app.config import (
     TOOLS_DIRECTORY,
     VOICE_LEAD_IN_SECONDS,
 )
-from app.sandbox import RENDER_JAIL_PREFIX
+from app.sandbox import render_jail_prefix
 from app.utilities import content_hash
 from app.workflow.artifacts import load_audio_index, load_brief, load_gate_result, load_script, load_sync_report
 from app.workflow.fingerprints import scene_video_hash
 from app.workflow.preferences import clip_speech
-from app.workflow.templates import drawing, sound
+from app.workflow.templates import drawing, install_template, sound
 
 
 def voice_key(run: Path, spoken: str) -> str:
@@ -59,8 +59,9 @@ def stale_audio(run: Path, plans: list[ScenePlan]) -> set[str]:
 
 
 def render_scene_sections(run: Path, plan: ScenePlan, quality: str, fps: int | None, media: str) -> SceneRender:
-    """Compose the scene from its accepted clips and render every clip as a section, in a network-less jail."""
+    """Wrap the scene's accepted code (scene_code.py) and render every clip as a section, in a network-less jail."""
     scene_directory = run / "scenes" / plan.scene_id
+    install_template(run)  # the renderer the harness draws the backdrop with, in the run environment
     subprocess.run(
         [
             PYTHON_EXECUTABLE,
@@ -75,7 +76,7 @@ def render_scene_sections(run: Path, plan: ScenePlan, quality: str, fps: int | N
     )
     shutil.rmtree(scene_directory / media, ignore_errors=True)
     render_process = subprocess.run(
-        RENDER_JAIL_PREFIX
+        render_jail_prefix()
         + [
             "--bind",
             str(scene_directory),
@@ -127,15 +128,16 @@ def scene_manifest(run: Path, plan: ScenePlan, render: SceneRender) -> ManifestS
 
 
 def sync_report(run: Path, plan: ScenePlan, video_seconds: dict[str, float]) -> SyncReport:
-    """Per clip and beat: when the voice says the beat's phrase vs when the animation marks it (self.beat), whether
-    the audio fits the clip's video, and the clip-builder's notes on what it changed from the plan."""
+    """Per clip and beat: when the voice says the beat's phrase vs when the animation marks it (optional self.beat),
+    whether the audio fits the clip's video, and the scene-builder's notes on what it changed from the plan."""
     scene_directory = run / "scenes" / plan.scene_id
     audio_index = load_audio_index(run, plan.scene_id)
+    probe = load_gate_result(scene_directory / "work" / "checks" / "probe.json")
+    changes_path = scene_directory / "work" / "CHANGES.md"
+    changes = changes_path.read_text().strip() if changes_path.exists() else ""
     clips, problems = [], []
     for clip in plan.clips:
-        work_directory = scene_directory / "work" / f"clip_{clip.index:02d}"
-        probe = load_gate_result(work_directory / "checks" / "probe.json")
-        shown = probe.beats if probe else {}
+        shown = probe.beats.get(f"clip_{clip.index:02d}", {}) if probe else {}
         audio = audio_index.get(clip.clip_id)
         beats = []
         for number, (beat, spoken) in enumerate(
@@ -157,7 +159,6 @@ def sync_report(run: Path, plan: ScenePlan, video_seconds: dict[str, float]) -> 
                     f"{clip.clip_id}: the voice ({VOICE_LEAD_IN_SECONDS + audio_seconds:.2f}s with lead-in) runs past "
                     f"its animation ({video:.2f}s)"
                 )
-        changes_path = work_directory / "CHANGES.md"
         clips.append(
             SyncClip(
                 clip_id=clip.clip_id,
@@ -165,7 +166,7 @@ def sync_report(run: Path, plan: ScenePlan, video_seconds: dict[str, float]) -> 
                 audio_seconds=audio_seconds,
                 audio_fits=audio_fits,
                 beats=beats,
-                changes=changes_path.read_text().strip() if changes_path.exists() else "",
+                changes=changes if clip.index == 1 else "",  # the scene's one CHANGES.md, on its first clip
             )
         )
     return SyncReport(

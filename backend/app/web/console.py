@@ -19,6 +19,7 @@ from schemas.api import ConsoleEntry
 
 from app.sandbox import build_jail_command, console_claude_arguments
 from app.utilities import now_text, read_jsonl
+from app.web import usage
 from app.workflow.ledger import append_jsonl, load_state, update_state
 
 CONSOLE_FILE = "console.jsonl"
@@ -113,6 +114,7 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
         if event.get("session_id") and event.get("type") == "system":
             session_id = event["session_id"]
             update_state(run, lambda state, session_id=session_id: setattr(state, "console_session", session_id))
+        usage.record(event)  # the usage limits on Home follow every turn
         for entry in entries_from_event(event):
             yield keep(entry)
     if process.wait() == 0:

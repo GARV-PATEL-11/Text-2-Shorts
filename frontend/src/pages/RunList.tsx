@@ -8,6 +8,7 @@ import { Breadcrumbs } from "../components/navigation/Breadcrumbs";
 import { Button, LinkButton } from "../components/ui/Button";
 import { Plus, Search } from "../components/ui/icons";
 import { runTitle } from "../components/ui/Markdown";
+import { Said } from "../components/ui/Said";
 import { REQUIRED_STEPS, stageName } from "../config/stages";
 import { useRuns } from "../hooks/useRuns";
 import { runHash } from "../services/runs";
@@ -20,7 +21,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
   const shown = wanted.filter((run) => run.topic.toLowerCase().includes(query.trim().toLowerCase()));
 
   let body;
-  if (runs.error) body = <SystemMessage kind="unavailable" title="Your Runs Did Not Load" action={<Button variant="secondary" size="sm" onPress={runs.reload}>Try Again</Button>}>{runs.error.message}</SystemMessage>;
+  if (runs.error) body = <SystemMessage kind="unavailable" title="Could Not Load Runs" action={<Button variant="secondary" size="sm" onPress={runs.reload}>Try Again</Button>}>{runs.error.message}</SystemMessage>;
   else if (!runs.data) body = <SystemMessage kind="loading" title="Loading Your Runs" />;
   else if (!shown.length) {
     body = query ? (
@@ -30,7 +31,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
     ) : (
       <SystemMessage kind="empty" title={which === "ongoing" ? "Nothing in Progress" : "No Finished Run Yet"}
         action={<LinkButton href="#/new" size="sm" icon={<Plus />}>Start a Run</LinkButton>}>
-        {which === "ongoing" ? "No runs yet. Ask your first question." : "A run lands here once its final video is approved."}
+        {which === "ongoing" ? <Said moment="noRuns" /> : "A Run Lands Here Once Its Final Video Is Approved"}
       </SystemMessage>
     );
   } else {
@@ -61,7 +62,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
       <Breadcrumbs trail={[{ label: title }]} />
       <PageHeader
         title={title}
-        lead={which === "ongoing" ? "Runs still being made, newest first. Open one to see its stages." : "Finished runs and their final videos."}
+        lead={which === "ongoing" ? "Newest First" : "Newest First, With Their Final Videos"}
         actions={
           <SearchField className="search" value={query} onChange={setQuery} aria-label={`Search ${title.toLowerCase()}`}>
             <Search />

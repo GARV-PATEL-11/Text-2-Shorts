@@ -86,7 +86,7 @@
           "type": "array"
         },
         "manim_topics": {
-          "description": "topic card names, e.g. ['mathtex-indexing', 'axes-and-graphs']",
+          "description": "extra Manim reference files to load; usually empty, since the three reference files (manim-construction-patterns, manim-vocabulary, manim-common-mistakes) are in every clip task",
           "items": {
             "type": "string"
           },
@@ -233,6 +233,12 @@
       "description": "semantic role \u2192 Manim color constant",
       "title": "Color Roles",
       "type": "object"
+    },
+    "execution_plan": {
+      "default": "",
+      "description": "the Visual Director's Scene Execution Plan: its tagged sections <SCENE_OVERVIEW> \u2026 <IMPLEMENTATION_NOTES> (visual-director-output-spec.md), what the code generator implements",
+      "title": "Execution Plan",
+      "type": "string"
     }
   },
   "required": [

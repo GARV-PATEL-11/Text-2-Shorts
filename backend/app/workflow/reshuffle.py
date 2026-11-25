@@ -1,7 +1,7 @@
 """The optional last stage: a deterministic reshuffle of the look (colours, fonts, background, grid, border).
 
-No Claude: the built clips keep their code, with each colour role's hex and the font family swapped for the new
-template's (clips take both as literals from TASK.md), and are re-keyed, so the next actions are only the scene
+No Claude: the built scenes keep their code (scene_code.py), with each colour role's hex and the font family swapped
+for the new template's (the code takes both as literals from the TEMPLATE block), and are re-keyed, so the next actions are only the scene
 previews (CP3) and the final render. The previous final video is kept in versions/."""
 
 from __future__ import annotations
@@ -55,11 +55,10 @@ def apply(run: Path, seed: int, groups: list[str]) -> list[str]:
     if errors := save_template(run, proposal(run, seed, groups)):
         return errors
     after = look(run)
-    for plan in plans:
-        for clip in plan.clips:
-            path = run / "scenes" / plan.scene_id / "clips" / f"clip_{clip.index:02d}.py"
-            if clip.clip_id in current and path.exists():
-                path.write_text(recolour(path.read_text(), before, after))
+    for plan in plans:  # one file per scene; its clips share one key, so they are current together
+        path = run / "scenes" / plan.scene_id / "scene_code.py"
+        if any(clip.clip_id in current for clip in plan.clips) and path.exists():
+            path.write_text(recolour(path.read_text(), before, after))
     keys = {clip.clip_id: clip_key(run, plan, clip) for plan in plans for clip in plan.clips if clip.clip_id in current}
     update_state(run, lambda state: [setattr(state.clips[clip_id], "key", key) for clip_id, key in keys.items()])
     if (run / "final.mp4").exists():

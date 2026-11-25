@@ -1,5 +1,165 @@
 # Changelog
 
+## 0.32.0 — 2026-11-25
+Code generation per scene (codegen v3), plans kept in JSON, templates in the backend.
+- **One Python file per scene.** The new **scene-builder** subagent (Opus; replaces the clip-builder) turns the
+  scene's execution plan into `scenes/sNN/work/scene_code.py`: one class `SceneNN` with `_build_objects`, one
+  `_clip_N` method per clip and `construct`. Its rules are `references/codegen-system.md` (CG1-CG13, checks X1-X12),
+  its task `references/codegen-task.md`, filled by `workflow/scene_code.py` (from the supplied `manim_codegen.py`).
+- **`text-2-shorts task . sNN`** prints the filled task (the execution plan, the TEMPLATE, each clip's real length
+  and phrase times from the voice, change requests and accuracy notes) and prepares the work folder (`TASK.json` =
+  `SceneTask`, `./check`, the accepted file to start from). **`text-2-shorts accept . sNN`** re-runs every gate in
+  the render jail and installs `scenes/sNN/scene_code.py`; every clip of the scene shares its result and key.
+- **The harness** (`scene_harness.py`) wraps the generated class: the template's backdrop, border and fonts, and a
+  Manim section `clip_NN` per `_clip_N`, so each clip still renders to its own video with its own narration.
+  `scene_gates.py` replaces `clip_gates.py`; the validator checks the `_clip_N` methods (`--clips`); its clip-file
+  mode (`self.entry`, `self.reg` contracts) is gone. Beat marks (`self.beat`) are optional.
+- **Manim reference PART 9** describes the scene harness, with a checked scene file.
+- **Plans are JSON only**: the execution plan lives in `plan.json` (`execution_plan`); no `DIRECTOR_TASK.md` or
+  `execution_plan.md`. `text-2-shorts plan-task` prints the director's task.
+- **Templates live in `backend/templates/`** (template kit, previews, `video_settings.py`, `audio_settings.py`,
+  `look_renderer.py`). Saving a template copies what rendering needs to `runtime-environment/template/`.
+- The root `media/` folder is gone (the layout probe writes to the user cache); `artifacts/` is ignored by git.
+- Scenes built before this release are rebuilt: their clip files are not used any more.
+
+## 0.31.0 — 2026-11-25
+Visual planning by the Manim Visual Director (v7: atomic, time-ordered event plans).
+- **The scene-planner is the Visual Director.** Its rules are `references/visual-director-system.md` (D0-D19) and
+  its output `references/visual-director-output-spec.md` (12 tagged sections, checks K1-K13), read with the three
+  Manim reference files. Per scene it writes `scenes/sNN/execution_plan.md` (the Scene Execution Plan: every event
+  with what, how, motion, where, look, speech and why, to the tenth of a second; object registry; colour map; layout;
+  frame snapshots), then `plan.json` from it, field by field (`references/scene-visual-planning.md`).
+- **`text-2-shorts plan-task . --scene sNN`** (`workflow/visual_director.py`, from the supplied `visual_director.py`):
+  fills the director's inputs from the run (video, scene with its outline segment, the script's duration, the
+  TEMPLATE block, narration and speaking rate, earlier scenes' registries and colour roles) and the output spec into
+  `scenes/sNN/DIRECTOR_TASK.md`. Python still never calls Claude: the scene-planner subagent reads the file.
+- **Fitted to this pipeline**: Manim 0.20.1; clips stay 4-20 s of narration, 2-6 per scene (new rule D0), each still
+  one code file, one audio file and its own checks; each clip's objects can be rebuilt alone (D1, P4); colours are
+  the template's ten roles; font tokens follow the template's text styles; timings are estimates until the voice
+  exists, and clip-builders re-time events to it (D13); the harness draws the background; plan.json positions use
+  the director's zones.
+- **The plan gate** requires `execution_plan.md` with every section, in order, and one CLIP block per plan.json clip.
+- **Clip-builders** get the scene's OBJECT_REGISTRY and COLOR_MAP and their clip's block in TASK.md; the block is
+  part of the clip key, so editing one clip's events rebuilds only that clip.
+- **plan-critic** reviews both files: P-B1 is now "passes K1-K13", and plan.json must match the plan clip for clip.
+- **Website**: Scene Plans has an Execution Plans tab (each scene's plan, its sections as headings).
+- Plans written before this release fail the gate until the scene-planner writes their execution plan.
+
+## 0.30.0 — 2026-11-25
+The Manim reference is three files instead of fourteen, brought up to date with the pinned Manim 0.20.1 and this
+project's clip harness.
+- **One reference** in `skills/manim-ce-0-20-1-reference/topics/`, loaded in every clip task as one stable,
+  cacheable block (`ALWAYS_LOADED_TOPICS`): `manim-construction-patterns.md`, `manim-vocabulary.md`,
+  `manim-common-mistakes.md`. The 11 one-topic cards are retired; what only they said is merged in.
+- **Project conventions** are PART 9 of the patterns file (P1-P12): the clip file, `self.entry`/`self.reg`, exit
+  contracts, `self.beat`, CLIP_SECONDS (0.3 s lead-in + narration + 0.8 s hold, the too-short/too-long limits),
+  one event per phrase, template colours and fonts, camera continuity, updater clean-up, simple moves between clips.
+  Generic rules that contradicted the harness now defer to it: no Scene class or `manim` command (S1, S4, S5), no
+  background in clip code (C8), the clip ends on the hold that completes CLIP_SECONDS (S3).
+- **Brought up to date with 0.20.1** (every name, method and argument checked against the installed package):
+  - `get_parts_by_tex` no longer exists: T4 uses `set_color_by_tex` / `get_part_by_tex` / `index_of_part`.
+  - `substrings_to_isolate` no longer makes top-level parts (T3, new mistake V5).
+  - The `}}` brace trap (V3) is marked as a 0.20.0 bug; 0.20.1 parses nested braces correctly.
+  - The frame is read from `config`, not assumed 14.222 × 8 (portrait swaps it); the safe area is the template's
+    (0.5 or more), the layout probe's 0.3 the hard limit.
+  - `TEMPLATE_REFERENCE` / `TPL` now mean the TEMPLATE block of TASK.md and its ten colour roles.
+  - Narration sync is `self.beat` + `run_time` + holds, not `add_sound` (no file access in clips; new E12).
+- **Merged from the cards**: exact graph arguments (`get_graph_label(x_val, direction)`, `plot_line_graph(
+  add_vertex_dots)`, `get_area(opacity)`), the `.always` builder, `ThoughtBubble`/`SpeechBubble`/`manimlib` as
+  banned, `ReplacementTransform` as the clip default, emphasis on the stressed word (1 s or less), a copy for
+  `ShowPassingFlash`, at most 2 text blocks + 1 diagram, about 40 characters a Text line, no chained `.animate` (E13).
+- **Checked examples**: 11 (all recoloured with template roles), validated and dry-rendered on 0.20.1 by
+  `tests/test_topic_cards.py`; the common-mistakes file gained one showing the right forms of S1, S6, S7, S13, T2, T4.
+- **Validator**: `REMOVED_APIS` now holds every banned name that is truly absent from 0.20.1 (40), so they fail with a
+  replacement before any render.
+- The planner leaves `manim_topics` empty; plans naming retired cards still work (unknown files are skipped).
+
+## 0.29.0 — 2026-11-25
+One gallery for the look.
+- **Starter Templates**: a Dark | Light switch (moon and sun) over that mode's six starters in a 2 × 3 grid across
+  the full width; each starter's other mode is its own colours toned (pastels in light, deep shades in dark). Switching changes only the chosen template's mode,
+  so anything built on it is kept. No cards: each template's name over its picture, the chosen picture ringed in
+  white; picture choices elsewhere drop their radio circle too. `.segmented` is the one switch style (also
+  Write | Preview).
+- **Build Your Own** is asked below the gallery ("Want to Make It Your Own?" and a small button). It opens a wide pane
+  over the page (the Console's drawer, 1120px, scrolling inside) with every visual element, starting from the template
+  picked so far, and Done to close it. On Start a Run's first step, Continue sits at the right of the same line, the
+  same size as Build Your Own. It is optional; the separate Build Your Own step is gone.
+- **Start a Run** has no separate breadcrumb: the journey is now a breadcrumb itself, the stages in one line with
+  chevrons (done ticked, the current one white) and the current stage's numbered steps under it, no box, no icon
+  boxes (Home's Live Run uses the same). The Dark | Light switch sits at the right of the Starter Templates heading.
+- **Sound** is now **Audio & Subtitles**, in Start a Run and in a run's Template stage.
+- **Previews**: every starter is rendered in both modes (`generate_preview.py starters`,
+  `previews/starters/<name>-<mode>.webp`), served at `/previews/starters/<name>/<mode>.webp`.
+- Paper, a light starter, gets its dark twin, so it sits in the gallery like every other.
+- Neon Night is removed (its starter template and previews).
+
+## 0.28.0 — 2026-11-25
+The second frontend council (design director, UX architect, typography and content, engineering lead, independent
+critic): one quieter, flatter, consistent interface. Decisions: `docs/DESIGN_REFERENCE.md`.
+- **Shape**:
+  - **Radii**: slight curves, 4 / 6 / 8 / 12px, with 12 for the modal only. Journey, Claude and the clips chart drop to the card radius.
+  - **Padding**: cards are 16px.
+  - **Buttons**: two heights, 32 and 40; the 48px button is gone.
+  - **Icon boxes**: two, 24 and 32, through one `.icon-box`. Five hand-made copies and the 40px box are gone.
+  - **Halo**: only the current stage.
+  - **Borders**: one hairline for containers. Dashed means "not there yet"; a white 2px border means "needs you".
+  - **No box inside a box**: chips are icon, value and label with no box; facts tables keep only their hairlines; the journey inside a card has no second box.
+- **Type**:
+  - **Fonts**: Geist everywhere. Fraunces only for "Curiosity, Illustrated." and quotations. Fira Code only for code, ids, times and the console.
+  - **Sizes**: 11px and 12px fold into 13px; `--fs-h3` is gone. One line height for reading, one letter-spacing token.
+  - **No uppercase**: the eyebrow labels are gone, and a system message's kind word is for screen readers.
+- **Words**:
+  - **Title Case**: every authored phrase, including the few remaining short sentences, with no full stops.
+  - **Errors**: "Could Not Load X" for every load error.
+  - **Cut**: obvious explanations and the empty-state lines that repeated their titles.
+  - **Untouched**: quotations, your words, Claude's words and server errors.
+- **Layout**:
+  - **Run page**: Claude's idle panel is one line with Start Production at its right.
+  - **No repeats on the run page**: the breadcrumb no longer repeats the stage. The Waiting for You chip is gone (the rail and the approval bar say it). The status pill hides once a stage is Approved.
+  - **Rail**: shows only Waiting for You and Optional under a stage, and its buttons are 32px.
+  - **Home**: three quick actions (Start a Run, Continue, Previous Runs). The Live Run card shows Now and Since Start; Done/To Go and the empty Updates are gone. Home's closing line replaces the footer.
+  - **Footer**: "Curiosity, Illustrated." without additions.
+  - **Mobile**: one-column grids use `minmax(0, 1fr)`, so nothing widens the page at 390px. Start a Run's Back and Continue stay in reach.
+- **Code**:
+  - **Shared components**: `components/ui/Chip.tsx` and `Pill` (StatusPill).
+  - **Polling**: `hooks/usePolling.ts` pauses in a hidden tab, and the suppressed lint rule is gone.
+  - **React Aria**: `Disclosure` for Claude's Next Step, `ToggleButtonGroup` for Write/Preview, and `Button` for the journey steps.
+  - **Icons**: Untitled UI chevrons and icons replace the ▸ ▾ → ✕ glyphs.
+  - **Clean-up**: dead CSS removed (eyebrow, quote, run cards, horizontal steps, the large button and icon box). The 2px and 14px values are now tokens (`--s-half`, `--icon-xs`).
+- Deferred: a two-column run page from 1500px; the Start a Run summary on every step.
+
+## 0.27.0 — 2026-11-25
+Home cut to what you need now: who Faraday is, the run in progress, and how much Claude you have left.
+- **Hero**: the logo, "Curiosity, Illustrated.", one line on what Faraday does, Faraday's question, and the quick actions
+  (Create a New Video, Continue Editing, Explore Templates, View Previous Runs).
+- **Live Run Progress**: the latest ongoing run, refreshed every 5 seconds: the stage journey, percent approved, the
+  stage now, done and to go, time since start, Claude's state (working, waiting for you, ready to continue), warnings and
+  errors (run problems, checkpoint problems, failed scenes, final checks) and the latest console updates.
+- **Usage Limits**, laid out as Claude shows them: the plan, the current session and each weekly limit with its reset
+  time, a bar and the share used. The numbers are Claude Code's own `rate_limit_event` from `stream-json`, kept in
+  `~/.cache/text-2-shorts/usage.json` by every console turn (`app/web/usage.py`). `GET /api/usage` reads them (Home
+  re-reads every 30 s); `POST /api/usage` (Check Now, or automatically when they are over 10 minutes old while Home is
+  open) asks Claude Code with a one-line Haiku turn.
+- **Closing**: the logo, "Curiosity, Illustrated." and Faraday's open door (or Sagan's star-stuff).
+- Splash lines in the manner of Minecraft's title screen turn up now and then while something loads, waits or renders.
+- Tried and removed at the owner's request: Why Faraday, How Faraday Works, Stages of a Run (Start a Run's journey
+  keeps every stage), Recent Creations (Previous Runs has them), Explore Faraday, Templates & Visual Styles (Start a
+  Run's first step has them), System Status and Tips & Discoveries.
+
+## 0.26.0 — 2026-11-24
+Faraday's voice: the interface's prose borrowed from real references, every one verified and credited.
+- `config/voice.ts`: 29 lines, each with its source and the page it was checked against. Ten are Michael Faraday's own
+  (The Chemical History of a Candle, his 1849 journal); the rest are short, famous lines from Portal, Portal 2, The
+  Legend of Zelda, Halo 3, Skyrim, Minecraft, Apollo 13, 2001: A Space Odyssey, The Hitchhiker's Guide to the Galaxy,
+  Blade Runner, Dune, The Martian, The Lord of the Rings, Star Wars and Carl Sagan's Cosmos.
+- `components/ui/Said.tsx` shows one line per moment per visit (like a game's splash text) with a quiet credit: every
+  non-compact system message by its kind (loading, working, pending, failed, connection lost, restricted, older run,
+  done), the Home lead, empty states, each Start a Run step, Claude's Ready to Begin and Asks, the full-screen render
+  note, the finished final video. Buttons and labels stay plain; "Curiosity, Illustrated." is untouched.
+- Lines that could not be found word for word on a fetched page were left out (e.g. Dark Souls' "YOU DIED"). A test
+  checks every line keeps its source and link and that none replaces the brand line.
+
 ## 0.25.0 — 2026-11-24
 The frontend council (design system, iconography, UX writing, cultural references, critical reviewer): every icon, word
 and state given one deliberate meaning. Decisions and rejected alternatives: `docs/DESIGN_REFERENCE.md`.

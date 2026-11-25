@@ -16,7 +16,7 @@ export function Modal({ isOpen, onOpenChange, title, description, icon, children
           {({ close }) => (
             <>
               <div className="modal__head">
-                {icon ? <span className="featured-icon">{icon}</span> : null}
+                {icon ? <span className="icon-box icon-box--md" aria-hidden="true">{icon}</span> : null}
                 <div>
                   <Heading slot="title" className="modal__title">{title}</Heading>
                   {description ? <p className="modal__description">{description}</p> : null}
@@ -33,12 +33,14 @@ export function Modal({ isOpen, onOpenChange, title, description, icon, children
   );
 }
 
-export function Drawer({ isOpen, onOpenChange, title, description, children }: {
+export function Drawer({ isOpen, onOpenChange, title, description, children, wide, footer }: {
   isOpen: boolean; onOpenChange: (open: boolean) => void; title: string; description?: ReactNode; children: ReactNode;
+  /** A wide pane that scrolls inside (Build Your Own), rather than the console's narrow one. */
+  wide?: boolean; footer?: ReactNode;
 }) {
   return (
     <ModalOverlay className="overlay overlay--drawer" isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
-      <AriaModal className="drawer">
+      <AriaModal className={wide ? "drawer drawer--wide" : "drawer"}>
         <Dialog className="drawer__dialog">
           {({ close }) => (
             <>
@@ -50,6 +52,7 @@ export function Drawer({ isOpen, onOpenChange, title, description, children }: {
                 <Button variant="tertiary" size="sm" icon={<Close />} onPress={close} label="Close" />
               </div>
               <div className="drawer__body">{children}</div>
+              {footer ? <div className="drawer__foot">{footer}</div> : null}
             </>
           )}
         </Dialog>

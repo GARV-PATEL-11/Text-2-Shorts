@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "option": {
+      "description": "a variant id, or __custom__ for the user's own value",
+      "title": "Option",
+      "type": "string"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "854\u00d7480, lossless; None when this option would make the text unreadable",
+      "title": "Url"
+    },
+    "full": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "2560\u00d71440, rendered when first opened",
+      "title": "Full"
+    }
+  },
+  "required": [
+    "option"
+  ],
+  "title": "LookOptionPicture",
+  "type": "object"
+}

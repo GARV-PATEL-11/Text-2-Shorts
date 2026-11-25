@@ -70,13 +70,13 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   if (detail.error && !run) {
     return (
       <Page title="Run">
-        <SystemMessage kind="unavailable" title="This Run Did Not Load" action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
+        <SystemMessage kind="unavailable" title="Could Not Load This Run" action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
           {detail.error.message}
         </SystemMessage>
       </Page>
     );
   }
-  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" /></Page>;
+  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" said="openingRun" /></Page>;
 
   const finished = isFinished(run.summary);
   const list = finished ? { label: "Previous Runs", href: "#/previous" } : { label: "Ongoing Runs", href: "#/ongoing" };
@@ -93,17 +93,17 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
           <aside className="run__rail" aria-label="Run">
             <ProgressBar label="Stages Approved" value={approved} max={REQUIRED_STEPS.length} valueLabel={`${approved} of ${REQUIRED_STEPS.length}`} />
             {run.problem ? null : (
-              <ProgressSteps orientation="vertical" label="Stages of This Run" current={open}
+              <ProgressSteps label="Stages of This Run" current={open}
                 onSelect={(next) => navigate(runHash(id, next))}
                 steps={STAGE_STEPS.map((candidate) => ({ ...candidate, state: stepState(run, candidate.id) }))} />
             )}
             <div className="run__actions">
-              <Button variant="secondary" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
-              <Button variant="secondary" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>
+              <Button variant="secondary" size="sm" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
+              <Button variant="secondary" size="sm" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>
             </div>
           </aside>
           <div className="run__main">
-            <Breadcrumbs trail={[list, { label: runTitle(run.summary.topic), href: runHash(id) }, { label: step.label }]} />
+            <Breadcrumbs trail={[list, { label: runTitle(run.summary.topic) }]} />
             <header className="run__head">
               <h1 className="page-header__title">{runTitle(run.summary.topic)}</h1>
               <Overview />
@@ -112,22 +112,22 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             {detail.error ? (
               <SystemMessage kind="offline" title="Not Up to Date" compact
                 action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
-                {detail.error.message} What you see may be out of date.
+                {detail.error.message}
               </SystemMessage>
             ) : null}
-            {run.problem ? null : <ClaudePanel onOpenConsole={() => setConsoleOpen(true)} onAsking={setClaudeAsks} />}
+            {run.problem ? null : <ClaudePanel onAsking={setClaudeAsks} />}
             {run.problem ? (
               <SystemMessage kind="unsupported" title="This Run Was Made by an Older Version"><WithCode text={run.problem} /></SystemMessage>
             ) : (
               <section className="stage" aria-labelledby="stage-title">
                 <div className="stage__head">
                   <h2 className="stage__title" id="stage-title" tabIndex={-1} ref={heading}>{step.label}</h2>
-                  {step.optional ? <span className="badge">Optional</span> : waitingIn ? null : <StatusPill value={statuses[open] ?? "pending"} />}
+                  {step.optional ? <span className="badge">Optional</span> : waitingIn || statuses[open] === "approved" ? null : <StatusPill value={statuses[open] ?? "pending"} />}
                 </div>
                 {waitingIn && tab !== waitingIn ? (
                   <div className={`approval-bar${claudeAsks ? " approval-bar--quiet" : ""}`} role="status">
-                    <span><strong>{step.label}</strong> is waiting for your decision.</span>
-                    <Button size="sm" variant={claudeAsks ? "secondary" : "primary"} onPress={() => navigate(runHash(id, open, waitingIn))}>Review and Decide</Button>
+                    <span><strong>{step.label}</strong> Is Waiting for Your Decision</span>
+                    <Button size="sm" variant={claudeAsks ? "secondary" : "primary"} onPress={() => navigate(runHash(id, open, waitingIn))}>Decide</Button>
                   </div>
                 ) : null}
                 <NextUp stage={open} />
@@ -136,8 +136,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             )}
           </div>
         </div>
-        <Drawer isOpen={consoleOpen} onOpenChange={setConsoleOpen} title="Console"
-          description="Every message you send here, and everything Claude does in reply.">
+        <Drawer isOpen={consoleOpen} onOpenChange={setConsoleOpen} title="Console">
           <Console />
         </Drawer>
         <ChangeModal ask={ask} onClose={() => setAsk(null)} />

@@ -137,63 +137,53 @@
       "default": null,
       "title": "Error"
     },
-    "clip": {
-      "anyOf": [
-        {
-          "additionalProperties": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "type": "object"
+    "clips": {
+      "description": "each clip's span in the probe",
+      "items": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "the clip's span in the probe",
-      "title": "Clip"
+        "type": "object"
+      },
+      "title": "Clips",
+      "type": "array"
     },
     "beats": {
       "additionalProperties": {
-        "type": "number"
+        "additionalProperties": {
+          "type": "number"
+        },
+        "type": "object"
       },
-      "description": "beat number \u2192 when self.beat(n) ran",
+      "description": "clip \u2192 beat number \u2192 when self.beat(n) ran (optional marks)",
       "title": "Beats",
       "type": "object"
     },
-    "video": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Video"
+    "videos": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "clip \u2192 its draft section video",
+      "title": "Videos",
+      "type": "object"
     },
-    "duration": {
-      "anyOf": [
-        {
-          "type": "number"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Duration"
+    "durations": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "description": "clip \u2192 its draft section's seconds",
+      "title": "Durations",
+      "type": "object"
     },
     "frames": {
       "items": {

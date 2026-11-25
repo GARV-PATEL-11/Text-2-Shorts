@@ -1,0 +1,55 @@
+{
+  "$defs": {
+    "LookInput": {
+      "additionalProperties": false,
+      "description": "POST /api/runs/<run>/look (and \u2026/look/voice): a starter template, the elements changed, custom values.",
+      "properties": {
+        "template": {
+          "minLength": 1,
+          "title": "Template",
+          "type": "string"
+        },
+        "elements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 variant; others keep the default",
+          "title": "Elements",
+          "type": "object"
+        },
+        "custom": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 the user's own value",
+          "title": "Custom",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "LookInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "POST /api/look/options: every option of one element, drawn in the user's own look.",
+  "properties": {
+    "look": {
+      "$ref": "#/$defs/LookInput"
+    },
+    "element": {
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Element",
+      "type": "string"
+    }
+  },
+  "required": [
+    "look",
+    "element"
+  ],
+  "title": "LookOptionsInput",
+  "type": "object"
+}

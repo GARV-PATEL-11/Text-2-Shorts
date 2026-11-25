@@ -44,11 +44,11 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 
 | Stage | Output | Gate → checkpoint | Guidance (by path) |
 |---|---|---|---|
-| 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery, or Build Your Own: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
+| 1 Template | `template.json`: look and sound chosen on the website's Template stage, first (a starter from the gallery, six starters, each dark or light, then optionally Build Your Own below it: any element changed, five to a custom value; previews: every option, full screen at 2560×1440, a rendered still, a voice sample) | **template** checkpoint | `requirements.md` |
 | 1 Requirements | `brief.json` (objectives, audience, style, approach: zoom · arc · linear fixed, or creative; length, detail, depth, complexity, visual and audio expectations, constraints); `topics.md` (request modifier); `content.md`; optional `preferences.json` | schemas → **requirements** checkpoint | `requirements.md`, `topic-list.md` |
 | 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by the approach's model (`backend/schemas/outline_models/`) | segment order, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-linear.md` · `outline-arc.md` · `outline-zoom.md` (generated from `runtime-environment/prompts/script_prompts/`); creative: `narrative-structures.md` |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
-| 4 Visual + audio plans | per scene `plan.json`: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
+| 4 Visual + audio plans | per scene the Visual Director's `plan.json`: its `execution_plan` (atomic, time-ordered events: what, how, where, look, speech, why) and the fields derived from it: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
 | 5 Clips + video | scene by scene: audio from SSML → the scene's clips one at a time (720p30, beat marks, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** per scene | `scene-production.md` |
 | Final | `final.mp4`, 2560×1440 at 120 fps: stream parameters checked, scenes joined with the template's transition, music and sound effects mixed | media and delivery checks (resolution, 16:9, frame rate, audio, loudness, true peak, silence, black frames, decoding, duration, completeness) → **CP4** | — |
 
@@ -86,8 +86,8 @@ flowchart TD
         PC -->|"pass, or round 3: requires attention"| PR
     end
     P -->|"narration = script · valid SSML · critique done<br/>CP2 human: approve plans"| C
-    subgraph C["5 · Scene by scene (in series): clips, preview, sync, video critique"]
-        V["voice: audio per clip from its SSML"] --> K["clip-builder: one clip at a time, in order<br/>earlier clips in place · ./check + accept · 720p30<br/>self.beat(n) marks · CHANGES.md"]
+    subgraph C["5 · Scene by scene (in series): scene code, preview, sync, video critique"]
+        V["voice: audio per clip from its SSML"] --> K["scene-builder: scene_code.py, one _clip_N per clip<br/>./check + accept · 720p30<br/>CHANGES.md"]
         K --> PV["preview: whole scene incl. transition, 720p30<br/>sync.json = changes-made document"]
         PV -->|out of sync| AR["audio-refactorer: re-time SSML<br/>→ voice → preview"]
         AR --> PV
@@ -106,10 +106,10 @@ runtime-environment/                  the execution environment, defined once (d
   skills/text-2-shorts-produce/   the staged workflow (requirements, template, CP0–CP4) + one reference per stage, read only at that stage:
     references/                   requirements · script-writing · narrative-structures · script-review ·
                                   scene-visual-planning · audio-ssml · scene-production · transitions · standards
-  skills/manim-ce-0-20-1-reference/  version-pinned Manim topic cards + scripts
+  skills/manim-ce-0-20-1-reference/  version-pinned Manim reference (vocabulary, patterns, mistakes) + scripts
   agents/script-writer.md         subagent (Opus): writes and refactors the outline and the script
-  agents/scene-planner.md         subagent (Opus): writes and refactors ONE scene's visual + audio plan
-  agents/clip-builder.md          subagent (Opus): builds ONE clip in its prepared folder (fresh context per clip)
+  agents/scene-planner.md         subagent (Opus): the Visual Director; writes and refactors ONE scene's execution plan + plan.json
+  agents/scene-builder.md         subagent (Opus): writes ONE scene's scene_code.py from its execution plan
   agents/accuracy-reviewer.md     subagent: independent accuracy check → script_review.json, plan_review.json
   agents/script-critic.md         subagent: one critique round of the script per change the user asks for at CP1
   agents/plan-critic.md           subagent: one scored critique round of a scene plan (≤ 3 per scene)
@@ -132,13 +132,13 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
   code. Inside, Claude Code's own sandbox (`runtime-environment/settings.json`) confines every Bash command again (no network except
   `text-2-shorts voice`, secrets unreadable). LLM-written clip code is re-checked by `text-2-shorts accept` and rendered by `text-2-shorts final`
   in a further network-less jail.
-- **Context**: `CLAUDE.md` is short; the skill says which reference to read at each step; the clip-builder gets a
-  `TASK.md` with only its clip, the paths of the standards and three always-on Manim cards, and the cards specific
-  to that clip. The session-start hook prints the run's state, so resuming costs one short block instead of
+- **Context**: `CLAUDE.md` is short; the skill says which reference to read at each step; the scene-builder gets a
+  task with only its scene: the execution plan, the TEMPLATE, each clip's length from the voice, and the paths of
+  the code generator's rules and the three Manim references. The session-start hook prints the run's state, so resuming costs one short block instead of
   re-reading files.
 - **Models**: the run session, which is the user's conversation (the website console), refining requirements and
   routing, runs on Haiku (`claude-haiku-5-5`) and builds nothing itself. Every builder and refactor except audio
-  runs on Opus (`claude-opus-5-5`): script-writer (outline, script), scene-planner (plans), clip-builder (code).
+  runs on Opus (`claude-opus-5-5`): script-writer (outline, script), scene-planner (plans), scene-builder (code).
   Every critic and reviewer (script-, plan-, video-critic, accuracy-reviewer) and audio (audio-refactorer) run on
   Sonnet (`claude-sonnet-5-5`). All at medium effort. Settings: `SESSION_MODEL`, `BUILD_MODEL`,
   `REVIEW_AND_AUDIO_MODEL`, `EFFORT` in `backend/app/config.py` (the session is launched by `session_command` in
@@ -159,15 +159,15 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
 |---|---|
 | `validate <run> brief\|topics\|content\|outline\|preferences\|script\|script-critique\|script-review\|plan\|plan-review\|plan-critique\|video-critique\|changes` | schema + rules for what the session wrote |
 | `templates` · `template <run> <name> [--set element=variant \| custom.element=value \| key=value]` | the starter templates · writes `template.json` (the website's Template stage does the same) |
-| `next <run> [--json]` | the exact next batch: who does what (you, a subagent, a command, the user), for which target, reading which files; one clip at a time |
+| `next <run> [--json]` | the exact next batch: who does what (you, a subagent, a command, the user), for which target, reading which files; scenes in series |
 | `preview <run> sNN` | the whole scene at 720p30 with audio, `sync.json` (spoken vs shown time per beat, audio fit, builders' CHANGES.md), contact sheets |
 | `hash <run> script\|sNN [plan\|video]` · `doc <Names>` | the version id a critique round records · Manim 0.20.1 API cards for planners and critics |
 | `voice <run>` | narration per clip via AWS Polly or Google Cloud TTS: symbols, units, abbreviations and M-vs-m spoken correctly (`backend/app/narration.py`), SSML pauses, word timings → beat start times; only changed clips are re-synthesised |
-| `task <run> sNNcMM` | prepares the clip-builder folder: `TASK.md`/`.json`, `API_CARDS.md`, `./check`, earlier clips |
-| `accept <run> sNNcMM` | re-runs every gate in a jail; installs the clip only if all pass |
+| `task <run> sNN` | prepares `scenes/sNN/work/` (`TASK.json`, `./check`, the accepted file to start from) and prints the scene-builder's task |
+| `accept <run> sNN` | re-runs every gate in a jail; installs `scene_code.py` only if all pass |
 | `final <run>` | 2560×1440 section render per scene at 120 fps, per-clip audio sync (0.3 s lead-in), stream-parameter check, template transition between scenes, the user's music and sound effects, EBU R128 loudness, media and delivery checks |
 | `approve <run> <checkpoint> [--notes]` | records the user's decision (approved, approved with notes, forced) in `decisions.jsonl`; open change requests block it |
-| `feedback <run> <target> --kind K --text T [--checkpoint C]` · `resolve <run> rNNN applied\|declined` | a validated change request in `requests.jsonl`, routed by `next`; a clip's visual request resolves when the clip is accepted |
+| `feedback <run> <target> --kind K --text T [--checkpoint C]` · `resolve <run> rNNN applied\|declined` | a validated change request in `requests.jsonl`, routed by `next`; a clip's visual request resolves when its scene is accepted |
 | `status` / `report` | every stage, scene and clip status (saved in `state.json`), open requests + next steps; token totals from the run's transcripts |
 
 Settings: `TEXT_2_SHORTS_FPS` (final frame rate, 60–120, default 120), `TEXT_2_SHORTS_PARALLEL` (scenes rendered at once, default 4), `TEXT_2_SHORTS_TTS`

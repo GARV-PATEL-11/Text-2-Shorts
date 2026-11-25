@@ -1,6 +1,6 @@
 [project]
 name = "text-2-shorts"
-version = "0.25.0"
+version = "0.32.0"
 description = "Faraday — Curiosity, Illustrated: topic in, narrated Manim explainer video out; every LLM stage is a sandboxed Claude Code run"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -38,12 +38,12 @@ build-backend = "hatchling.build"
 packages = ["backend/app", "backend/schemas"]
 
 [tool.pyrefly]
-search-path = ["backend", "backend/tools", "tests", "runtime-environment", "runtime-environment/prompts"]
-project-excludes = ["runtime-environment/template_kit/**"]  # vendored as given
+search-path = ["backend", "backend/tools", "backend/templates", "tests", "runtime-environment", "runtime-environment/prompts"]
+project-excludes = ["backend/templates/template_kit/**"]  # vendored as given
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["tests/fixtures", "artifacts", "runtime-environment/template_kit"]  # the kit is vendored as given
+extend-exclude = ["tests/fixtures", "artifacts", "backend/templates/template_kit", "runtime-environment/template"]  # the kit is vendored as given
 
 [tool.ruff.lint]
 # subprocess.run without check=: every call reads returncode itself (gates, preflight, render) — failures are data

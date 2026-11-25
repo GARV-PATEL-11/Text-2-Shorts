@@ -16,7 +16,7 @@ export function Requirements(props: StageProps) {
       { id: "brief", label: "Brief", content: (
         <dl className="facts facts--wide">
           <div><dt>Explain</dt><dd><Markdown text={run.summary.topic} compact /></dd></div>
-          <div><dt>Objectives</dt><dd>{run.objectives.length ? <ul>{run.objectives.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Not set yet: Claude proposes them with you."}</dd></div>
+          <div><dt>Objectives</dt><dd>{run.objectives.length ? <ul>{run.objectives.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Not Set Yet: Claude Proposes Them With You"}</dd></div>
           <div><dt>Approach</dt><dd>{titleCase(run.approach ?? "")}</dd></div>
           <div><dt>Length</dt><dd>{run.minutes} min</dd></div>
         </dl>

@@ -18,6 +18,7 @@ from schemas.script import Script
 from app import narration
 from app.config import WORD_BUDGET_TOLERANCE
 from app.utilities import format_validation_errors
+from app.workflow import visual_director
 from app.workflow.artifacts import load_brief, load_outline, load_scene_plans, load_script, read_topics, spoken_text
 from app.workflow.checkpoints import stage_approval_problem
 
@@ -226,7 +227,8 @@ def validate_script(run: Path) -> list[str]:
 
 def validate_plan(run: Path, scene_id: str) -> list[str]:
     """Stage 3: scenes/sNN/plan.json — only after CP1; the clips speak exactly the approved script's text for the scene;
-    scenes after the first describe their opening transition; empty scene boundaries; one colour per symbol."""
+    scenes after the first describe their opening transition; empty scene boundaries; one colour per symbol; and the
+    Visual Director's execution_plan inside it (every section, one CLIP block per clip)."""
     if problem := stage_approval_problem(run, "script"):
         return [problem]
     try:
@@ -236,6 +238,16 @@ def validate_plan(run: Path, scene_id: str) -> list[str]:
     except ValidationError as validation_error:
         return format_validation_errors(validation_error)
     errors = [] if plan.scene_id == scene_id else [f"scene_id is {plan.scene_id}, expected {scene_id}"]
+    if not plan.execution_plan.strip():
+        errors.append(
+            f"{scene_id} execution_plan is empty: run `text-2-shorts plan-task . --scene {scene_id}` and write the "
+            "Scene Execution Plan into plan.json first, then derive the other fields from it"
+        )
+    else:
+        errors += [
+            f"{scene_id} execution_plan: {problem}"
+            for problem in visual_director.problems(plan.execution_plan, len(plan.clips))
+        ]
     script = load_script(run)
     script_scene = next((scene for scene in script.scenes if scene.scene_id == scene_id), None) if script else None
     if script_scene is None:

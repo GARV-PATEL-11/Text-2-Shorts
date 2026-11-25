@@ -1,4 +1,5 @@
-// The frame of every page: a skip link, the one-tier header (brand · sections · account), the main area, the footer.
+// The frame of every page: a skip link, the one-tier header (brand · sections · account), the main area, the footer
+// (Home has its own closing line instead).
 import { type MouseEvent, type ReactNode, useState } from "react";
 import { NAV, type Route } from "../../app/routes";
 import { useSession } from "../../app/session";
@@ -39,12 +40,14 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         </div>
       </header>
       <main id="app" tabIndex={-1}>{children}</main>
-      <footer className="footer">
-        <div className="footer__inner">
-          <span className="footer__brand"><Logo height={16} /></span>
-          <span>Curiosity, Illustrated: a question in, a narrated explainer video out.</span>
-        </div>
-      </footer>
+      {route.page === "home" ? null : (  // Home closes with its own line
+        <footer className="footer">
+          <div className="footer__inner">
+            <span className="footer__brand"><Logo height={16} /></span>
+            <span>Curiosity, Illustrated.</span>
+          </div>
+        </footer>
+      )}
     </>
   );
 }

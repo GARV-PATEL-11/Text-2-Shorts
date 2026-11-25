@@ -2,7 +2,7 @@
 
 VIDEO STANDARDS — identical for every scene and clip
 Frame: 16:9, 2560×1440 (Manim frame 14.2 × 8 units); keep 0.5 units clear of every edge. Drafts 1280×720 at 30 fps.
-The look comes from the run's template (template.json, resolved by runtime-environment/video_settings.py and written
+The look comes from the run's template (template.json, resolved by backend/templates/video_settings.py and written
 into every TASK.md): background (set by the harness — never in clip code), colour roles (text · focus = current
 highlight · given = known inputs · derived = results · warning · secondary · accent · outline · dim · surface, each a
 hex colour), the font and the text sizes (title · heading · body · label · caption · math). Never hard-code another

@@ -15,7 +15,6 @@ from app.config import DRAFT_QUALITY, FINAL_FRAME_RATE, TOOLS_DIRECTORY
 from app.utilities import probe_duration_seconds, run_in_parallel
 from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
 from app.workflow.checkpoints import require_approval, require_earlier_scenes
-from app.workflow.clips import accept_clip
 from app.workflow.fingerprints import clip_key, fingerprint, scene_video_hash
 from app.workflow.ledger import load_state
 from app.workflow.preferences import clip_speech
@@ -28,6 +27,7 @@ from app.workflow.production import (
     sync_report,
     voice_key,
 )
+from app.workflow.scene_code import accept_scene
 from app.workflow.templates import load_template, look, sound
 
 
@@ -129,7 +129,7 @@ def handle_preview_command(arguments) -> None:
         for c in plan.clips
         if (build := clip_states.get(c.clip_id)) is None or build.key != clip_key(run, plan, c)
     ]:
-        sys.exit(f"build these clips first: {unbuilt}")
+        sys.exit(f"build the scene first (text-2-shorts task . {scene_id}): {unbuilt} not built")
     if stale := stale_audio(run, [plan]):
         sys.exit(f"audio missing or outdated for {sorted(stale)}: text-2-shorts voice <run>")
     render = render_scene_sections(run, plan, DRAFT_QUALITY, None, "media_preview")
@@ -171,8 +171,9 @@ def handle_preview_command(arguments) -> None:
 
 
 def handle_accept_command(arguments) -> None:
-    result = accept_clip(Path(arguments.run), arguments.clip)
+    result = accept_scene(Path(arguments.run), arguments.scene)
     print(
-        f"{arguments.clip}: {result.status}" + (f" — {', '.join(result.open_findings)}" if result.open_findings else "")
+        f"{arguments.scene}: {result.status}"
+        + (f" — {', '.join(result.open_findings)}" if result.open_findings else "")
     )
     sys.exit(0 if result.status == "READY" else 1)

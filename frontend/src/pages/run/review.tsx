@@ -1,9 +1,9 @@
 // What several stages show: what Claude does next, your change requests, critique rounds, accuracy findings.
-import { useState } from "react";
+import { Button as AriaButton, Disclosure, DisclosurePanel, Heading } from "react-aria-components";
 import { SystemMessage } from "../../components/feedback/SystemMessage";
 import { Section } from "../../components/layout/Page";
 import { Button } from "../../components/ui/Button";
-import { ChevronDown, RequestChange } from "../../components/ui/icons";
+import { ChevronDown, ChevronRight, RequestChange } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
 import { titleCase, WithCode } from "../../components/ui/text";
 import { batchStage } from "../../config/stages";
@@ -12,14 +12,17 @@ import { useRun } from "./context";
 /** What happens next, in a closed disclosure: it is the workflow's own instruction to Claude, there for the curious. */
 export function NextUp({ stage }: { stage: string }) {
   const { run } = useRun();
-  const [open, setOpen] = useState(false);
   if (batchStage(run) !== stage || !run.next?.actions.length) return null;
   return (
-    <div className="disclosure">
-      <button type="button" className="disclosure__toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <ChevronDown /> Claude's Next Step <span className="badge badge--count">{run.next.actions.length}</span>
-      </button>
-      {open ? (
+    <Disclosure className="disclosure">
+      <Heading className="disclosure__heading">
+        <AriaButton slot="trigger" className="disclosure__toggle">
+          <span className="disclosure__closed" aria-hidden="true"><ChevronRight /></span>
+          <span className="disclosure__open" aria-hidden="true"><ChevronDown /></span>
+          Claude's Next Step <span className="badge badge--count">{run.next.actions.length}</span>
+        </AriaButton>
+      </Heading>
+      <DisclosurePanel>
         <ul className="disclosure__body next-list">
           {run.next.actions.map((action, index) => (
             <li key={index}>
@@ -29,8 +32,8 @@ export function NextUp({ stage }: { stage: string }) {
             </li>
           ))}
         </ul>
-      ) : null}
-    </div>
+      </DisclosurePanel>
+    </Disclosure>
   );
 }
 
@@ -38,7 +41,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
   const { run, ask } = useRun();
   const requests = run.requests.filter((request) => targets(request.target));
   return (
-    <Section title="Change Requests" description="What you asked to change here, and where each stands."
+    <Section title="Change Requests"
       actions={<Button size="sm" icon={<RequestChange />} onPress={() => ask({ target: defaultTarget, checkpoint: null })}>Request a Change</Button>}>
       {requests.length ? (
         <ul className="list">
@@ -49,7 +52,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
             </li>
           ))}
         </ul>
-      ) : <SystemMessage kind="empty" title="No Changes Requested" compact>Request one whenever something should differ.</SystemMessage>}
+      ) : <SystemMessage kind="empty" title="No Changes Requested" compact said="noChanges" />}
     </Section>
   );
 }
@@ -96,7 +99,7 @@ export function CritiqueRounds({ rounds, title }: { rounds: Round[]; title?: str
 export interface Finding { target: string; severity: string; kind: string; quote: string; why: string; fix: string }
 
 export function Findings({ findings }: { findings: Finding[] }) {
-  if (!findings.length) return <SystemMessage kind="success" title="No Accuracy Problems">The accuracy reviewer found nothing to fix.</SystemMessage>;
+  if (!findings.length) return <SystemMessage kind="success" title="No Accuracy Problems" />;
   return (
     <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
       <table className="table table--compact">
@@ -116,5 +119,5 @@ export function Findings({ findings }: { findings: Finding[] }) {
 
 /** A file this stage has not produced yet. */
 export function NotYet({ what, children }: { what: string; children?: string }) {
-  return <SystemMessage kind="missing" title={`No ${what} Yet`}>{children ?? "Claude writes it when the run reaches this stage."}</SystemMessage>;
+  return <SystemMessage kind="missing" title={`No ${what} Yet`}>{children ?? "Claude Writes It When the Run Gets Here"}</SystemMessage>;
 }

@@ -3,8 +3,9 @@
    Never: scale, bounce, overshoot, height or layout animation, `transition: all`. Every duration is a token, and
    prefers-reduced-motion sets them all to 0 (tokens.css) and stops the endless ones here. */
 
-.button, .control, .search, .tabs__tab, .listbox__item, .card-choice, .run-card, .header__link, .breadcrumbs__link,
-.steps__icon, .steps__button, .journey__step, .choice__box, .toggle__track, .media__expand, .player__play, .tree summary, .disclosure__toggle {
+.button, .control, .search, .tabs__tab, .listbox__item, .card-choice, .header__link, .breadcrumbs__link, .steps__icon,
+.steps__button, .journey__step, .choice__box, .toggle__track, .media__expand, .player__play, .tree summary, .disclosure__toggle,
+.segmented__option, .card-choice__dot, .gradient-picker__stop {
   transition-property: background-color, border-color, color, box-shadow;
   transition-duration: var(--motion-fast);
   transition-timing-function: var(--ease-standard);

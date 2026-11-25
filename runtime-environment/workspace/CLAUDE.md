@@ -6,18 +6,18 @@ see your files and you cannot change theirs.
 
 - Workflow, checkpoints and which reference to read when: the `text-2-shorts-produce` skill. Start there.
 - What to do now: `text-2-shorts next .` returns the exact next batch (printed at session start with the status);
-  do it, then ask again. Scenes go one after another; a scene's clips one at a time, in order.
+  do it, then ask again. Scenes go one after another; each scene is one Python file.
 - Stages, in order: template (template.json, chosen by the user on the website; template checkpoint) →
   requirements (brief.json, topics.md, content.md; requirements checkpoint) → outline (outline.json, CP0) → complete script (script.json, CP1; one
   script-critic round per change the user asks for) → scene visual + audio plans (scenes/sNN/plan.json with SSML,
-  plan-critic ≤ 3 scored rounds, CP2) → per scene: its clips one at a time (clip-builder), 720p30 preview + sync
+  plan-critic ≤ 3 scored rounds, CP2) → per scene: its scene_code.py (scene-builder), 720p30 preview + sync
   report, audio-refactorer, video-critic ≤ 3 scored rounds with changes.json (CP3) → final 1440p120 (CP4). Optional
   after that: the user reshuffles the look on the website (no Claude); then only re-render previews (CP3) and the final.
   Every stage, scene and clip has a status (pending · in_progress · completed · failed · requires_refactoring ·
   requires_user_approval · approved) in state.json, shown by `text-2-shorts status .`.
   `text-2-shorts` commands validate, enforce the order, synthesise voice, check, accept and render.
 - Models: this session (Haiku) talks with the user, refines requirements and routes; it builds nothing itself.
-  Builders and refactors run on Opus (script-writer: outline and script; scene-planner: plans; clip-builder: code);
+  Builders and refactors run on Opus (script-writer: outline and script; scene-planner: plans; scene-builder: code);
   critics, accuracy-reviewer and audio-refactorer on Sonnet; all at medium effort.
 - Show the user every change as it happens: one line per file written, command run or subagent result. The hook
   shows each write, command and subagent too, and logs it to log.jsonl.

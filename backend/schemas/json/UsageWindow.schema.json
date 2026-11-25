@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "description": "One usage-limit window, as Claude Code's rate_limit_event reports it.",
+  "properties": {
+    "id": {
+      "description": "five_hour (the current session) or a weekly window: seven_day, seven_day_opus, \u2026",
+      "title": "Id",
+      "type": "string"
+    },
+    "used_percent": {
+      "minimum": 0,
+      "title": "Used Percent",
+      "type": "number"
+    },
+    "resets_at": {
+      "description": "epoch seconds",
+      "minimum": 0,
+      "title": "Resets At",
+      "type": "integer"
+    },
+    "status": {
+      "default": "allowed",
+      "description": "allowed, or why not (e.g. rejected)",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "used_percent",
+    "resets_at"
+  ],
+  "title": "UsageWindow",
+  "type": "object"
+}

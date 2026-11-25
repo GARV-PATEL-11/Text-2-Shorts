@@ -1,11 +1,13 @@
-"""The run's template.json: chosen from the starter library (runtime-environment/template_kit/templates/), one
+"""The run's template.json: chosen from the starter library (backend/templates/template_kit/templates/), one
 variant per element, a few elements set to the user's own value. What it means for the picture and the voice is
-resolved by runtime-environment/video_settings.py and audio_settings.py — the one source for both."""
+resolved by backend/templates/video_settings.py and audio_settings.py — the one source for both. Once chosen, it is
+copied into the run environment (install_template)."""
 
 from __future__ import annotations
 
 import json
 import logging
+import shutil
 import sys
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from pydantic import ValidationError
 from schemas.api import LookCatalogue, LookElement, LookOption, LookTemplate, LookView
 from schemas.requirements import VideoTemplate
 
+from app.config import TEMPLATES_DIRECTORY, runtime_template_directory
 from app.utilities import format_validation_errors, write_json
 from app.workflow.artifacts import load_brief
 
@@ -78,7 +81,21 @@ def save_template(run: Path, template: dict) -> list[str]:
         return errors
     write_json(run / "template.json", VideoTemplate.model_validate(template).model_dump())
     logging.getLogger(__name__).info("%s: template %s saved", run.name, template.get("name"))
+    install_template(run)
     return []
+
+
+def install_template(run: Path) -> Path:
+    """Copy the chosen template into the run environment (runtime-environment/template/): template.json, the resolved
+    look the harness draws (look.json) and the renderer that draws it (look_renderer.py). Everything about templates
+    lives in backend/templates/; the run environment gets only what the chosen one needs. The folder is shared, so the
+    last template chosen is the one there; renders still take their run's own look (TEXT_2_SHORTS_LOOK)."""
+    target = runtime_template_directory()
+    target.mkdir(parents=True, exist_ok=True)
+    write_json(target / "template.json", current_template(run))
+    write_json(target / "look.json", drawing(run))
+    shutil.copyfile(TEMPLATES_DIRECTORY / "look_renderer.py", target / "look_renderer.py")
+    return target
 
 
 def choose_template(run: Path, name: str, settings: list[str]) -> Path:

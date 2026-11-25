@@ -5,6 +5,7 @@ import { Dialog, Heading, Modal as AriaModal, ModalOverlay } from "react-aria-co
 import { type Fit, type Ratio, RATIOS } from "../../config/media";
 import { Button } from "../ui/Button";
 import { Close, Expand, Shrink } from "../ui/icons";
+import { Said } from "../ui/Said";
 
 /** The picture itself, not interactive (safe inside a radio card's label). */
 export function MediaImage({ src, alt, ratio = "16/9", fit = "contain" }: { src: string; alt: string; ratio?: Ratio; fit?: Fit }) {
@@ -75,10 +76,10 @@ export function Lightbox({ isOpen, onOpenChange, src, fullSrc, alt, caption }: {
                   {fullSrc && sharp === "loading" ? (
                     <div className="lightbox__wait" role="status">
                       <span className="spinner" aria-hidden="true" />
-                      <span><strong>Rendering at 2560 × 1440</strong><br />Thank you for your patience. The first view takes a few seconds; after that it opens at once.</span>
+                      <span><strong>Rendering at 2560 × 1440</strong><br />Thank You for Your Patience <Said moment="rendering" /></span>
                     </div>
                   ) : null}
-                  {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>Full size did not render. Showing the preview.</span></div> : null}
+                  {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>Full Size Did Not Render: Showing the Preview <Said moment="renderFailed" /></span></div> : null}
                 </div>
                 {fullSrc && sharp === "loading" ? (
                   <img className="lightbox__loader" src={fullSrc} alt="" onLoad={() => setSharp("ready")} onError={() => setSharp("failed")} />

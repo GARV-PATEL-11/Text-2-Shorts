@@ -1,6 +1,6 @@
 # backend/tools/ — deterministic components
 
-Standalone CLIs, tested on Manim 0.20.1 (`uv run pytest -q`). The `text-2-shorts` command calls them: `clip_gates.py` (the `./check` gates: validator,
+Standalone CLIs, tested on Manim 0.20.1 (`uv run pytest -q`). The `text-2-shorts` command calls them: `scene_gates.py` (the `./check` gates: validator,
 probe, harness, doc cards; run in the render jail), `text-2-shorts final` (harness, assembly), `text-2-shorts new` (preflight), `text-2-shorts task` (API index, doc cards).
 
 | Tool | Purpose | Tests |
@@ -8,13 +8,13 @@ probe, harness, doc cards; run in the render jail), `text-2-shorts final` (harne
 | `preflight.py` | Fail-fast environment check (Manim pin, LaTeX, **dvisvgm**, ffmpeg, bwrap, socat, Claude Code version) | manual |
 | `build_manim_api_index.py` | Introspect installed Manim → JSON index (classes, functions, constants, modules) | `test_api_index.py` |
 | `doc_cards.py` | Exact-name API cards + topic cards for one clip (~0.5–1.5k tokens) | via topic tests |
-| `validate_manim_code.py` | Static gate: syntax, forbidden imports/calls, removed APIs, unknown names/methods/kwargs, scene class, clip file + continuity contracts | `test_validate_manim_code.py` |
+| `validate_manim_code.py` | Static gate: syntax, forbidden imports/calls, removed APIs, unknown names/methods/kwargs, scene class, `_clip_N` methods | `test_validate_manim_code.py` |
 | `layout_probe.py` | Dry-run geometry & timing: OUT_OF_FRAME (camera-aware), OVERLAP (per text leaf), TINY_TEXT, per-clip duration vs narration | `test_layout_probe.py` |
-| `scene_harness.py` | Compose scene from isolated clip files; render all clips or one target clip via Manim sections; 9:16 | `test_scene_harness.py` |
+| `scene_harness.py` | Wrap a scene's `scene_code.py` (template backdrop, one section per `_clip_N`); render all clips or one target clip; 9:16 | `test_scene_harness.py` |
 | `assemble_clips.py` | Per-clip A/V mux (pad shorter), concat, EBU R128 loudnorm, report | `test_assemble_clips.py` |
 | `cost_report.py` | Cost/attempt/cache summary from `log.jsonl` (works on today's log format) | `test_cost_report.py` |
 | `audit_prompt_catalog.py` | Check names in prompt files against the API index (finds banned-but-existing and missing names) | used for audit evidence |
-| `clip_gates.py` | The `./check` gates of one clip (static, probe, render, frames); re-run by `accept` in the render jail | `test_clips.py` |
+| `scene_gates.py` | The `./check` gates of one scene (static, probe, render, frames); re-run by `accept` in the render jail | `test_clips.py` |
 | `check_diagrams.mjs` | Parse `docs/diagrams/*.mmd` with Mermaid 11 | — |
 
 Known limitations (documented, not hidden):

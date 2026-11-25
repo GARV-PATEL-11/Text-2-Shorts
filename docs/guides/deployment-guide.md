@@ -40,7 +40,7 @@ unreadable, fails closed). The Manim API index is built on the first `text-2-sho
 
 ## 6. Verify the installation (no LLM calls, ~2 min)
 ```bash
-uv run pytest -q           # tools, contracts, topic cards, harness, assembly, and a fake-agent build → final run
+uv run pytest -q           # tools, contracts, Manim reference examples, harness, assembly, and a fake-agent build → final run
 node backend/tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm i mermaid@11 jsdom@24`)
 ```
 CI runs the same suite on every push (`.github/workflows/ci.yml`).

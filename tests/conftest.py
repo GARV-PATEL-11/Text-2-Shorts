@@ -23,6 +23,16 @@ def logs_in_a_temporary_folder(tmp_path_factory):
     return faraday_logging.LOG_DIRECTORY
 
 
+@pytest.fixture(scope="session", autouse=True)
+def runtime_template_in_a_temporary_folder(tmp_path_factory):
+    """Tests never write the chosen template into runtime-environment/template/ (subprocesses inherit the setting)."""
+    import os
+
+    folder = tmp_path_factory.mktemp("runtime-template")
+    os.environ["TEXT_2_SHORTS_RUNTIME_TEMPLATE"] = str(folder)
+    return folder
+
+
 @pytest.fixture(scope="session")
 def api_index(tmp_path_factory):
     """Built once per session from the INSTALLED manim (requires manim==0.20.1)."""
@@ -189,15 +199,29 @@ def make_plan(script, number, clip_count=1, exits=None) -> dict[str, Any]:
         }
         for i in range(1, clip_count + 1)
     ]
-    return {
+    plan = {
         "scene_id": scene["scene_id"],
         "index": number,
         "title": scene["title"],
         "objective": "o",
-        "composition": "title top_center, diagram center",
+        "composition": "title TOP_STRIP, diagram MAIN_CANVAS",
         "transition_in": "" if number == 1 else "recap image",
         "clips": clips,
     }
+    return {**plan, "execution_plan": execution_plan_for(plan)}
+
+
+def execution_plan_for(plan) -> str:
+    """A minimal Scene Execution Plan for a plan: every section, one CLIP block per clip (the gate's checks)."""
+    from app.workflow.visual_director import SECTIONS
+
+    clips = "\n\n".join(
+        f"CLIP {clip['index']}  |  t=0.0s -> t={clip['est_seconds']}s  |  Duration: {clip['est_seconds']}s  |  "
+        f'"{clip["objective"]}"\n1. KEY IDEA\n{clip["objective"]}\n2. SPEECH\nt=0.0-1.0s  "{clip["narration"]}"\n'
+        f"3. EVENT TIMELINE\n[{clip['index']}.01] t=0.0-1.0s (1.0s) | HOLD | (scene)\n  what   : nothing moves"
+        for clip in plan["clips"]
+    )
+    return "\n\n".join(f"<{tag}>\n{clips if tag == 'CLIP_SEQUENCE' else '-'}\n</{tag}>" for tag in SECTIONS)
 
 
 def write_json_file(path, data):

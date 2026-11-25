@@ -6,18 +6,18 @@ import type { StepState } from "../components/navigation/ProgressSteps";
 import { Clapperboard, FinalVideo, Outline, Palette, Requirements, Script, Shuffle, Storyboard } from "../components/ui/icons";
 
 export interface StageStep {
-  id: string; label: string; hint: string; icon: ReactNode; checkpoint: string; batch: string[]; optional?: boolean;
+  id: string; label: string; icon: ReactNode; checkpoint: string; batch: string[]; optional?: boolean;
 }
 
 export const STAGE_STEPS: StageStep[] = [
-  { id: "template", label: "Template", hint: "Look & Sound", icon: <Palette />, checkpoint: "template", batch: ["1 template"] },
-  { id: "requirements", label: "Requirements", hint: "What to Explain", icon: <Requirements />, checkpoint: "requirements", batch: ["1 requirements"] },
-  { id: "outline", label: "Outline", hint: "The Story", icon: <Outline />, checkpoint: "outline", batch: ["2 outline"] },
-  { id: "script", label: "Script", hint: "Every Word", icon: <Script />, checkpoint: "script", batch: ["3 script"] },
-  { id: "plan", label: "Scene Plans", hint: "What Is Shown", icon: <Storyboard />, checkpoint: "plan", batch: ["4 plans"] },
-  { id: "scenes", label: "Scenes", hint: "One by One", icon: <Clapperboard />, checkpoint: "", batch: ["5 production"] },
-  { id: "final", label: "Final Video", hint: "1440p", icon: <FinalVideo />, checkpoint: "final", batch: ["final", "done"] },
-  { id: "reshuffle", label: "Reshuffle", hint: "Optional", icon: <Shuffle />, checkpoint: "", batch: [], optional: true },
+  { id: "template", label: "Template", icon: <Palette />, checkpoint: "template", batch: ["1 template"] },
+  { id: "requirements", label: "Requirements", icon: <Requirements />, checkpoint: "requirements", batch: ["1 requirements"] },
+  { id: "outline", label: "Outline", icon: <Outline />, checkpoint: "outline", batch: ["2 outline"] },
+  { id: "script", label: "Script", icon: <Script />, checkpoint: "script", batch: ["3 script"] },
+  { id: "plan", label: "Scene Plans", icon: <Storyboard />, checkpoint: "plan", batch: ["4 plans"] },
+  { id: "scenes", label: "Scenes", icon: <Clapperboard />, checkpoint: "", batch: ["5 production"] },
+  { id: "final", label: "Final Video", icon: <FinalVideo />, checkpoint: "final", batch: ["final", "done"] },
+  { id: "reshuffle", label: "Reshuffle", icon: <Shuffle />, checkpoint: "", batch: [], optional: true },
 ];
 /** The stages every run must pass (the progress counts these). */
 export const REQUIRED_STEPS = STAGE_STEPS.filter((step) => !step.optional);

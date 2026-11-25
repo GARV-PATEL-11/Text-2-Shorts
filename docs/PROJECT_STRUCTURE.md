@@ -26,15 +26,15 @@ At the root: `README.md`, `CHANGELOG.md`, `pyproject.toml` + `uv.lock` (dependen
 | `index.html`, `vite.config.ts`, `tsconfig.json`, `package.json` | React 19 + Vite + TypeScript. `npm ci && npm run build` → `dist/` (served by FastAPI); `npm run dev` → live reload on :5173, API proxied to :8765 |
 | `src/main.tsx` | Mount; imports the five stylesheets in order |
 | `src/app/` | `App.tsx` (session, frame, route table), `routes.ts` (hash routes, `navigate`, `useHashRoute`: focus and scroll on page change), `session.tsx` (account, sign-in/out, `fail`) |
-| `src/config/` | `stages.tsx` (stages, steps, names), `status.tsx` (one status vocabulary: word, icon, fill), `quotes.ts` (verified Faraday quotations), `media.ts` (aspect-ratio presets, waveform limits) — decisions in `docs/DESIGN_REFERENCE.md` |
+| `src/config/` | `stages.tsx` (stages, steps, names), `status.tsx` (one status vocabulary: word, icon, fill), `voice.ts` (every borrowed line: Faraday, films, books, games, with sources and moments; splash lines), `media.ts` (aspect-ratio presets, waveform limits) — decisions in `docs/DESIGN_REFERENCE.md` |
 | `src/services/` | `http.ts` (one request core: `load`, `loadText`, `send`, `streamTurn`; `ApiError`, `SignedOut`), `runs.ts` (paths: `runPath`, `mediaUrl`, `runHash`, `starterPreview`), `log.ts` (the frontend's logging → `POST /api/logs`) |
 | `src/types/api.ts` | The API's Pydantic contracts as TypeScript types |
-| `src/hooks/` | `useApi` (cancellable, kept while reloading), `useAction` (busy + one message per write), `useRuns`, `useRunFile` |
-| `src/components/ui/` | `Button` + `LinkButton`, `fields` (Field, SelectField, Checkbox, Toggle, RadioCards), `Tabs`, `pickers` (colour, gradient), `icons` (Untitled UI), `text` (`titleCase`), `Markdown` (+ `plainText`, `runTitle`), `MarkdownField` in `fields` |
-| `src/components/layout/`, `navigation/` | `Shell` (one-tier header, footer, skip link), `Page`/`PageHeader`/`Section`/`SectionHeader`; `Breadcrumbs`, `ProgressSteps` (horizontal, vertical) |
-| `src/components/feedback/` | `SystemMessage` (every non-content state: 11 kinds, told apart by label, icon and border), `Notice` (persistent live regions), `ProgressBar`, `StatusPill`, `Overlay` (Modal, Drawer) |
+| `src/hooks/` | `useApi` (cancellable, kept while reloading), `useAction` (busy + one message per write), `useRuns`, `useRunFile`, `usePolling` (pauses in a hidden tab) |
+| `src/components/ui/` | `Button` + `LinkButton`, `Chip` + `Chips`, `fields` (Field, SelectField, Checkbox, Toggle, RadioCards), `Tabs`, `pickers` (colour, gradient), `icons` (Untitled UI), `text` (`titleCase`), `Markdown` (+ `plainText`, `runTitle`), `MarkdownField` in `fields` |
+| `src/components/layout/`, `navigation/` | `Shell` (one-tier header, footer, skip link), `Page`/`PageHeader`/`Section`/`SectionHeader`; `Breadcrumbs`, `ProgressSteps` (the run's rail), `Journey` |
+| `src/components/feedback/` | `SystemMessage` (every non-content state: 11 kinds, told apart by icon and border; the kind's word for screen readers), `Notice` (persistent live regions), `ProgressBar`, `StatusPill` + `Pill`, `Overlay` (Modal, Drawer) |
 | `src/components/media/` | `ImagePreview` (`MediaImage`, `ExpandImage`), `VideoPreview`, `AudioPreview` (waveform): one box model with loading, empty and unavailable states |
-| `src/pages/` | `Home`, `NewRun`, `RunList`, `SignIn`; `run/` — `RunPage` (rail + stage), `ClaudePanel` (what Claude says and asks, with a reply), `context.tsx`, `Console`, `ChangeModal`, `CheckpointPanel`, `review.tsx`, `stages/` (`StageTabs`, `look/` (Template: `useTemplateEditor`, shared with Start a Run), `Requirements`, `Writing`, `Production`, `Reshuffle`) |
+| `src/pages/` | `Home` (hero and quick actions, live run progress, usage limits), `NewRun`, `RunList`, `SignIn`; `run/` — `RunPage` (rail + stage), `ClaudePanel` (what Claude says and asks, with a reply), `context.tsx`, `Console`, `ChangeModal`, `CheckpointPanel`, `review.tsx`, `stages/` (`StageTabs`, `look/` (Template: `useTemplateEditor`, shared with Start a Run), `Requirements`, `Writing`, `Production`, `Reshuffle`) |
 | `src/styles/` | `tokens.css` (every colour, space, radius, type role, height, icon, width, layer and duration), `base.css`, `layout.css`, `components.css`, `motion.css` (the motion contract). Black, white and greys only; tests scan them |
 
 Served by `text-2-shorts serve` at `http://127.0.0.1:8765`. The user can approve checkpoints (with notes, or anyway
@@ -58,9 +58,10 @@ the logic they share.
 | `commands/production_commands.py` | `voice` · `accept` · `preview` · `final` |
 | `commands/hook_command.py` | The Claude Code hook: SessionStart and PostToolUse |
 | `commands/serve_command.py` | `serve`: runs the FastAPI app with uvicorn on 127.0.0.1 |
-| `web/app.py` | The FastAPI app: frontend files, `/api/session`, runs, approvals, change requests, media (Range); host, origin and JSON checks; Pydantic request/response models |
+| `web/app.py` | The FastAPI app: frontend files, `/api/session`, `/api/usage`, runs, approvals, change requests, media (Range); host, origin and JSON checks; Pydantic request/response models |
 | `web/console.py` | The console: one turn of the run's Claude Code session per message (Claude Code in print mode with `--resume`, in the run jail), streamed as `ConsoleEntry` lines and kept in `console.jsonl`; one turn at a time per run |
 | `web/auth.py` | Sign-in with the Claude account Claude Code is signed in to (`claude auth status --json`); in-memory sessions in an HttpOnly, SameSite=Strict cookie |
+| `web/usage.py` | Usage limits for Home: the latest `rate_limit_event` Claude Code streams (session and weekly windows), kept in `~/.cache/text-2-shorts/usage.json` by every console turn; a one-line Haiku turn checks again on request |
 | `workflow/ledger.py` | `state.json` (`RunState`) under a lock, JSONL files, checkpoint decisions |
 | `workflow/change_requests.py` | Change requests: `record_change_request()`, resolve, route to the stage that applies them, block checkpoints |
 | `workflow/preferences.py` | Standing preferences and the speech settings they control |
@@ -69,9 +70,10 @@ the logic they share.
 | `workflow/artifacts.py` | Typed loaders: brief, topics, outline, script, plans, audio index, gate results, sync report, final report |
 | `workflow/fingerprints.py` | What approvals and clip builds depend on |
 | `workflow/checkpoints.py` | Checkpoint gates; scenes in series |
-| `workflow/validation.py` | Validators for brief, topics, content, outline, script, plans, accuracy reviews |
+| `workflow/validation.py` | Validators for brief, topics, content, outline, script, plans (with their execution plans), accuracy reviews |
 | `workflow/critiques.py` | Critique rounds, scores, the script rule, the refactor log |
-| `workflow/clips.py` | The clip-builder task folder (`TASK.json` = `ClipTask`) and jailed acceptance (`ClipBuild`) |
+| `workflow/scene_code.py` | The code generator: fills `references/codegen-task.md` (`text-2-shorts task`), the scene's work folder (`TASK.json` = `SceneTask`) and jailed acceptance (`ClipBuild` for every clip) |
+| `workflow/visual_director.py` | The Visual Director: fills `references/visual-director-output-spec.md` with a scene's inputs (`text-2-shorts plan-task`) and checks `plan.json`'s `execution_plan` sections for the plan gate |
 | `workflow/production.py` | Stale audio, scene renders, preview sync report, assembly manifest, delivery checks |
 | `workflow/approvals.py` | What blocks an approval; `approve_checkpoint()` (CLI and web) |
 | `workflow/driver.py` | The next batch of work (`ActionBatch`) |
@@ -102,7 +104,7 @@ config → utilities → sandbox
 | `reviews.py` | `ReviewReport`, `Critique`, `ChangeRecord`, `ChangeLog` | reviews, critiques, `changes.json` |
 | `interaction.py` | `ChangeRequest`, `RequestEvent`, `ResolutionEvent`, `TrackedRequest`, `CheckpointDecision` | `requests.jsonl`, `decisions.jsonl` |
 | `run_state.py` | `RunState`, `Approval`, `ClipBuild`, `LogEntry`, `TokenUsage`, `Status` | `state.json`, `log.jsonl` |
-| `media.py` | `ClipAudio`/`AudioIndex`, `ClipTask`, `GateResult`, `SceneRender`, `SyncReport`, `AssemblyManifest`, `FinalReport`, `MediaFinding` | audio index, `TASK.json`, `checks/*.json`, `sync.json`, `assembly.json`, `final_report.json` |
+| `media.py` | `ClipAudio`/`AudioIndex`, `SceneTask`, `GateResult`, `SceneRender`, `SyncReport`, `AssemblyManifest`, `FinalReport`, `MediaFinding` | audio index, `TASK.json`, `checks/*.json`, `sync.json`, `assembly.json`, `final_report.json` |
 | `session.py` | `Action`, `ActionBatch`, `HookEvent`, `HookOutput` | `next --json`, hook stdin/stdout |
 | `api.py` | `ClaudeAuthStatus`, `ClaudeAccount`, `SessionView`, `RunSummary`, `RunDetail`, `SceneView`, `ClipView`, `CheckpointView`, `ApproveInput`, `ChangeRequestInput`, `ResolveInput`, `ApiError` | the frontend API |
 | `unused_contracts.py` | contracts of a design never built, kept until their removal is approved | — |
@@ -115,8 +117,8 @@ Code transcripts are formats this project does not own.
 
 | Script | Run by |
 |---|---|
-| `clip_gates.py` | `./check` in a clip folder; `accept` re-runs it in the render jail (reads `ClipTask`, writes `GateResult`) |
-| `validate_manim_code.py`, `layout_probe.py`, `scene_harness.py` | `clip_gates.py`, `preview`, `final` |
+| `scene_gates.py` | `./check` in a scene's work folder; `accept` re-runs it in the render jail (reads `SceneTask`, writes `GateResult`) |
+| `validate_manim_code.py`, `layout_probe.py`, `scene_harness.py` | `scene_gates.py`, `preview`, `final` |
 | `doc_cards.py`, `build_manim_api_index.py` | `task`, `doc`, `./check doc` (symlinked from the Manim skill) |
 | `assemble_clips.py` | `final`, `preview` (validates the `AssemblyManifest`) |
 | `preflight.py` | `new` (writes an `EnvironmentReport`) |
@@ -130,16 +132,16 @@ Code transcripts are formats this project does not own.
 | `settings.json` | Session sandbox and permissions (`--settings`) |
 | `hooks/hooks.json` | SessionStart and PostToolUse → `text-2-shorts hook` |
 | `workspace/CLAUDE.md` | The instructions copied into every run |
-| `agents/*.md` | One file per subagent: script-writer, scene-planner and clip-builder (Opus: builders and refactors); critics, accuracy-reviewer, audio-refactorer (Sonnet). The session itself runs on Haiku |
+| `agents/*.md` | One file per subagent: script-writer, scene-planner and scene-builder (Opus: builders and refactors); critics, accuracy-reviewer, audio-refactorer (Sonnet). The session itself runs on Haiku |
 | `skills/text-2-shorts-produce/` | The workflow skill; `references/` = one guide per stage, read by path |
-| `skills/manim-ce-0-20-1-reference/` | Manim topic cards; `scripts/` link to `backend/tools/` |
+| `skills/manim-ce-0-20-1-reference/` | The Manim reference in three files, all loaded in every clip task: `topics/manim-construction-patterns.md` (how to write clips; PART 9 is this project's harness conventions), `manim-vocabulary.md` (which names exist), `manim-common-mistakes.md` (what still goes wrong); their examples are validated and dry-rendered by `tests/test_topic_cards.py`; `scripts/` link to `backend/tools/` |
 | `template_kit/` | The template kit as given: `elements.json` (22 look-and-sound elements and their options), `templates/*.json` (7 starters), `gallery/*.png` (every option rendered, dark and light), its Python (`template_kit.py`, `gallery.py`, `narration.py`, `install_fonts.py`, `example_scene.py`; not run by the pipeline yet) |
 | `faraday_logging.py` | Logging for backend, frontend and runtime in one format: `configure(component, run)`, `channel("frontend")` |
 | `video_settings.py` | The look from `template.json`: background, colour roles, font, text sizes, safe area; checks (contrast); the TEMPLATE block of every TASK.md |
 | `audio_settings.py` | The sound from `template.json`: voice per provider, speaking rate, pauses, narration tone |
 | `look_renderer.py` | Our Manim drawing of a look (backdrop, grids, borders, text, maths, a subtitle line): previews and the backdrop behind every clip |
 | `generate_preview.py` | Fonts; the starter stills; every option drawn in the user's look (`option_in_look`, lossless, cached; `warm` pre-renders each starter's in both modes); the whole look; a voice sample |
-| `previews/starters/<name>.webp` | Each starter template as one 2560×1440 frame (the Template gallery). Option previews are drawn in the user's own look and cached in `~/.cache/text-2-shorts/previews` (`generate_preview.py warm` pre-renders every starter's) |
+| `previews/starters/<name>-<mode>.webp` | Each starter template, dark and light, as one 2560×1440 frame (the Template gallery, dark or light). Option previews are drawn in the user's own look and cached in `~/.cache/text-2-shorts/previews` (`generate_preview.py warm` pre-renders every starter's) |
 | `prompts/` | The topic-list and outline prompts as Python, exported to `references/` by `export_references.py` |
 
 ## A run workspace (`artifacts/runs/<id>/`)
@@ -148,9 +150,9 @@ Code transcripts are formats this project does not own.
 |---|---|
 | `brief.json`, `topics.md`, `content.md`, `preferences.json`, `template.json` | Stage 1 (session; `new`, `template`) |
 | `outline.json` → `script.json`, `script_review.json`, `script_critique.json` | Stages 2–3 |
-| `scenes/sNN/plan.json`, `plan_critique.json`, `plan_review.json` | Stage 4 (scene-planner, critics) |
+| `scenes/sNN/plan.json` (with its `execution_plan`), `plan_critique.json`, `plan_review.json` | Stage 4: the scene-planner (task from `text-2-shorts plan-task`), critics |
 | `scenes/sNN/audio/` | `voice` |
-| `scenes/sNN/work/clip_MM/` → `scenes/sNN/clips/` | `task`, clip-builder, `accept` |
+| `scenes/sNN/work/scene_code.py` → `scenes/sNN/scene_code.py` | `task`, scene-builder, `accept` |
 | `scenes/sNN/preview.mp4`, `sync.json`, `video_critique.json`, `changes.json` | `preview`, critics, refactors |
 | `final.mp4`, `final_report.json`, `assembly.json` | `final` |
 | `state.json`, `requests.jsonl`, `decisions.jsonl`, `log.jsonl`, `changes.txt` | ledger, `feedback`, `approve`, the hook |

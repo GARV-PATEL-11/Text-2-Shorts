@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "its video section; the code's _clip_N method",
+      "pattern": "^clip_\\d{2}$",
+      "title": "Name",
+      "type": "string"
+    },
+    "seconds": {
+      "description": "lead-in + narration + end hold, from the voice",
+      "exclusiveMinimum": 0,
+      "title": "Seconds",
+      "type": "number"
+    }
+  },
+  "required": [
+    "name",
+    "seconds"
+  ],
+  "title": "SceneTaskClip",
+  "type": "object"
+}

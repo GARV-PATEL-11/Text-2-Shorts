@@ -13,10 +13,7 @@ Checks (each yields a finding with a stable `code` used by the repair router):
   UNKNOWN_METHOD    `.foo(` where foo is not a method on ANY indexed class (likely invented)
   UNKNOWN_KWARG     constructor kwarg not accepted by a class whose __init__ has no **kwargs path
   SCENE_CLASS       not exactly one Scene subclass with the expected name
-  CLIP_METHODS      expected clip_<n> methods missing (clip-level contract)
-  CLIP_FILE         (--clip-file) file must define exactly one function named after the file
-  CONTRACT_READ     (--entry) clip reads self.reg["x"] that is neither in its entry contract nor created in the clip
-  CONTRACT_EXIT     (--exit) a name promised by the exit contract is never written to self.reg
+  CLIP_METHODS      expected _clip_<n> methods missing (one per planned clip, scene_harness.py)
 
 Usage:
     python backend/tools/validate_manim_code.py scene.py --index cache/manim_api/0.20.1/index.json \
@@ -37,8 +34,9 @@ from pathlib import Path
 
 ALLOWED_IMPORTS = {"manim", "math", "numpy", "random", "itertools", "functools", "typing", "__future__"}
 FORBIDDEN_CALLS = {"open", "exec", "eval", "compile", "__import__", "input", "breakpoint"}
-# Renamed/removed APIs that appear constantly in LLM output (sourced from the Manim CE changelogs;
-# keep in sync with knowledge/manim/0.20.1/removed_apis.md).
+# Renamed/removed APIs that appear constantly in LLM output: every name here is absent from the pinned Manim (checked
+# against the installed package). Keep in sync with PART 3 of
+# runtime-environment/skills/manim-ce-0-20-1-reference/topics/manim-vocabulary.md.
 REMOVED_APIS = {
     "get_graph": "axes.plot(...)",
     "get_implicit_curve": "axes.plot_implicit_curve(...)",
@@ -51,9 +49,39 @@ REMOVED_APIS = {
     "TexMobject": "MathTex(...)",
     "ThoughtBubble": "primitive callout (RoundedRectangle + Text)",
     "SpeechBubble": "primitive callout (RoundedRectangle + Text)",
+    "get_line_graph": "axes.plot_line_graph(...)",
+    "get_parts_by_tex": "set_color_by_tex(...) or get_part_by_tex(...)",
+    "OpenGLTexMobject": "MathTex(...)",
+    "OpenGLTextMobject": "Text(...)",
+    "FadeInFrom": "FadeIn(mob, shift=...)",
+    "FadeInFromPoint": "FadeIn(mob, scale=...)",
+    "FadeInFromLarge": "FadeIn(mob, scale=...)",
+    "FadeOutAndShift": "FadeOut(mob, shift=...)",
+    "FadeOutToPoint": "FadeOut(mob, scale=...)",
+    "VFadeIn": "FadeIn(...)",
+    "VFadeOut": "FadeOut(...)",
+    "VFadeInThenOut": "FadeIn(...) then FadeOut(...)",
+    "CircleIndicate": "Indicate(...) or Circumscribe(...)",
+    "ShowCreationThenDestructionAround": "Circumscribe(...)",
+    "ShowPassingFlashAround": "ShowPassingFlash(SurroundingRectangle(obj))",
+    "AnimationOnSurroundingRectangle": "SurroundingRectangle + Create/FadeIn",
+    "WiggleOutThenIn": "Wiggle(...)",
+    "TurnInsideOut": "Transform(...)",
+    "ShowPassingFlashWithThinningStroke": "ShowPassingFlashWithThinningStrokeWidth(...)",
+    "VMobjectFromSVGPathstring": "VMobjectFromSVGPath(...)",
+    "rotate_in_place": "rotate(...)",
+    "scale_in_place": "scale(...)",
+    "scale_about_point": "scale(..., about_point=...)",
+    "SampleSpaceScene": "Scene + SampleSpace(...)",
+    "ReconfigurableScene": "Scene",
+    "InteractiveScene": "Scene (InteractiveScene is ManimGL only)",
+    "LineGraph": "axes.plot_line_graph(...)",
+    "Bezier": "CubicBezier(...)",
+    "ImplicitCurve": "ImplicitFunction(...) or axes.plot_implicit_curve(...)",
+    "TypstMath": "MathTex(...) (Typst needs Manim 0.21+)",
 }
 PYTHON_BUILTIN_METHODS = set(dir(list)) | set(dir(dict)) | set(dir(str)) | {"astype", "tolist", "reshape"}
-PROJECT_SCENE_METHODS = {"beat", "entry"}  # scene_harness.py: self.beat(n) marks beat n; self.entry(name, make)
+PROJECT_SCENE_METHODS = {"beat", "content"}  # scene_harness.py: self.beat(n) marks beat n; self.content() lists content
 
 
 def load_index(path: Path) -> dict:
@@ -168,123 +196,6 @@ class Validator(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def entry_calls(tree) -> list[tuple[str, int]]:
-    """self.entry("name", make) calls: the clip takes over (or, alone, builds) that entry object."""
-    return [
-        (node.args[0].value, node.lineno)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "entry"
-        and node.args
-        and isinstance(node.args[0], ast.Constant)
-        and isinstance(node.args[0].value, str)
-    ]
-
-
-def registry_access(tree) -> tuple[list[tuple[str, int]], set[str]]:
-    """(reads, writes) of self.reg["name"] with constant string keys; self.entry(name) counts as both."""
-    entries = entry_calls(tree)
-    reads, writes = list(entries), {name for name, _ in entries}
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Attribute)
-            and node.value.attr == "reg"
-            and isinstance(node.slice, ast.Constant)
-            and isinstance(node.slice.value, str)
-        ):
-            (
-                writes.add(node.slice.value)
-                if isinstance(node.ctx, ast.Store)
-                else reads.append((node.slice.value, node.lineno))
-            )
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr in {"pop", "get"}
-            and isinstance(node.func.value, ast.Attribute)
-            and node.func.value.attr == "reg"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            reads.append((node.args[0].value, node.lineno))
-    return reads, writes
-
-
-def validate_clip_file(
-    source: str, index: dict, name: str, entry_contract: set[str] | None, exit_contract: set[str] | None
-) -> list[dict]:
-    try:
-        tree = ast.parse(source)
-    except SyntaxError as error:
-        return [{"severity": "ERROR", "code": "SYNTAX", "line": error.lineno or 0, "message": str(error)}]
-    validator = Validator(index)
-    validator.collect_definitions(tree)
-    validator.visit(tree)
-    functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)]
-    if len(functions) != 1 or functions[0].name != name:
-        validator.findings.append(
-            {
-                "severity": "ERROR",
-                "code": "CLIP_FILE",
-                "line": 0,
-                "message": f"clip file must define exactly one function '{name}', "
-                f"found {[function.name for function in functions]}",
-            }
-        )
-    reads, writes = registry_access(tree)
-    if entry_contract is not None:
-        for key, line in reads:
-            if key not in entry_contract and key not in writes:
-                validator.findings.append(
-                    {
-                        "severity": "ERROR",
-                        "code": "CONTRACT_READ",
-                        "line": line,
-                        "message": f"self.reg['{key}'] is not in the entry contract {sorted(entry_contract)}",
-                    }
-                )
-    if entry_contract is not None:
-        for entry_name, line in entry_calls(tree):
-            if entry_name not in entry_contract:
-                validator.findings.append(
-                    {
-                        "severity": "ERROR",
-                        "code": "CONTRACT_READ",
-                        "line": line,
-                        "message": f"self.entry('{entry_name}'): '{entry_name}' is not in the entry contract "
-                        f"{sorted(entry_contract)}",
-                    }
-                )
-    if entry_contract:
-        taken = {entry_name for entry_name, _ in entry_calls(tree)}
-        for missing_name in sorted(entry_contract - taken):
-            validator.findings.append(
-                {
-                    "severity": "ERROR",
-                    "code": "ENTRY_NOT_STANDALONE",
-                    "line": 0,
-                    "message": f"take entry object '{missing_name}' with self.entry('{missing_name}', lambda: <how it looks>) so the "
-                    "clip also runs on its own (clips are built in parallel)",
-                }
-            )
-    if exit_contract is not None:
-        carried = entry_contract or set()
-        for key in sorted(exit_contract):
-            if key not in writes and key not in carried:
-                validator.findings.append(
-                    {
-                        "severity": "ERROR",
-                        "code": "CONTRACT_EXIT",
-                        "line": 0,
-                        "message": f"exit contract promises '{key}' but the clip never sets self.reg['{key}']",
-                    }
-                )
-    return validator.findings
-
-
 def validate(source: str, index: dict, class_name: str | None, clips: list[int] | None) -> list[dict]:
     try:
         tree = ast.parse(source)
@@ -316,14 +227,14 @@ def validate(source: str, index: dict, class_name: str | None, clips: list[int] 
         )
     if clips and scenes:
         method_names = {function.name for function in scenes[0].body if isinstance(function, ast.FunctionDef)}
-        missing = [clip_number for clip_number in clips if f"clip_{clip_number:02d}" not in method_names]
+        missing = [clip_number for clip_number in clips if f"_clip_{clip_number}" not in method_names]
         if missing:
             validator.findings.append(
                 {
                     "severity": "ERROR",
                     "code": "CLIP_METHODS",
                     "line": scenes[0].lineno,
-                    "message": f"missing clip methods: {[f'clip_{clip_number:02d}' for clip_number in missing]}",
+                    "message": f"missing clip methods: {[f'_clip_{clip_number}' for clip_number in missing]}",
                 }
             )
     return validator.findings
@@ -334,29 +245,13 @@ def main() -> None:
     parser.add_argument("file")
     parser.add_argument("--index", required=True)
     parser.add_argument("--class-name")
-    parser.add_argument("--clips", help="comma-separated clip numbers expected as clip_NN methods")
-    parser.add_argument("--clip-file", action="store_true", help="validate a clips/clip_NN.py file instead of a scene")
-    parser.add_argument("--entry", help="comma-separated registry names in the entry contract ('' = none)")
-    parser.add_argument("--exit", help="comma-separated registry names in the exit contract ('' = none)")
+    parser.add_argument("--clips", help="comma-separated clip numbers expected as _clip_N methods")
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
     clips = [int(text) for text in arguments.clips.split(",")] if arguments.clips else None
-
-    def parse_names(text):
-        return None if text is None else {name for name in text.split(",") if name}
-
-    if arguments.clip_file:
-        findings = validate_clip_file(
-            Path(arguments.file).read_text(),
-            load_index(Path(arguments.index)),
-            Path(arguments.file).stem,
-            parse_names(arguments.entry),
-            parse_names(arguments.exit),
-        )
-    else:
-        findings = validate(
-            Path(arguments.file).read_text(), load_index(Path(arguments.index)), arguments.class_name, clips
-        )
+    findings = validate(
+        Path(arguments.file).read_text(), load_index(Path(arguments.index)), arguments.class_name, clips
+    )
     if arguments.json:
         print(json.dumps(findings, indent=2))
     else:

@@ -5,7 +5,7 @@ Environment variables (read once, after loading the repository's .env):
   TEXT_2_SHORTS_FPS        final frame rate, 60–120 (default 120)
   TEXT_2_SHORTS_PARALLEL   scenes rendered at once by `final` (default 4)
   TEXT_2_SHORTS_TTS        default narration provider for `new`: polly | google
-Per-run choices live in the run's template.json (look and sound: runtime-environment/video_settings.py and
+Per-run choices live in the run's template.json (look and sound: backend/templates/video_settings.py and
 audio_settings.py) and preferences.json (tone, pauses, quality threshold), not here.
 """
 
@@ -23,11 +23,19 @@ load_dotenv()
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]  # backend/app/config.py → the repository
 BACKEND_DIRECTORY = REPOSITORY_ROOT / "backend"  # backend/app/ (the command), backend/schemas/, backend/tools/
 RUN_ENVIRONMENT = REPOSITORY_ROOT / "runtime-environment"  # Claude Code plugin + settings + workspace template
+TEMPLATES_DIRECTORY = REPOSITORY_ROOT / "backend" / "templates"  # the template kit, starters, previews, look modules
+
+
+def runtime_template_directory() -> Path:
+    """Where the chosen template is copied for the run environment (runtime-environment/template/; tests move it)."""
+    return Path(os.environ.get("TEXT_2_SHORTS_RUNTIME_TEMPLATE") or RUN_ENVIRONMENT / "template")
+
+
 RUNS_DIRECTORY = REPOSITORY_ROOT / "artifacts" / "runs"  # one workspace per video run (git-ignored)
 SCHEMAS_DIRECTORY = BACKEND_DIRECTORY / "schemas"  # read by the run session (--add-dir)
 TOOLS_DIRECTORY = BACKEND_DIRECTORY / "tools"  # standalone scripts, also run inside the render jail
-CLIP_GATES_PATH = TOOLS_DIRECTORY / "clip_gates.py"  # the ./check gates of one clip
-CLIP_BUILDER_AGENT_PATH = RUN_ENVIRONMENT / "agents" / "clip-builder.md"
+SCENE_GATES_PATH = TOOLS_DIRECTORY / "scene_gates.py"  # the ./check gates of one scene's code
+SCENE_BUILDER_AGENT_PATH = RUN_ENVIRONMENT / "agents" / "scene-builder.md"
 REFERENCES_DIRECTORY = RUN_ENVIRONMENT / "skills" / "text-2-shorts-produce" / "references"
 STANDARDS_PATH = REFERENCES_DIRECTORY / "standards.md"
 TOPICS_DIRECTORY = RUN_ENVIRONMENT / "skills" / "manim-ce-0-20-1-reference" / "topics"
@@ -37,14 +45,16 @@ USER_CACHE_DIRECTORY = Path.home() / ".cache"
 # ── Manim ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 MANIM_VERSION = "0.20.1"  # pinned in pyproject.toml
 API_INDEX_PATH = USER_CACHE_DIRECTORY / "text-2-shorts" / f"manim_api_{MANIM_VERSION}.json"  # writable in the jail
-ALWAYS_LOADED_TOPICS = ["clip-structure", "timing-and-sync", "positioning-layout"]  # topic cards in every task
+# the Manim reference, in every clip task (one stable block, so it caches): which names exist, how to write clips
+# (PART 9 is this project's harness), what still goes wrong
+ALWAYS_LOADED_TOPICS = ["manim-construction-patterns", "manim-vocabulary", "manim-common-mistakes"]
 
 # ── Models (Claude Code) ─────────────────────────────────────────────────────────────────────────────────────────
 # Who runs on what (subagents: runtime-environment/agents/*.md frontmatter; a test keeps them equal). All at medium.
 # Haiku — the run session: the user's conversation (the website console), refining requirements, routing the batch
 #   `next` returns, records. It builds nothing itself.
 # Opus — every builder and refactor except audio: script-writer (outline, script), scene-planner (plans),
-#   clip-builder (clip code).
+#   scene-builder (scene code).
 # Sonnet — every critic and reviewer (script-, plan-, video-critic, accuracy-reviewer) and audio (audio-refactorer).
 SESSION_MODEL = "claude-haiku-5-5"
 BUILD_MODEL = "claude-opus-5-5"

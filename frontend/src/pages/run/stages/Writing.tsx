@@ -14,7 +14,7 @@ export function Outline(props: StageProps) {
   return (
     <StageTabs {...props} label="Outline" tabs={[
       { id: "outline", label: "Outline", content: outline.data ? (
-        <ol className="cards-grid">
+        <ol className="cards cards--list">
           {outline.data.outline.map((segment) => (
             <li className="card stack" key={segment.scene_id}>
               <div className="row row--tight"><span className="id">{segment.scene_id}</span><h3 className="card__title">{segment.title}</h3><span className="badge">{titleCase(segment.segment_type)}</span><span className="table__muted">{segment.duration_seconds} s</span></div>
@@ -61,7 +61,7 @@ export function Script(props: StageProps) {
       { id: "accuracy", label: "Accuracy", count: review.data?.findings.filter((finding) => finding.severity === "ERROR").length,
         content: review.data ? <Findings findings={review.data.findings} /> : <NotYet what="Accuracy Review" /> },
       { id: "critique", label: "Critique", content: critique.data ? <CritiqueRounds rounds={critique.data.rounds} />
-        : <NotYet what="Script Critique">The script is critiqued when you ask for changes at its checkpoint.</NotYet> },
+        : <NotYet what="Script Critique">Critiqued When You Request a Change at Its Checkpoint</NotYet> },
       { id: "changes", label: "Changes", content: <Changes targets={(target) => target === "script"} defaultTarget="script" /> },
       { id: "checkpoint", label: "Checkpoint", count: waiting(run.awaiting, "script"), content: <CheckpointPanel target="script" /> },
     ]} />

@@ -1,13 +1,14 @@
 // What Claude says and asks, on every stage page: the last message of the last turn (Markdown), its questions with
 // one-click answers, and a reply box, so nothing waits unseen in the console. Before the first turn it offers to start
-// production; while a turn runs elsewhere it says so.
+// production (one line, so the stage stays in view); while a turn runs elsewhere it says so.
 import { useEffect, useState } from "react";
 import { Notice } from "../../components/feedback/Notice";
 import { SystemMessage } from "../../components/feedback/SystemMessage";
 import { Button } from "../../components/ui/Button";
 import { MarkdownField } from "../../components/ui/fields";
-import { ArrowRight, Claude, Terminal } from "../../components/ui/icons";
+import { ArrowRight, Claude } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
+import { Said } from "../../components/ui/Said";
 import { useAction } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
 import { streamTurn } from "../../services/http";
@@ -21,7 +22,7 @@ export function lastTurn(entries: ConsoleEntry[]): ConsoleEntry[] {
   return entries.slice(lastYou + 1).filter((entry) => entry.role === "claude" || entry.role === "question" || entry.role === "error");
 }
 
-export function ClaudePanel({ onOpenConsole, onAsking }: { onOpenConsole: () => void; onAsking?: (asking: boolean) => void }) {
+export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void }) {
   const { run, refresh } = useRun();
   const id = run.summary.id;
   const view = useApi<ConsoleView>(runPath(id, "/console"));
@@ -35,38 +36,42 @@ export function ClaudePanel({ onOpenConsole, onAsking }: { onOpenConsole: () => 
   const asks = !turn.busy && (said.some((entry) => entry.role === "question") || /\?\s*$/.test(lastText));
   useEffect(() => onAsking?.(asks), [asks, onAsking]);  // the run page quiets its approval bar while Claude asks
 
-  if (view.error) return <SystemMessage kind="unavailable" title="Claude's Messages Did Not Load" compact>{view.error.message}</SystemMessage>;
+  if (view.error) return <SystemMessage kind="unavailable" title="Could Not Load Claude's Messages" compact>{view.error.message}</SystemMessage>;
   if (!view.data) return null;
   const send = (message: string) => {
     setReply("");
     setLive([]);
-    void turn.run("Claude is working. Renders and voice can take minutes.", async () => {
+    void turn.run("Claude Is Working: Renders and Voice Can Take Minutes", async () => {
       await streamTurn(runPath(id, "/console"), message, (entry) => setLive((current) => [...(current ?? []), entry]));
       setLive(null);
-      refresh("Claude finished.");
+      refresh("Claude Finished");
     });
   };
   if (view.data.busy && !turn.busy) {
     return (
-      <SystemMessage kind="processing" title="Claude Is Working" compact action={<Button size="sm" variant="secondary" icon={<Terminal />} onPress={onOpenConsole}>Open Console</Button>}>
-        Started from the console. Its reply appears here when it ends.
-      </SystemMessage>
+      <SystemMessage kind="processing" title="Claude Is Working" compact>Its Reply Appears Here When It Ends</SystemMessage>
     );
   }
   if (!view.data.entries.length && !live) {
     return (
-      <SystemMessage kind="pending" title="Ready to Begin"
-        action={<Button icon={<ArrowRight />} onPress={() => send(view.data!.kickoff)} isDisabled={turn.busy}>Start Production</Button>}>
-        Claude works through each stage and asks you here when it needs you.
-      </SystemMessage>
+      <section className="claude claude--idle" aria-label="Claude">
+        <span className="icon-box icon-box--md" aria-hidden="true"><Claude /></span>
+        <div className="claude__titles">
+          <h2 className="claude__title">Ready to Begin</h2>
+          <Said moment="readyToBegin" />
+        </div>
+        <Button icon={<ArrowRight />} onPress={() => send(view.data!.kickoff)} isDisabled={turn.busy}>Start Production</Button>
+      </section>
     );
   }
   return (
     <section className={`claude${asks ? " claude--asks" : ""}`} aria-label="Claude" aria-live="polite">
       <div className="claude__head">
-        <span className="icon-box icon-box--lg" aria-hidden="true"><Claude /></span>
-        <h2 className="claude__title">{turn.busy ? "Claude Is Working" : asks ? "Claude Asks" : "Claude Says"}</h2>
-        <Button size="sm" variant="tertiary" icon={<Terminal />} onPress={onOpenConsole}>Open Console</Button>
+        <span className="icon-box icon-box--md" aria-hidden="true"><Claude /></span>
+        <div className="claude__titles">
+          <h2 className="claude__title">{turn.busy ? "Claude Is Working" : asks ? "Claude Asks" : "Claude Says"}</h2>
+          {asks ? <p className="note"><Said moment="asks" /></p> : null}
+        </div>
       </div>
       <div className="claude__body">
         {said.length ? said.map((entry, index) => (
@@ -78,11 +83,11 @@ export function ClaudePanel({ onOpenConsole, onAsking }: { onOpenConsole: () => 
               </div>
             ) : null}
           </div>
-        )) : <p className="note">{turn.busy ? "Waiting for Claude's first words." : "Claude finished without a reply."}</p>}
+        )) : <p className="note">{turn.busy ? "Waiting for Claude" : "No Reply"}</p>}
       </div>
       <form className="claude__reply" onSubmit={(event) => { event.preventDefault(); if (reply.trim()) send(reply.trim()); }}>
         <MarkdownField label={asks ? "Your Answer" : "Reply to Claude"} value={reply} onChange={setReply} rows={3} maxLength={8000}
-          placeholder={asks ? "Answer Claude's question" : "Ask for anything in this run"} />
+          placeholder={asks ? "Your Answer" : "Message Claude"} />
         <div className="row"><Button type="submit" isDisabled={turn.busy || !reply.trim()}>Send</Button></div>
       </form>
       <Notice note={turn.note} />

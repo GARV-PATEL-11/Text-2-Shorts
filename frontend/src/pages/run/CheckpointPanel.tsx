@@ -42,8 +42,8 @@ export function CheckpointPanel({ target }: { target: string }) {
     return (
       <div className="stack">
         {approved
-          ? <SystemMessage kind="success" title="You Approved This Checkpoint">Changing what it covers asks you again.</SystemMessage>
-          : <SystemMessage kind="pending" title="Nothing to Decide Yet">Claude asks when this stage is ready.</SystemMessage>}
+          ? <SystemMessage kind="success" title="You Approved This Checkpoint">Changing What It Covers Asks You Again</SystemMessage>
+          : <SystemMessage kind="pending" title="Nothing to Decide Yet" said="nothingToDecide">Claude Asks When This Stage Is Ready</SystemMessage>}
         {history}
       </div>
     );
@@ -55,7 +55,7 @@ export function CheckpointPanel({ target }: { target: string }) {
       const index = REQUIRED_STEPS.findIndex((step) => step.id === target);  // -1 for a scene's checkpoint: stay on it
       const next = index >= 0 ? REQUIRED_STEPS[index + 1] : undefined;
       const after = target === "final" ? STAGE_STEPS.find((step) => step.optional) : next;  // stages follow one after the other
-      refresh(`${checkpoint.label} approved${decision.forced ? " with its open problems" : ""}.${after ? ` Next: ${after.label}.` : ""}`);
+      refresh(`${checkpoint.label} Approved${decision.forced ? " With Its Open Problems" : ""}${after ? `: Next, ${after.label}` : ""}`);
       if (after) navigate(runHash(run.summary.id, after.id));
     });
   return (
@@ -65,16 +65,16 @@ export function CheckpointPanel({ target }: { target: string }) {
         {blocked ? (
           <>
             <p className="subhead">Open Problems</p>
-            <ul className="problems">{checkpoint.problems.map((problem) => <li key={problem}><WithCode text={problem} /></li>)}</ul>
-            <Checkbox label="Approve with Open Problems" hint="The approval records that these were open." isSelected={accepted} onChange={setAccepted} />
+            <ul className="points">{checkpoint.problems.map((problem) => <li key={problem}><WithCode text={problem} /></li>)}</ul>
+            <Checkbox label="Approve with Open Problems" hint="Approving Records These as Open" isSelected={accepted} onChange={setAccepted} />
           </>
-        ) : <p className="note">Nothing blocks this checkpoint. Look through the other tabs, then decide.</p>}
+        ) : <p className="note">Nothing Blocks This Checkpoint</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />
         <div className="row">
           <Button onPress={approve} isDisabled={action.busy || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve</Button>
           <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>
         </div>
-        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick “Approve with Open Problems” to approve anyway, or request a change.</p> : null}
+        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick Approve with Open Problems to Approve Anyway, or Request a Change</p> : null}
         <Notice note={action.note} />
       </div>
       {history}

@@ -113,7 +113,7 @@
         },
         "changes": {
           "default": "",
-          "description": "the clip-builder's CHANGES.md",
+          "description": "the scene-builder's CHANGES.md (on the scene's first clip)",
           "title": "Changes",
           "type": "string"
         }

@@ -61,7 +61,7 @@ export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet
       ) : null}
       {state === "failed" ? (
         <div className="player__failed" role="alert">
-          <span>This video could not be played.</span>
+          <span>Could Not Play This Video</span>
           <Button variant="secondary" size="sm" onPress={() => { setState("loading"); video.current?.load(); }}>Try Again</Button>
         </div>
       ) : null}

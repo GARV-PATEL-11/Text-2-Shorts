@@ -37,8 +37,8 @@ def test_no_llm_orchestration_in_app():
     for module_path in app_directory.rglob("*.py"):
         source = module_path.read_text()
         assert "SYSTEM = " not in source, f"{module_path} holds prompts"
-        # The website's console relays the user's own message to the run's Claude Code session, in one place only;
-        # nowhere else does Python start Claude Code with a message.
+        # The website's console relays the user's own message to the run's Claude Code session, and Home's usage check
+        # sends one fixed message that asks for nothing (both in sandbox.py); nowhere else does Python start Claude Code.
         if module_path.name != "sandbox.py":
             assert '"claude", "-p"' not in source, f"{module_path} starts Claude Code with a message"
     sandbox_source = (app_directory / "sandbox.py").read_text()
@@ -61,7 +61,7 @@ def test_no_llm_orchestration_in_app():
     ):
         assert len((REFERENCES_DIRECTORY / f"{name}.md").read_text()) > 300, name
     for agent in (
-        "clip-builder",
+        "scene-builder",
         "accuracy-reviewer",
         "script-critic",
         "plan-critic",
@@ -393,7 +393,11 @@ def test_outline_and_topic_references_are_generated_from_the_script_prompts_pack
 
 
 def test_conversation_on_haiku_builders_and_refactorers_on_opus_critics_and_audio_on_sonnet():
-    builders = {"script-writer", "scene-planner", "clip-builder"}  # build and refactor outline, script, plans, clips
+    builders = {
+        "script-writer",
+        "scene-planner",
+        "scene-builder",
+    }  # build and refactor outline, script, plans, scene code
     reviewers_and_audio = {"script-critic", "plan-critic", "video-critic", "accuracy-reviewer", "audio-refactorer"}
     agents = {path.stem: frontmatter(path) for path in RUN_ENVIRONMENT.glob("agents/*.md")}
     assert set(agents) == builders | reviewers_and_audio
@@ -438,10 +442,10 @@ def test_every_write_and_command_is_shown_to_the_user(tmp_path):
             "hook_event_name": "PostToolUse",
             "cwd": str(run),
             "tool_name": "Task",
-            "tool_input": {"subagent_type": "clip-builder", "description": "build s01c01"},
+            "tool_input": {"subagent_type": "scene-builder", "description": "build s01"},
         }
     )
-    assert "clip-builder" in json.loads(result.stdout)["systemMessage"]
+    assert "scene-builder" in json.loads(result.stdout)["systemMessage"]
 
 
 def test_each_critic_has_a_tiered_rubric_the_validator_accepts():

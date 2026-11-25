@@ -6,7 +6,7 @@ export function WithCode({ text }: { text: string }) {
 // Chicago style: articles, coordinating conjunctions and short prepositions stay lower case unless first or last.
 const MINOR = new Set("a an the and but or nor for so yet as at by in of off on per to up via vs".split(" "));
 
-/** "background color" · "neon-night" · "requires_user_approval" → "Background Color" · "Neon Night" · "Requires User
+/** "background color" · "chalkboard" · "requires_user_approval" → "Background Color" · "Chalkboard" · "Requires User
  * Approval". Words already holding a capital after the first letter (1440p, SSML, sNN ids) are kept as written; a
  * hyphen splits words only in an id (no spaces), so "3-body problem" keeps its hyphen. */
 export function titleCase(text: string): string {

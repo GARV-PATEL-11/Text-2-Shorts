@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import {
   Button as AriaButton, Checkbox as AriaCheckbox, FieldError, Input, Label, ListBox, ListBoxItem, Popover, Radio, RadioGroup,
-  Select, SelectValue, Switch, Text, TextArea, TextField,
+  Select, SelectValue, Switch, Text, TextArea, TextField, ToggleButton, ToggleButtonGroup,
 } from "react-aria-components";
 import { ExpandImage, MediaImage } from "../media/ImagePreview";
 import { useState } from "react";
@@ -34,11 +34,12 @@ export function MarkdownField({ label, hint, value, onChange, placeholder, rows 
   const [preview, setPreview] = useState(false);
   return (
     <div className="md-field">
-      <div className="md-field__modes" role="group" aria-label={`${label}: write or preview (Markdown supported)`}>
+      <ToggleButtonGroup className="segmented md-field__modes" aria-label={`${label}: Write or Preview (Markdown Supported)`} selectionMode="single"
+        disallowEmptySelection selectedKeys={[preview ? "preview" : "write"]} onSelectionChange={(keys) => setPreview(keys.has("preview"))}>
         <span className="md-field__tag" aria-hidden="true">Markdown</span>
-        <button type="button" className="md-field__mode" aria-pressed={!preview} onClick={() => setPreview(false)}>Write</button>
-        <button type="button" className="md-field__mode" aria-pressed={preview} onClick={() => setPreview(true)}>Preview</button>
-      </div>
+        <ToggleButton id="write" className="segmented__option">Write</ToggleButton>
+        <ToggleButton id="preview" className="segmented__option">Preview</ToggleButton>
+      </ToggleButtonGroup>
       {preview ? (
         <div className="field">
           <span className="field__label">{label}</span>
@@ -104,12 +105,14 @@ export function Toggle({ label, hint, isSelected, onChange }: {
 
 export interface CardOption {
   id: string; label: string; hint?: string; badge?: string; image?: { src: string; full?: string; alt: string }; placeholder?: string; loading?: boolean;
+  /** Said to screen readers after the label (e.g. a twin's mode). */
+  srLabel?: string;
 }
 
 /** Select one, as cards. A card's picture is part of the choice; its Full Screen button sits beside the radio, not inside
  * its label, so the two controls never nest. */
 export function RadioCards({ label, value, onChange, options, layout = "list" }: {
-  label: string; value: string; onChange: (value: string) => void; options: CardOption[]; layout?: "list" | "pictures" | "segmented";
+  label: string; value: string; onChange: (value: string) => void; options: CardOption[]; layout?: "list" | "pictures" | "segmented" | "templates";
 }) {
   const hintId = (option: CardOption) => `hint-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${option.id}`;
   return (
@@ -118,8 +121,8 @@ export function RadioCards({ label, value, onChange, options, layout = "list" }:
         <div key={option.id} className="cards__item">
           <Radio value={option.id} className="card-choice" aria-describedby={option.hint ? hintId(option) : undefined}>
             <span className="card-choice__head">
-              <span className="card-choice__dot" aria-hidden="true" />
-              <span className="card-choice__label">{option.label}</span>
+              {layout === "list" || layout === "segmented" ? <span className="card-choice__dot" aria-hidden="true" /> : null}
+              <span className="card-choice__label">{option.label}{option.srLabel ? <span className="sr-only">{`, ${option.srLabel}`}</span> : null}</span>
               {option.badge ? <span className="badge">{option.badge}</span> : null}
             </span>
             {option.image ? <MediaImage src={option.image.src} alt="" ratio="16/9" fit="cover" /> : null}

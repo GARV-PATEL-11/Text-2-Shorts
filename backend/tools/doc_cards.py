@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """doc_cards.py — deterministic, version-pinned documentation retrieval for ONE clip.
 
-The code generator never receives the whole Manim reference. It receives:
-  1. API cards for exactly the Manim names the clip's VisualSpecification uses
-     (signature, bases, first doc line, own methods, docs URL) — generated from the API index,
-     so they cannot disagree with the installed version;
-  2. topic cards (curated, executable-verified markdown) for the topics the Clip Planner tagged
-     (ClipPlan.manim_topics), e.g. mathtex-indexing, timing-and-sync.
+Every clip task already carries the three Manim reference files (vocabulary, construction patterns, common
+mistakes; their examples are executed by the test suite). This tool adds, on request:
+  1. API cards for exactly the Manim names asked for (signature, bases, first doc line, own methods, docs URL),
+     generated from the API index, so they cannot disagree with the installed version;
+  2. any reference file named with --topics (ClipPlan.manim_topics), e.g. manim-vocabulary.
 
 No embeddings or LLM calls are involved: names come from the spec, topics from a closed vocabulary.
 Output is stable for stable inputs, so it is cacheable and prompt-cache friendly.
 
 Usage:
   python backend/tools/doc_cards.py --index cache/manim_api/0.20.1/index.json \
-      --names MathTex,TransformMatchingTex,SurroundingRectangle --topics mathtex-indexing,timing-and-sync \
+      --names MathTex,TransformMatchingTex,SurroundingRectangle --topics manim-vocabulary,manim-common-mistakes \
       --topics-dir runtime-environment/skills/manim-ce-0-20-1-reference/topics \
       [--from-spec spec.json] [--max-methods 14]
 Status: IMPLEMENTED in this package.

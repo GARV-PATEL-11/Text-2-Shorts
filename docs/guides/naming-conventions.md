@@ -10,7 +10,7 @@ that needs.
 
 | Kind | Convention | Examples |
 |---|---|---|
-| Python module, package | `snake_case`, a noun for what it holds | `change_requests.py`, `clip_gates.py`, `outline_models/` |
+| Python module, package | `snake_case`, a noun for what it holds | `change_requests.py`, `scene_gates.py`, `outline_models/` |
 | Function, method | `snake_case`, starts with a verb | `load_scene_plans`, `build_jail_command`, `check_final_media` |
 | CLI subcommand handler | `handle_<subcommand>_command` | `handle_voice_command`, `handle_open_command` |
 | Predicate | `is_…` / `has_…` | `is_approval_current`, `is_text_like` |
@@ -61,7 +61,7 @@ Types: `uv run pyrefly check app tools schemas tests`.
 | batch | the exact next set of actions the driver hands out | `text-2-shorts next` |
 | sync report | per beat: spoken vs shown time — the changes-made document | `sync.json` |
 | preview | a scene at 720p30 with audio | `preview.mp4` |
-| work directory | the clip-builder's prepared folder | `scenes/s01/work/clip_02/` |
+| work directory | the scene-builder's prepared folder | `scenes/s01/work/` |
 | audio index | `scenes/sNN/audio/index.json` (narration hash → seconds, beat times) | |
 | state | `state.json`: approvals, clip states, session transcripts | |
 | clip key / fingerprint | hash of a clip's inputs / of several clips' keys | |

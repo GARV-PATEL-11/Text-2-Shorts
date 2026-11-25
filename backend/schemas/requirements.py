@@ -42,8 +42,8 @@ class Brief(Strict):
 
 class VideoTemplate(Strict):
     """The video's look and sound (template.json): one variant per element of
-    runtime-environment/template_kit/elements.json, from a starter template plus the user's choices; resolved by
-    runtime-environment/video_settings.py and audio_settings.py. The assembly fields are ours."""
+    backend/templates/template_kit/elements.json, from a starter template plus the user's choices; resolved by
+    backend/templates/video_settings.py and audio_settings.py. The assembly fields are ours."""
 
     name: str = Field(..., min_length=1, description="the starter template it started from")
     description: str = ""

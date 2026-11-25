@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "SceneTaskClip": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "its video section; the code's _clip_N method",
+          "pattern": "^clip_\\d{2}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "seconds": {
+          "description": "lead-in + narration + end hold, from the voice",
+          "exclusiveMinimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "seconds"
+      ],
+      "title": "SceneTaskClip",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "TASK.json in a scene-builder folder (scenes/sNN/work/): what ./check needs to judge the scene's code.",
+  "properties": {
+    "scene_id": {
+      "examples": [
+        "s03"
+      ],
+      "pattern": "^s\\d{2}$",
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "scene_class_name": {
+      "title": "Scene Class Name",
+      "type": "string"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/SceneTaskClip"
+      },
+      "minItems": 1,
+      "title": "Clips",
+      "type": "array"
+    },
+    "api_index": {
+      "title": "Api Index",
+      "type": "string"
+    },
+    "look": {
+      "additionalProperties": true,
+      "description": "the template's drawing (video_settings.drawing): backdrop, border, \u2026",
+      "title": "Look",
+      "type": "object"
+    }
+  },
+  "required": [
+    "scene_id",
+    "scene_class_name",
+    "clips",
+    "api_index"
+  ],
+  "title": "SceneTask",
+  "type": "object"
+}

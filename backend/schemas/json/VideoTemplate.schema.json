@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "The video's look and sound (template.json): one variant per element of\nruntime-environment/template_kit/elements.json, from a starter template plus the user's choices; resolved by\nruntime-environment/video_settings.py and audio_settings.py. The assembly fields are ours.",
+  "description": "The video's look and sound (template.json): one variant per element of\nbackend/templates/template_kit/elements.json, from a starter template plus the user's choices; resolved by\nbackend/templates/video_settings.py and audio_settings.py. The assembly fields are ours.",
   "properties": {
     "name": {
       "description": "the starter template it started from",

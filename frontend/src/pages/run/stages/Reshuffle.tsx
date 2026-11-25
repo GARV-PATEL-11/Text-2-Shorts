@@ -22,11 +22,11 @@ import { useRun } from "../context";
 import type { StageProps } from "./StageTabs";
 
 const GROUPS: { id: ReshuffleGroup; label: string; hint: string }[] = [
-  { id: "colours", label: "Colors & Palettes", hint: "Primary, secondary and accent palettes." },
-  { id: "fonts", label: "Fonts", hint: "The text font and the math font." },
-  { id: "background", label: "Background", hint: "Its type and color." },
-  { id: "grid", label: "Grid", hint: "Its type, color and opacity." },
-  { id: "border", label: "Border", hint: "Its style and color." },
+  { id: "colours", label: "Colors & Palettes", hint: "Primary, Secondary and Accent Palettes" },
+  { id: "fonts", label: "Fonts", hint: "Text and Math Fonts" },
+  { id: "background", label: "Background", hint: "Type and Color" },
+  { id: "grid", label: "Grid", hint: "Type, Color and Opacity" },
+  { id: "border", label: "Border", hint: "Style and Color" },
 ];
 const newSeed = () => String(Math.floor(Math.random() * 1_000_000));
 
@@ -44,7 +44,7 @@ export function Reshuffle(_: StageProps) {
     return (
       <SystemMessage kind="pending" title="Choose a Template First"
         action={<Button size="sm" onPress={() => navigate(runHash(id, "template"))}>Open Template</Button>}>
-        A reshuffle starts from the run's approved template.
+        A Reshuffle Starts From the Run's Approved Template
       </SystemMessage>
     );
   }
@@ -58,23 +58,23 @@ export function Reshuffle(_: StageProps) {
     setGroups((current) => (on ? [...current, group] : current.filter((candidate) => candidate !== group)));
     forget();
   };
-  const preview = () => action.run("Reshuffling, then rendering one frame with Manim…", async () => {
+  const preview = () => action.run("Reshuffling, Then Rendering One Frame…", async () => {
     const answer = await send<ReshuffleView>(runPath(id, "/reshuffle"), { ...wanted, apply: false });
     setView(answer);
-    if (!answer.changes.length) return "Nothing changes with this seed. Try another.";
+    if (!answer.changes.length) return "Nothing Changes With This Seed: Try Another";
     setStill((await send<{ url: string }>(runPath(id, "/look/still"), answer.look)).url);
-    return `${answer.changes.length} elements change.`;
+    return `${answer.changes.length} Elements Change`;
   });
-  const apply = () => action.run("Recoloring every built clip…", async () => {
+  const apply = () => action.run("Recoloring Every Built Clip…", async () => {
     await send<ReshuffleView>(runPath(id, "/reshuffle"), { ...wanted, apply: true });
     setConfirming(false);
     forget();
-    refresh(`Reshuffle applied (seed ${seed}). Send any message in the console and Claude renders the scene previews and the final video again.`);
+    refresh(`Reshuffle Applied (Seed ${seed}): Send Any Message in the Console and Claude Renders the Previews and Final Video Again`);
   });
 
   return (
     <Section title="Reshuffle the Look"
-      description="New variants from a seed: same seed, same look. Layouts never change.">
+      description="Colors, Fonts and Backgrounds Change; Layouts Never Do">
       <div className="split">
         <div className="card stack">
           <fieldset className="fieldset">
@@ -84,7 +84,7 @@ export function Reshuffle(_: StageProps) {
             ))}
           </fieldset>
           <div className="seed">
-            <Field label="Seed" type="number" value={seed} min={0} step={1} hint="Write it down to get this look again."
+            <Field label="Seed" type="number" value={seed} min={0} step={1} hint="The Same Seed Always Gives the Same Look"
               onChange={(value) => { setSeed(value); forget(); }} />
             <Button variant="secondary" icon={<Dice />} onPress={() => { setSeed(newSeed()); forget(); }}>New Seed</Button>
           </div>
@@ -95,8 +95,8 @@ export function Reshuffle(_: StageProps) {
           <Notice note={action.note} />
         </div>
         <div className="stack">
-          {still ? <ImagePreview src={still} fullSrc={still} alt={`Reshuffled Look (Seed ${seed})`} caption="One frame at 2560 × 1440, as every clip would get it." />
-            : <SystemMessage kind="empty" title="No Preview Yet" compact>Choose what to reshuffle and press Preview.</SystemMessage>}
+          {still ? <ImagePreview src={still} fullSrc={still} alt={`Reshuffled Look (Seed ${seed})`} caption="One Frame at 2560 × 1440, as Every Clip Would Get It" />
+            : <SystemMessage kind="empty" title="No Preview Yet" compact />}
           {view?.changes.length ? (
             <div className="table-wrap" tabIndex={0} role="region" aria-label="What changes (scrolls sideways on small screens)">
               <table className="table table--compact">
@@ -112,7 +112,7 @@ export function Reshuffle(_: StageProps) {
         </div>
       </div>
       <Modal isOpen={confirming} onOpenChange={setConfirming} icon={<Shuffle />} title="Apply This Reshuffle?"
-        description="Recolors every built clip and renders the previews and the final video again. The current final video is kept. Every scene needs approval again."
+        description="Recolors Every Built Clip, Then Renders the Previews and Final Video Again. The Current Final Video Is Kept; Every Scene Needs Approval Again."
         footer={<>
           <Button variant="secondary" onPress={() => setConfirming(false)}>Cancel</Button>
           <Button icon={<Shuffle />} onPress={apply} isDisabled={action.busy}>Apply Reshuffle</Button>

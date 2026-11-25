@@ -1,4 +1,4 @@
-"""Production contracts: narration audio, the clip-builder task, gate results, scene renders, the preview sync
+"""Production contracts: narration audio, the scene-builder task, gate results, scene renders, the preview sync
 report, the assembly manifest and the final report with its media checks."""
 
 from __future__ import annotations
@@ -23,18 +23,18 @@ class AudioIndex(RootModel[dict[str, ClipAudio]]):
     """scenes/sNN/audio/index.json: clip id → its narration audio."""
 
 
-class ClipTask(Strict):
-    """TASK.json in a clip-builder folder: what ./check needs to judge the clip."""
+class SceneTaskClip(Strict):
+    name: str = Field(..., pattern=r"^clip_\d{2}$", description="its video section; the code's _clip_N method")
+    seconds: float = Field(..., gt=0, description="lead-in + narration + end hold, from the voice")
 
-    clip_name: str = Field(..., pattern=r"^clip_\d{2}$")
-    clip_id: ClipId
+
+class SceneTask(Strict):
+    """TASK.json in a scene-builder folder (scenes/sNN/work/): what ./check needs to judge the scene's code."""
+
     scene_id: SceneId
     scene_class_name: str
-    clip_seconds: float = Field(..., gt=0, description="lead-in + narration + end hold")
-    entry: list[str] = Field(default_factory=list)
-    exit: list[str] = Field(default_factory=list)
+    clips: list[SceneTaskClip] = Field(..., min_length=1)
     api_index: str
-    beats: int = Field(..., ge=0)
     look: dict = Field(
         default_factory=dict, description="the template's drawing (video_settings.drawing): backdrop, border, …"
     )
@@ -60,10 +60,14 @@ class GateResult(Strict):
     ok: bool
     findings: list[GateFinding] = Field(default_factory=list)
     error: str | None = None
-    clip: dict[str, float | str | None] | None = Field(None, description="the clip's span in the probe")
-    beats: dict[str, float] = Field(default_factory=dict, description="beat number → when self.beat(n) ran")
-    video: str | None = None
-    duration: float | None = None
+    clips: list[dict[str, float | str | None]] = Field(
+        default_factory=list, description="each clip's span in the probe"
+    )
+    beats: dict[str, dict[str, float]] = Field(
+        default_factory=dict, description="clip → beat number → when self.beat(n) ran (optional marks)"
+    )
+    videos: dict[str, str] = Field(default_factory=dict, description="clip → its draft section video")
+    durations: dict[str, float] = Field(default_factory=dict, description="clip → its draft section's seconds")
     frames: list[str] = Field(default_factory=list)
 
 
@@ -99,7 +103,7 @@ class SyncClip(Strict):
     audio_seconds: float | None = None
     audio_fits: bool | None = None
     beats: list[SyncBeat] = Field(default_factory=list)
-    changes: str = Field("", description="the clip-builder's CHANGES.md")
+    changes: str = Field("", description="the scene-builder's CHANGES.md (on the scene's first clip)")
 
 
 class SyncReport(Strict):

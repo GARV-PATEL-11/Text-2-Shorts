@@ -274,3 +274,20 @@ class LookStill(Strict):
 
     url: str
     note: str | None = Field(None, description="e.g. the font is not installed and a default is shown")
+
+
+class UsageWindow(Strict):
+    """One usage-limit window, as Claude Code's rate_limit_event reports it."""
+
+    id: str = Field(..., description="five_hour (the current session) or a weekly window: seven_day, seven_day_opus, …")
+    used_percent: float = Field(..., ge=0)
+    resets_at: int = Field(..., ge=0, description="epoch seconds")
+    status: str = Field("allowed", description="allowed, or why not (e.g. rejected)")
+
+
+class UsageView(Strict):
+    """GET/POST /api/usage: the Claude plan's usage limits, from the latest Claude Code turn on this computer."""
+
+    plan: str = ""
+    checked_at: str | None = Field(None, description="when Claude Code last reported them (local ISO time)")
+    windows: list[UsageWindow] = Field(default_factory=list)

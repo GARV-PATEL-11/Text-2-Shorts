@@ -1,4 +1,4 @@
-"""Clip pipeline without LLM calls: a fake agent writes real clip files; ./check gates + the jailed re-check run."""
+"""Scene code pipeline without LLM calls: a fake agent writes a real scene_code.py; ./check gates + the jailed re-check run."""
 
 import json
 import shutil
@@ -8,28 +8,35 @@ from pathlib import Path
 import pytest
 from app import narration
 from app.commands import production_commands
-from app.workflow import change_requests, clips, fingerprints, ledger, production, status
+from app.workflow import change_requests, fingerprints, ledger, production, scene_code, status
 from conftest import approve, approved_outline, make_plan, make_script, write_brief, write_critique, write_json_file
 from schemas.plans import ScenePlan
 from schemas.run_state import ClipBuild
 
-CLIP_01 = '''from manim import *
+SCENE_CODE = '''from manim import *
 
-def clip_01(self):
-    self.beat(1)
-    title = Text("Hello").to_edge(UP)
-    self.play(Write(title), run_time=1)
-    self.wait(2.2)
-    self.reg["title"] = title
-'''
-CLIP_02 = '''from manim import *
+CLIP_1_SECONDS = 3.2
+CLIP_2_SECONDS = 3.2
 
-def clip_02(self):
-    title = self.entry("title", lambda: Text("Hello").to_edge(UP))
-    self.beat(1)
-    self.play(FadeOut(title), run_time=0.5)
-    self.reg.pop("title")
-    self.wait(2.7)
+
+class Scene01(Scene):
+    def _build_objects(self):
+        self.title = Text("Hello").to_edge(UP)
+
+    def _clip_1(self):
+        self.beat(1)
+        self.play(Write(self.title), run_time=1)
+        self.wait(CLIP_1_SECONDS - 1)
+
+    def _clip_2(self):
+        self.beat(1)
+        self.play(FadeOut(self.title), run_time=0.5)
+        self.wait(CLIP_2_SECONDS - 0.5)
+
+    def construct(self):
+        self._build_objects()
+        self._clip_1()
+        self._clip_2()
 '''
 
 
@@ -90,34 +97,33 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
     scene_directory = run / "scenes" / "s01"
     plan = run_with_approved_plans(run, clip_count=2, exits=[["title"], []])
     write_json_file(scene_directory / "audio" / "index.json", audio_index_for(run, plan))
-    clips.ensure_api_index()
+    scene_code.ensure_api_index()
+    work = scene_directory / "work"
 
-    def build_clip(clip_id, code):  # what the clip-builder subagent does: write the file in the prepared work dir
-        work_directory = clips.prepare_clip(run, clip_id)
-        task = (work_directory / "TASK.md").read_text()
-        assert "CLIP_SECONDS: 3.1" in task and (work_directory / "check").exists()
+    def build_scene(code):  # what the scene-builder subagent does: write scene_code.py in the prepared work folder
+        task = scene_code.prepare_scene(run, "s01")
+        assert "exactly 3.1s" in task and "Scene01" in task and (work / "check").exists()
         read_first = [
-            Path(entry_text.strip()) for entry_text in task.split("READ FIRST:")[1].splitlines()[0].split(",")
+            Path(entry.strip()) for entry in task.split("READ FIRST, in this order:")[1].splitlines()[0].split(",")
         ]
-        assert len(read_first) == 4 and all(path.exists() for path in read_first)  # standards + 3 always-on cards
-        (work_directory / f"clip_{clip_id[-2:]}.py").write_text(code)
-        return clips.accept_clip(run, clip_id)
+        assert len(read_first) == 4 and all(path.exists() for path in read_first)  # codegen-system + 3 Manim references
+        (work / "scene_code.py").write_text(code)
+        return scene_code.accept_scene(run, "s01")
 
-    with pytest.raises(SystemExit, match="s01c01"):
-        clips.prepare_clip(run, "s01c02")  # one clip at a time, in sequence (PRD §11)
-    assert build_clip("s01c01", CLIP_01).status == "READY"
-    assert build_clip("s01c02", CLIP_02).status == "READY"
-    assert (scene_directory / "clips" / "clip_02.py").read_text() == CLIP_02
-    checks = json.loads((scene_directory / "work" / "clip_02" / "checks" / "render.json").read_text())
-    assert checks["ok"] and checks["duration"] >= 3.1  # lead-in + narration + hold
-    assert video_format(scene_directory / "work" / "clip_02" / checks["video"]) == (1280, 720, "30/1")  # draft
-    assert not [step for step in status.next_steps(run) if "s01c0" in step]  # nothing stale
-    unmarked = build_clip("s01c02", CLIP_02.replace("    self.beat(1)\n", ""))
-    assert unmarked.status == "FAILED" and "probe: BEAT_MARKS_MISSING" in unmarked.open_findings
-    assert build_clip("s01c02", "def clip_02(self):\n    pass\n").status == "FAILED"  # too short → rejected
-    assert (scene_directory / "clips" / "clip_02.py").read_text() == CLIP_02  # the approved clip stays installed
-    assert any("s01c02" in step for step in status.next_steps(run))
-    build_clip("s01c02", CLIP_02)
+    assert build_scene(SCENE_CODE).status == "READY"
+    assert (scene_directory / "scene_code.py").read_text() == SCENE_CODE
+    checks = json.loads((work / "checks" / "render.json").read_text())
+    assert checks["ok"] and checks["durations"]["clip_02"] >= 3.1  # lead-in + narration + hold
+    assert video_format(work / checks["videos"]["clip_02"]) == (1280, 720, "30/1")  # draft
+    assert not [step for step in status.next_steps(run) if "build" in step]  # nothing stale
+    too_short = SCENE_CODE.replace("        self.wait(CLIP_2_SECONDS - 0.5)\n", "")
+    failed = build_scene(too_short)
+    assert failed.status == "FAILED" and "probe: CLIP_TOO_SHORT" in failed.open_findings
+    missing = SCENE_CODE.replace("        self._clip_2()\n", "")
+    assert build_scene(missing).status == "FAILED"  # a planned clip that never runs → rejected
+    assert (scene_directory / "scene_code.py").read_text() == SCENE_CODE  # the accepted file stays installed
+    assert any("build s01" in step for step in status.next_steps(run))
+    build_scene(SCENE_CODE)
 
     # CP3 → final: 720p30 scene preview + sync report + video critique, then the jailed 1440p render
     import argparse
@@ -177,7 +183,7 @@ def test_next_steps_tracks_stale_audio_and_stale_approvals(tmp_path):
     assert not any("CP3" in step and "s01" in step for step in status.next_steps(tmp_path))
     change_requests.add_request(tmp_path, "s01c01", "visual", "bigger")  # clip stale → approval stale
     steps = status.next_steps(tmp_path)
-    assert any("build s01c01" in step for step in steps) and any("CP3" in step and "s01" in step for step in steps)
+    assert any("build s01" in step for step in steps) and any("CP3" in step and "s01" in step for step in steps)
 
 
 def test_approve_refuses_unfinished_checkpoints(tmp_path):

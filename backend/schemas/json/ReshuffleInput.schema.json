@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "description": "POST /api/runs/<run>/reshuffle: which groups to reshuffle, with which seed; apply=False only shows it.",
+  "properties": {
+    "seed": {
+      "description": "the same seed always gives the same look",
+      "maximum": 2147483647,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "groups": {
+      "items": {
+        "enum": [
+          "colours",
+          "fonts",
+          "background",
+          "grid",
+          "border"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Groups",
+      "type": "array"
+    },
+    "apply": {
+      "default": false,
+      "title": "Apply",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "seed",
+    "groups"
+  ],
+  "title": "ReshuffleInput",
+  "type": "object"
+}

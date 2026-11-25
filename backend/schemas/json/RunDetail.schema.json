@@ -322,6 +322,14 @@
           "title": "Stage",
           "type": "string"
         },
+        "stages_approved": {
+          "default": 0,
+          "description": "of the 7 the website shows: the 6 checkpoints, and all scenes as one",
+          "maximum": 7,
+          "minimum": 0,
+          "title": "Stages Approved",
+          "type": "integer"
+        },
         "has_final": {
           "title": "Has Final",
           "type": "boolean"

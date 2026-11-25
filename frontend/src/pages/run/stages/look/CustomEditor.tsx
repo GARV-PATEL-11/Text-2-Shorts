@@ -25,7 +25,7 @@ export function CustomEditor({ element, value, onApply, onClose }: {
   let editor = solid;
   if (element.custom === "color or gradient") {
     editor = (
-      <Tabs label="Colour or Gradient" selected={kind}
+      <Tabs label="Color or Gradient" selected={kind}
         onChange={(next) => {
           setKind(next);
           const [top, bottom] = draft.split(",");

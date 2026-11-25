@@ -9,7 +9,6 @@ from app.commands import production_commands, workflow_commands
 from app.workflow import (
     change_requests,
     checkpoints,
-    clips,
     critiques,
     driver,
     fingerprints,
@@ -17,6 +16,7 @@ from app.workflow import (
     preferences,
     production,
     run_workspace,
+    scene_code,
     status,
     templates,
     validation,
@@ -149,7 +149,7 @@ def test_voice_and_clip_tasks_wait_for_the_approved_plans(tmp_path):
     with pytest.raises(SystemExit, match="CP2"):
         production_commands.handle_voice_command(argparse.Namespace(run=str(tmp_path)))
     with pytest.raises(SystemExit, match="CP2"):
-        clips.prepare_clip(tmp_path, "s01c01")
+        scene_code.prepare_scene(tmp_path, "s01")
 
     write_json_file(tmp_path / "plan_review.json", {"findings": []})
     for scene_id in ("s01", "s02"):
@@ -159,7 +159,7 @@ def test_voice_and_clip_tasks_wait_for_the_approved_plans(tmp_path):
     edited["composition"] = "changed after approval"
     write_json_file(tmp_path / "scenes" / "s01" / "plan.json", edited)
     with pytest.raises(SystemExit, match="CP2"):  # a plan edited after CP2 needs CP2 again
-        clips.prepare_clip(tmp_path, "s01c01")
+        scene_code.prepare_scene(tmp_path, "s01")
 
 
 def test_next_steps_follow_the_stage_order(tmp_path):
@@ -310,10 +310,10 @@ def test_the_sync_report_compares_when_each_phrase_is_spoken_with_when_its_beat_
         {"s01c01": {"hash": "h", "seconds": 3.0, "beat_times": [0.0, 1.5]}},
     )
     write_json_file(
-        tmp_path / "scenes" / "s01" / "work" / "clip_01" / "checks" / "probe.json",
-        {"ok": True, "beats": {"1": 0.3, "2": 2.6}},
+        tmp_path / "scenes" / "s01" / "work" / "checks" / "probe.json",
+        {"ok": True, "beats": {"clip_01": {"1": 0.3, "2": 2.6}}},
     )
-    (tmp_path / "scenes" / "s01" / "work" / "clip_01" / "CHANGES.md").write_text("circle starts later than planned")
+    (tmp_path / "scenes" / "s01" / "work" / "CHANGES.md").write_text("circle starts later than planned")
 
     report = production.sync_report(tmp_path, ScenePlan.model_validate(plan), {"s01c01": 4.1})
     beats = report.clips[0].beats
@@ -361,28 +361,22 @@ def test_objects_a_clip_takes_over_must_be_described(tmp_path):
     assert any("s01c02" in error and "descriptions" in error for error in validation.validate_plan(tmp_path, "s01"))
 
 
-def test_clips_are_built_one_at_a_time_in_sequence_and_scenes_in_series(tmp_path):
+def test_a_scene_task_carries_its_plan_and_timings_and_scenes_go_in_series(tmp_path):
     two_scenes_after_cp2(tmp_path)
-    with pytest.raises(SystemExit, match="s01c01"):
-        clips.prepare_clip(tmp_path, "s01c02")  # the clip before it is not accepted yet
-    work = clips.prepare_clip(tmp_path, "s01c01")
-    task = (work / "TASK.md").read_text()
-    assert "self.entry(" in task
+    task = scene_code.prepare_scene(tmp_path, "s01")
+    assert "<CLIP_SEQUENCE>" in task and "_clip_1" in task and "Scene01" in task
+    assert (tmp_path / "scenes" / "s01" / "work" / "TASK.json").exists()
     with pytest.raises(SystemExit, match="s01.*CP3"):
-        clips.prepare_clip(tmp_path, "s02c01")  # scenes are produced in series
+        scene_code.prepare_scene(tmp_path, "s02")  # scenes are produced in series
     with pytest.raises(SystemExit, match="s01.*CP3"):
         production_commands.handle_preview_command(argparse.Namespace(run=str(tmp_path), scene="s02"))
 
 
-def test_a_clip_does_not_go_stale_when_another_clip_of_its_scene_changes(tmp_path):
+def test_every_clip_of_a_scene_shares_the_scene_key(tmp_path):
     from schemas.plans import ScenePlan
 
-    plans = two_scenes_after_cp2(tmp_path)
-    plan = ScenePlan.model_validate(plans[0])
-    before = fingerprints.clip_key(tmp_path, plan, plan.clips[1])
-    (tmp_path / "scenes" / "s01" / "clips").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "scenes" / "s01" / "clips" / "clip_01.py").write_text("def clip_01(self):\n    pass\n")
-    assert fingerprints.clip_key(tmp_path, plan, plan.clips[1]) == before
+    plan = ScenePlan.model_validate(two_scenes_after_cp2(tmp_path)[0])
+    assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) == fingerprints.clip_key(tmp_path, plan, plan.clips[1])
 
 
 def test_next_hands_out_the_exact_next_batch(tmp_path):
@@ -404,10 +398,10 @@ def test_next_hands_out_the_exact_next_batch(tmp_path):
     assert any(path.endswith("references/outline-linear.md") for path in batch.actions[0].read)
 
     plans = two_scenes_after_cp2(tmp_path)
-    batch = driver.next_actions(tmp_path)  # CP2 approved, audio there: the first clip of s01, alone
+    batch = driver.next_actions(tmp_path)  # CP2 approved, audio there: s01's code, one file for the scene
     assert batch.parallel is False
-    assert [(a.agent, a.target) for a in batch.actions] == [("clip-builder", "s01c01")]
-    assert batch.actions[0].before == "text-2-shorts task . s01c01"
+    assert [(a.agent, a.target) for a in batch.actions] == [("scene-builder", "s01")]
+    assert batch.actions[0].before == "text-2-shorts task . s01"
 
     from schemas.plans import ScenePlan
 
@@ -645,7 +639,7 @@ CHANGE = {
     "issue": "unclear beat",
     "findings": ["s01c01 clarity: unclear beat"],
     "modification": "named the object in the beat",
-    "files_changed": ["scenes/s01/clips/clip_01.py"],
+    "files_changed": ["scenes/s01/scene_code.py"],
     "rendering_changes": "label added above the circle",
     "audio_timing_changes": "none",
     "sync_adjustments": "none",
@@ -897,7 +891,7 @@ def test_a_reshuffle_is_deterministic_recolours_built_clips_and_keeps_them_built
 
     plans = [ScenePlan.model_validate(plan) for plan in two_scenes_after_cp2(tmp_path)]
     clip = plans[0].clips[0]
-    clip_file = tmp_path / "scenes" / "s01" / "clips" / f"clip_{clip.index:02d}.py"
+    clip_file = tmp_path / "scenes" / "s01" / "scene_code.py"
     clip_file.parent.mkdir(parents=True, exist_ok=True)
     text_colour = templates.look(tmp_path)["roles"]["text"]
     clip_file.write_text(f'Text("x", color="{text_colour}")')
@@ -962,3 +956,35 @@ def test_dark_mode_is_deep_and_light_mode_is_pastel_and_everything_stays_readabl
     own["elements"]["theme_mode"] = "light"
     own["overrides"] = {"accent_color": v.custom_override("accent_color", "#123456", "light")}
     assert v.resolve(own)["roles"]["accent"] == "#123456"  # the user's own colour is never toned
+
+
+def test_the_visual_director_task_is_filled_from_the_run_and_its_plan_lives_in_plan_json(tmp_path):
+    from pathlib import Path
+
+    from app.workflow import visual_director
+
+    script = approved_script_run(tmp_path, 30, 30)
+    task = visual_director.task(tmp_path, "s02")
+    assert "__SCENE_ID__" not in task and "__TARGET_DURATION__" not in task  # str.replace filled both tokens
+    assert "Scene Execution Plan for s02" in task and "### TARGET_DURATION\n30 seconds" in task
+    assert script["scenes"][1]["narration"].split()[0] in task and "COLOUR ROLES" in task  # narration, TEMPLATE
+    read_first = task.splitlines()[0].removeprefix("READ FIRST, in this order: ").split(", ")
+    assert [Path(path).name for path in read_first] == [
+        "visual-director-system.md",
+        "manim-construction-patterns.md",
+        "manim-vocabulary.md",
+        "manim-common-mistakes.md",
+    ] and all(Path(path).exists() for path in read_first)
+    assert not (tmp_path / "scenes").exists()  # nothing written: the planner reads the printed task
+
+    plan = make_plan(script, 1, clip_count=2)
+    write_json_file(tmp_path / "scenes" / "s01" / "plan.json", plan)
+    assert validation.validate_plan(tmp_path, "s01") == []
+    for broken, message in [
+        (plan["execution_plan"].replace("<CAMERA_SCRIPT>", "<CAMERA>"), "CAMERA_SCRIPT"),
+        (plan["execution_plan"].replace("CLIP 2 ", "CLIP 3 "), "one block each"),
+        ("", "plan-task"),
+    ]:
+        write_json_file(tmp_path / "scenes" / "s01" / "plan.json", {**plan, "execution_plan": broken})
+        assert any(message in error for error in validation.validate_plan(tmp_path, "s01")), message
+    assert "CLIP 2" in visual_director.clip_block(plan["execution_plan"], 2)

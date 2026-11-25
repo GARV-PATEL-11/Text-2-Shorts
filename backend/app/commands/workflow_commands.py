@@ -12,10 +12,10 @@ from app.config import API_INDEX_PATH, PYTHON_EXECUTABLE, TOOLS_DIRECTORY, TOPIC
 from app.utilities import format_validation_errors
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint, checkpoint_target
 from app.workflow.change_requests import REQUEST_ROUTES, record_change_request, resolve_request
-from app.workflow.clips import ensure_api_index
 from app.workflow.critiques import critique_subject_hash, validate_changes, validate_critique
 from app.workflow.driver import format_actions, next_actions
 from app.workflow.preferences import validate_preferences
+from app.workflow.scene_code import ensure_api_index
 from app.workflow.status import status_text, sum_session_tokens
 from app.workflow.validation import (
     validate_brief,

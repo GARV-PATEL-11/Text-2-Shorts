@@ -21,13 +21,6 @@ def test_topic_cards_are_found():
 @pytest.mark.parametrize("topic,code", EXAMPLES, ids=[example_topic for example_topic, _ in EXAMPLES])
 def test_topic_example(topic, code, api_index, tmp_path):
     match = re.search(r"class (\w+)\(", code)
-    if not match:  # clip-file example: validate as a clip file
-        function_name = re.search(r"def (clip_\d+)\(", code).group(1)
-        example_path = tmp_path / f"{function_name}.py"
-        example_path.write_text(code)
-        exit_code, output = run_tool("validate_manim_code.py", example_path, "--index", api_index, "--clip-file")
-        assert exit_code == 0, output
-        return
     example_path = tmp_path / f"{topic.replace('-', '_')}.py"
     example_path.write_text(code)
     class_name = match.group(1)

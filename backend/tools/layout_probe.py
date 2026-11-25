@@ -92,6 +92,8 @@ def main():
     from manim import Scene, config
 
     config.dry_run = True
+    # LaTeX and text caches go to the user cache, never into ./media of whatever folder this runs from
+    config.media_dir = str(Path.home() / ".cache" / "text-2-shorts" / "manim-media")
     config.disable_caching = True
     config.verbosity = "ERROR"
     half_safe_width, half_safe_height = (
@@ -199,8 +201,9 @@ def main():
     clip_spans: dict[str, list[float]] = {}
     import re
 
-    for name in [attribute_name for attribute_name in dir(scene_class) if re.fullmatch(r"clip_\d+", attribute_name)]:
-        clip_method = getattr(scene_class, name)
+    for method_name in [attribute for attribute in dir(scene_class) if re.fullmatch(r"_?clip_\d+", attribute)]:
+        clip_method = getattr(scene_class, method_name)
+        name = f"clip_{int(method_name.rsplit('_', 1)[1]):02d}"  # _clip_2 (generated scene code) → clip_02
 
         def wrapped(self, *args, _clip_method=clip_method, _clip_name=name, **keyword_arguments):
             start = float(getattr(self.renderer, "time", 0.0))
@@ -208,7 +211,7 @@ def main():
             clip_spans[_clip_name] = [round(start, 3), round(float(getattr(self.renderer, "time", 0.0)), 3)]
             return result
 
-        setattr(scene_class, name, wrapped)
+        setattr(scene_class, method_name, wrapped)
     scene = scene_class()
     scene.render()
     beats: dict[str, dict[str, float]] = {}

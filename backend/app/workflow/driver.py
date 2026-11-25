@@ -273,7 +273,9 @@ def next_actions(run: Path) -> ActionBatch:
     script = load_script(run)
     for scene in script.scenes if script else []:  # plans: one scene at a time, each through its critic loop
         plan_file = f"scenes/{scene.scene_id}/plan.json"
-        planning = references("scene-visual-planning.md", "audio-ssml.md", "transitions.md")
+        planning = references(  # the Visual Director's rules, then how its plan becomes plan.json and audio
+            "visual-director-system.md", "scene-visual-planning.md", "audio-ssml.md", "transitions.md"
+        )
         if errors := validate_plan(run, scene.scene_id):
             return batch(
                 "4 plans",
@@ -285,7 +287,7 @@ def next_actions(run: Path) -> ActionBatch:
                         "file": plan_file,
                         "read": planning,
                         "what": ("refactor" if (run / plan_file).exists() else "write")
-                        + " mode — "
+                        + f" mode — run `text-2-shorts plan-task . --scene {scene.scene_id}` first — "
                         + "; ".join(errors[:3]),
                     }
                 ],
@@ -344,18 +346,18 @@ def next_actions(run: Path) -> ActionBatch:
             for c in plan.clips
             if (build := state.clips.get(c.clip_id)) is None or build.key != clip_key(run, plan, c)
         ]
-        if clip := next(iter(unbuilt), None):  # one clip at a time: the next starts once this one is accepted
+        if unbuilt:  # one file per scene: every clip is a section of it
             return batch(
                 "5 production",
                 [
                     {
                         "do": "subagent",
-                        "agent": "clip-builder",
-                        "target": clip.clip_id,
-                        "before": f"text-2-shorts task . {clip.clip_id}",
-                        "after": f"text-2-shorts accept . {clip.clip_id}",
-                        "what": f"build {clip.clip_id} in its prepared folder (scenes/{scene_id}/work/"
-                        f"clip_{clip.index:02d}); a clip that fails accept twice → ask the user",
+                        "agent": "scene-builder",
+                        "target": scene_id,
+                        "before": f"text-2-shorts task . {scene_id}",
+                        "after": f"text-2-shorts accept . {scene_id}",
+                        "what": f"write scenes/{scene_id}/work/scene_code.py (clips "
+                        f"{', '.join(c.clip_id for c in unbuilt)} to build); a scene that fails accept twice → ask the user",
                     }
                 ],
             )

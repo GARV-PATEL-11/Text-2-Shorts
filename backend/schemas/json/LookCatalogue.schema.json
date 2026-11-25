@@ -49,10 +49,10 @@
           "description": "what a custom value is (e.g. 'colour'); None = variants only",
           "title": "Custom"
         },
-        "gallery": {
+        "previewed": {
           "default": false,
-          "description": "/gallery/<id>.png shows every option, dark and light",
-          "title": "Gallery",
+          "description": "every option has a picture: /previews/<mode>/<id>/<option>.webp",
+          "title": "Previewed",
           "type": "boolean"
         }
       },
@@ -75,6 +75,12 @@
         },
         "label": {
           "title": "Label",
+          "type": "string"
+        },
+        "detail": {
+          "default": "",
+          "description": "what it means beyond its name (voice ids, rate, tone rules)",
+          "title": "Detail",
           "type": "string"
         }
       },

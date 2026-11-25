@@ -30,8 +30,9 @@ from app.commands.workflow_commands import (
     handle_validate_command,
 )
 from app.config import DEFAULT_TTS
-from app.workflow.clips import prepare_clip
+from app.workflow import visual_director
 from app.workflow.run_workspace import resolve_run_path
+from app.workflow.scene_code import prepare_scene
 from app.workflow.templates import choose_template, starter_templates
 
 
@@ -142,6 +143,10 @@ def register_subcommands(subparsers) -> None:
     subparsers.add_parser("hook", help="Claude Code hook entry point (reads the hook JSON on stdin)").set_defaults(
         handler=handle_hook_command
     )
+    command_parser = add_subcommand(  # the Visual Director's filled prompt for one scene, for the scene-planner
+        "plan-task", lambda arguments: print(visual_director.task(Path(arguments.run), arguments.scene))
+    )
+    command_parser.add_argument("--scene", required=True, help="sNN")
     command_parser = add_subcommand("validate", handle_validate_command)
     command_parser.add_argument(
         "what",
@@ -164,7 +169,7 @@ def register_subcommands(subparsers) -> None:
     command_parser.add_argument("--scene", help="sNN (plan: default every scene; critiques: required)")
     doc_parser = subparsers.add_parser("doc", help="Manim API cards by name, e.g. MathTex,Axes.plot")
     doc_parser.add_argument("names")
-    doc_parser.add_argument("--topics", default="", help="topic cards, e.g. mathtex-indexing,transforms")
+    doc_parser.add_argument("--topics", default="", help="reference files, e.g. manim-vocabulary,manim-common-mistakes")
     doc_parser.set_defaults(handler=handle_doc_command)
     command_parser = add_subcommand("next", handle_next_command)
     command_parser.add_argument("--json", action="store_true")
@@ -173,10 +178,12 @@ def register_subcommands(subparsers) -> None:
     command_parser = add_subcommand("hash", handle_hash_command)
     command_parser.add_argument("scene", help="script | sNN")
     command_parser.add_argument("kind", nargs="?", choices=["script", "plan", "video"])
-    command_parser = add_subcommand("task", lambda arguments: print(prepare_clip(Path(arguments.run), arguments.clip)))
-    command_parser.add_argument("clip", help="sNNcMM")
+    command_parser = add_subcommand(
+        "task", lambda arguments: print(prepare_scene(Path(arguments.run), arguments.scene))
+    )
+    command_parser.add_argument("scene", help="sNN")
     command_parser = add_subcommand("accept", handle_accept_command)
-    command_parser.add_argument("clip", help="sNNcMM")
+    command_parser.add_argument("scene", help="sNN")
     command_parser = add_subcommand("approve", handle_approve_command, force=True)
     command_parser.add_argument(
         "target", help="requirements | template | outline | script | plan | sNN | final | start:sNN"

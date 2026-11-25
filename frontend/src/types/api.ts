@@ -43,3 +43,5 @@ export interface LookOptionPicture { option: string; url: string | null; full: s
 export type OptionPictures = "loading" | "failed" | Record<string, LookOptionPicture>;
 export type ReshuffleGroup = "colours" | "fonts" | "background" | "grid" | "border";
 export interface ReshuffleView { look: LookChoice; changes: { element: string; before: string; after: string }[]; applied: boolean }
+export interface UsageWindow { id: string; used_percent: number; resets_at: number; status: string }
+export interface UsageView { plan: string; checked_at?: string | null; windows: UsageWindow[] }

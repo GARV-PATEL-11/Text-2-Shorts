@@ -65,6 +65,7 @@ from schemas.api import (
     RunDetail,
     RunSummary,
     SessionView,
+    UsageView,
     VoiceSample,
 )
 from schemas.interaction import CheckpointDecision, TrackedRequest
@@ -74,7 +75,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.config import REPOSITORY_ROOT, RUNS_DIRECTORY
 from app.sandbox import KICKOFF_PROMPT
 from app.utilities import content_hash, format_validation_errors
-from app.web import auth, console
+from app.web import auth, console, usage
 from app.workflow import reshuffle, run_workspace, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
 from app.workflow.artifacts import load_brief
@@ -209,6 +210,17 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
         sessions.close(request.cookies.get(auth.SESSION_COOKIE))
         response.delete_cookie(auth.SESSION_COOKIE, path="/", httponly=True, samesite="strict")
         return SessionView(signed_in=False)
+
+    @app.get("/api/usage", response_model=UsageView)
+    def usage_limits(request: Request) -> UsageView:
+        return usage.latest(signed_in_account(request).plan)
+
+    @app.post("/api/usage", response_model=UsageView)
+    def check_usage_limits(request: Request) -> UsageView:
+        """Asks Claude Code for fresh numbers (a one-line Haiku turn), then answers as GET does."""
+        plan = signed_in_account(request).plan
+        usage.check()
+        return usage.latest(plan)
 
     # ── runs ───────────────────────────────────────────────────────────────────────────────────────────────
     @app.get("/api/runs", response_model=list[RunSummary], dependencies=[Depends(signed_in_account)])
@@ -408,12 +420,13 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
                 raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
         return LookStill(url=f"/previews/custom/{path.name}", note=generate_preview.font_note(template))
 
-    @app.get("/previews/starters/{name}.webp", dependencies=[Depends(signed_in_account)])
-    def starter_preview(name: str) -> FileResponse:
-        """A starter template as one frame at 2560×1440 (generate_preview.py starters), rendered now if missing."""
-        if name not in templates.template_names():
-            raise ApiProblem(404, f"no starter template {name}")
-        path = generate_preview.starter_path(name)
+    @app.get("/previews/starters/{name}/{mode}.webp", dependencies=[Depends(signed_in_account)])
+    def starter_preview(name: str, mode: str) -> FileResponse:
+        """A starter template in dark or light mode as one frame at 2560×1440 (generate_preview.py starters), rendered
+        now if missing."""
+        if name not in templates.template_names() or mode not in generate_preview.MODES:
+            raise ApiProblem(404, f"no starter template {name} in {mode} mode")
+        path = generate_preview.starter_path(name, mode)
         if not path.exists():
             try:
                 generate_preview.render_in_subprocess(["starters", "--only", name])

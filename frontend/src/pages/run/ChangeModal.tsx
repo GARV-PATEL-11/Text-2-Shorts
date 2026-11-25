@@ -42,23 +42,23 @@ export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => 
   }, [ask, targets, setNote]);
 
   const submit = () =>
-    action.run("Sending your request…", async () => {
+    action.run("Sending…", async () => {
       const request = await send<TrackedRequest>(runPath(run.summary.id, "/requests"), {
         target, kind, text: text.trim(), checkpoint: ask?.checkpoint && !ask.checkpoint.startsWith("start:") ? ask.checkpoint : null,
       });
       onClose();
-      refresh(`Change request ${request.id} recorded. The run's session applies it at its next step.`);
+      refresh(`Change Request ${request.id} Recorded: The Run's Session Applies It at Its Next Step`);
     });
   return (
     <Modal isOpen={ask !== null} onOpenChange={(open) => (open ? null : onClose())} icon={<RequestChange />}
-      title="Request a Change" description="Any stage, scene or clip. Claude applies it and marks it done."
+      title="Request a Change" description="Any Stage, Scene or Clip: Claude Applies It and Marks It Done"
       footer={<>
         <Button variant="secondary" onPress={onClose}>Cancel</Button>
         <Button onPress={submit} isDisabled={action.busy || text.trim().length < 3}>Send Request</Button>
       </>}>
       <SelectField label="What Should Change" value={target} onChange={setTarget} options={targets} />
       <SelectField label="Kind of Change" value={kind} onChange={setKind} options={KINDS} />
-      <MarkdownField label="Describe the Change" value={text} onChange={setText} rows={4} maxLength={4000} isRequired hint="At least a few words." />
+      <MarkdownField label="Describe the Change" value={text} onChange={setText} rows={4} maxLength={4000} isRequired />
       <Notice note={action.note} />
     </Modal>
   );
