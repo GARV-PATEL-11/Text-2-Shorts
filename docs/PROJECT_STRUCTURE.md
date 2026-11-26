@@ -17,7 +17,7 @@ crosses a boundary has a Pydantic contract in `backend/schemas/`.
 | `tests/` | The deterministic test suite and its fixtures |
 
 At the root: `README.md`, `CHANGELOG.md`, `pyproject.toml` + `uv.lock` (dependencies, entry point, tool settings),
-`.env.example` (the environment variables; never commit `.env`), `.github/workflows/ci.yml` (`uv run pytest -q`).
+`.env.example` (the environment variables; never commit `.env`).
 
 ## `frontend/`
 

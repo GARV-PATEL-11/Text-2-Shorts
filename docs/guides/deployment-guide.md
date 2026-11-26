@@ -43,7 +43,6 @@ unreadable, fails closed). The Manim API index is built on the first `text-2-sho
 uv run pytest -q           # tools, contracts, Manim reference examples, harness, assembly, and a fake-agent build → final run
 node backend/tools/check_diagrams.mjs diagrams   # optional: Mermaid syntax (needs `npm i mermaid@11 jsdom@24`)
 ```
-CI runs the same suite on every push (`.github/workflows/ci.yml`).
 
 ## 7. Operating
 `uv run text-2-shorts new "<topic>" …` provisions `artifacts/runs/<id>/` (the website's new-run form does the same), then
