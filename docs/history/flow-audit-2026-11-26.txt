@@ -1,0 +1,165 @@
+FARADAY - FLOW AUDIT AND FIXES
+Date: 2026-11-26   Branch: CCW-V02
+
+How the flow was tested
+-----------------------
+A mock of a whole run (tests/test_flow.py) drives the real workflow: the driver that says what to do next
+(`text-2-shorts next`), the checkpoint approvals and the change requests. Every agent, command and user decision
+is faked: no Claude calls, no renders. 16 scenarios each change one behaviour, for example a critic that never
+passes, a build that always fails or a change request at a checkpoint. Each one must reach the end of the run
+with no loop, no dead end and no step that nothing handles.
+
+Result: 172 tests, 171 pass. The one failure is test_run_environment_is_not_gitignored (see OPEN ITEMS, item 5).
+
+
+ISSUES FOUND AND WHAT WAS DONE
+==============================
+
+1. Runs made by an older version showed no video (Rayleigh Scattering, Kepler's Laws)
+   Problem:  The backend sent the address of final.mp4, but the run page drew only the "Made by an Older
+             Version" message and never a video player.
+   Done:     The final video player is shown under that message.
+             (frontend/src/pages/run/RunPage.tsx)
+
+2. Older runs showed a meaningless left box ("Stages Approved 0 of 7", Open Console, Request a Change)
+   Problem:  Nothing can be approved, asked or changed on a run the current version can't read.
+   Done:     The box is removed for those runs, and the page uses the full width.
+             (RunPage.tsx, .run--solo in frontend/src/styles/layout.css)
+
+3. CP4 approved a broken final video without warning
+   Problem:  A final video that failed its media checks (an ERROR, for example clipping audio) could be
+             approved as if nothing were wrong. The checkpoint said "Nothing Blocks This Checkpoint".
+   Done:     Media check ERRORs are now open problems at CP4. The user must tick "Approve with Open
+             Problems" or request a change.
+             (backend/app/workflow/approvals.py)
+
+4. Video critique rounds were spent on the old video
+   Problem:  After a "revise" round, the driver handed out the fix AND the next critique in the same step,
+             before the scene was rebuilt and previewed. The critic watched the old preview but stamped the
+             round as if it had seen the new version. 2 of the 3 allowed rounds were wasted, and a rebuilt
+             scene could reach CP3 without ever being critiqued.
+   Done:     The next critique comes only after the rebuild and the new preview. If a fix is recorded but
+             changes nothing, the critic runs again, so the 3-round limit still ends the loop.
+             (backend/app/workflow/driver.py)
+
+5. Some change requests rebuilt a whole scene's code for nothing
+   Problem:  Every change request on a scene changed its build key, including audio-timing requests (only the
+             audio needs re-timing) and requests the user declined. Each one cost a full Opus scene rebuild,
+             a critique, CP3 again and a new final render.
+   Done:     Declined and audio-timing requests no longer change the build key.
+             (backend/app/workflow/fingerprints.py)
+
+6. The accuracy-review loop had no limit
+   Problem:  While the accuracy reviewer kept finding an ERROR, the script writer (or scene planner) fixed
+             and the reviewer re-checked, with no end. CP1/CP2 was never reached, so the user could not step
+             in from the website.
+   Done:     After 3 reviews in a row that still find an ERROR, the checkpoint goes to the user with the
+             ERRORs as open problems: accept them, or request a change.
+
+7. Approving with open problems did not stop the review loop  (an older bug, found while fixing 6)
+   Problem:  After the user approved CP1 with its open problems, the driver still saw the ERRORs and started
+             fixing again. That rewrote the script, cancelled the approval, and the cycle repeated forever.
+   Done:     Once the user has approved the current script or plans, the driver stops fixing them.
+             (backend/app/workflow/driver.py)
+
+8. A scene that never builds looped forever
+   Problem:  When `accept` failed, the driver handed out the same scene-builder task again, with no end. The
+             only limit was one sentence in the session's instructions ("fails accept twice -> ask the user").
+   Done:     After 3 failed builds from the same inputs, the driver asks the user for a hint and says how to
+             record it: a visual change request on one of the scene's clips. That changes the inputs, so the
+             scene-builder gets 3 fresh tries. The instructions say the same.
+             (driver.py, backend/app/workflow/scene_code.py,
+             runtime-environment/skills/text-2-shorts-produce/references/scene-production.md)
+
+9. An out-of-sync scene looped forever
+   Problem:  When a preview was out of sync, the driver handed out the audio-refactorer, then a new preview,
+             then the audio-refactorer again, with no end.
+   Done:     After 3 out-of-sync previews in a row, production moves on. CP3 lists what is still out of sync,
+             and the user accepts it or requests an audio-timing change.
+             (driver.py, backend/app/commands/production_commands.py)
+
+   How 6, 8 and 9 count: state.json has a new `attempts` field, which counts each loop's failures in a row.
+   `accept`, `preview` and the hook that checks every written review file update it; a success clears it;
+   approving the script or plans resets their review count. The limit is MAX_ATTEMPTS = 3 in
+   backend/app/config.py. Files: backend/schemas/run_state.py, backend/app/workflow/ledger.py
+   (count_attempt), backend/app/commands/hook_command.py, backend/app/workflow/approvals.py.
+
+10. "Request a Change" on Template, Requirements and Reshuffle went to the outline
+   Problem:  The request form has no target for those stages, so it defaulted to "The Outline". A request
+             like "darker background" was later applied to the outline: an Opus outline rewrite and CP0 again.
+   Done:     The button is hidden on those three stages. The look is edited directly on the Template stage;
+             requirements and reshuffle changes go through the console. When a blocked Template/Requirements
+             checkpoint is waiting, its hint says "Ask Claude in the Console" instead.
+             (frontend/src/pages/run/ChangeModal.tsx, CheckpointPanel.tsx, RunPage.tsx)
+
+11. Nothing tracked what the agents keep getting wrong  (new subsystem: the mistake log)
+   Problem:  The judgements of each agent's output were scattered across files, and several were overwritten
+             every round: the accuracy review, the build's gate findings, the preview's sync report. Files an
+             agent wrote that failed validation were only a line in log.jsonl. Nothing showed which mistakes
+             repeat across runs or survive a refactor, which is what a prompt change should target.
+   Done:     - Each run keeps an append-only mistakes.jsonl (contract: MistakeEvent in
+               backend/schemas/reviews.py) of the judgements that would otherwise be lost:
+                 review:script / review:plan  every accuracy review (the PostToolUse hook)
+                 build                        every `accept`, with its gate findings
+                 sync                         every preview, with what is out of sync
+                 validation                   every file an agent wrote that failed its checks (the hook)
+               Each event names the agent that owns the fix, the target, pass or fail, the loop's attempt
+               number and the issues (code, severity, problem, fix).
+             - Critique rounds (script, plan, video), the refactor recorded after each video round
+               (changes.json) and the user's change requests (requests.jsonl) already keep their full
+               history, so they are read from those files, not copied.
+             - `text-2-shorts mistakes` reads every run and writes artifacts/reports/mistakes.json (data) and
+               mistakes.md (to read). It groups by agent and kind of mistake (critique criterion, accuracy kind,
+               gate code, sync kind, validation rule with numbers removed, request kind) and counts how often
+               each happened, in how many runs, and how often it was still there in the next judgement of the
+               same target (the fix didn't work). It lists the loops that gave up. Mistakes seen in 2+ runs,
+               or still there after 2+ fixes, are listed as prompt candidates: fix them in
+               runtime-environment/agents/<agent>.md or the references that agent reads.
+             (backend/app/workflow/mistakes.py, backend/app/cli.py, backend/app/commands/hook_command.py,
+             backend/app/workflow/scene_code.py, backend/app/commands/production_commands.py;
+             tests/test_mistakes.py)
+   Note:     The two existing runs were made by the older version, so the report is empty until the next run.
+
+Also changed (requested, not bugs)
+- The steps under the stage breadcrumb are now a breadcrumb of their own (chevrons, ticks on done steps,
+  current step in bold) instead of an underlined numbered row.
+  (frontend/src/components/navigation/Journey.tsx, frontend/src/styles/components.css)
+- The JSON schema files were regenerated for the new `attempts` field. That also wrote four schema files that
+  were missing from earlier work: Draft, DraftInput, ProfileInput, ProfileView.
+
+
+CHECKED AND WORKING (no change needed)
+======================================
+- Happy path: template -> requirements -> outline -> script -> scene plans -> scenes -> final video.
+- "Confirm each scene" preference: every scene asks before it starts.
+- Plan critic and video critic that never pass: both stop after 3 rounds and hand the checkpoint to the user.
+- Change requests of every kind at every checkpoint (structure at CP0, wording at CP1, visual on a scene at CP2,
+  visual on a clip / audio timing / style at CP3, "other" and visual at the final video): each one is applied
+  or comes back to the user, and none is left stuck.
+- Every checkpoint the driver asks about also shows on the website as waiting for the user.
+
+
+OPEN ITEMS (found, not fixed)
+=============================
+1. Accuracy reviews are not tied to the version they reviewed.  [most important]
+   script_review.json and plan_review.json don't record which script or plans they checked. A script
+   rewritten after a change request at CP1 is never re-reviewed for accuracy: the old review still counts.
+   Suggested fix: the review records a `reviewed` hash, like the critiques do, and the driver re-runs the
+   reviewer when it is out of date. This changes the review schema and the accuracy-reviewer's instructions.
+
+2. An audio-refactorer that changes nothing is handed out again.
+   The sync count goes up only when a new preview is made. If the audio-refactorer decides to change
+   nothing, there is no new preview and the driver asks it again. Only its instructions prevent this.
+
+3. `text-2-shorts status` shows a "next:" list that doesn't match the driver.
+   It ignores the template and requirements approvals and open change requests. `text-2-shorts next` (which
+   the session uses) is correct; only the status text is misleading.
+
+4. Runs made by an older version show only their final video.
+   Their scenes, outline and script can't be read by the current code. Showing them would mean adding
+   readers for the old file formats.
+
+5. CORRECTED (see repo-audit-2026-11-26.txt, PART 3): runtime-environment/template/ is written on purpose
+   whenever a template is chosen, and it is in .gitignore. It is not a stray folder: do not delete it.
+   The bug is test_run_environment_is_not_gitignored, which fails once the app has been used; it should
+   skip that folder.

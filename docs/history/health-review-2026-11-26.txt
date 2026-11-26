@@ -1,0 +1,248 @@
+FARADAY - FULL REPOSITORY HEALTH REVIEW
+Date: 2026-11-26   Branch: CCW-V02 (today's work uncommitted)   Scope: whole repository (~20,000 lines)
+
+How this was done
+- Five reviewers read the code in parallel, one area each: (A) workflow, state and data, (B) web server,
+  security and the API, (C) website user flows, (D) production steps, tools and how the agents are wired in,
+  (E) config, dependencies, docs and tests.
+- Every HIGH finding, and the medium ones marked [verified], was then checked against the code by hand.
+  Findings marked [read] were confirmed by reading the code but not reproduced by running it.
+- Mock runs: tests/test_flow.py, 17 scenarios, including a whole run driven through the website's API.
+  All pass. Full suite: 173 tests, 172 pass (see CORRECTION).
+- Over-engineering (dead code, what can be cut) is in docs/history/repo-audit-2026-11-26.txt and is not
+  repeated here.
+- Nothing was changed by this review.
+
+
+VERDICT
+=======
+The core workflow logic is sound. The step-by-step driver, checkpoints, change requests and loop limits reach
+the end on every path the mocks exercise. The website and backend agree on every API path and field.
+
+The weak spots are at the edges:
+1. Inputs that change after an approval (a template change, a removed scene, a changed requirement) don't
+   always mark the later work stale, so a run can show "done" with a video that doesn't match it.
+2. The website's run page never refreshes by itself, and its console is fragile: progress and checkpoints
+   don't appear until a reload, and a failed message is lost.
+3. The local server trusts any process on the machine.
+4. Errors in the media steps are often swallowed or logged without the cause.
+5. Real agents, real voice and real rendering have never been tested end to end. Only a live run can prove
+   them.
+
+
+CORRECTION TO EARLIER REPORTS
+=============================
+runtime-environment/template/ is NOT a stray folder from debug scripts, as flow-audit-2026-11-26.txt and
+repo-audit-2026-11-26.txt said. It is written on purpose every time a template is chosen
+(templates.install_template), and it is in .gitignore deliberately. The real bug is the test:
+test_run_environment_is_not_gitignored fails on any machine where the app has been used.
+Fix: exclude runtime-environment/template/ in that test. Do not delete the folder.
+
+
+HIGH  (wrong video can ship, the run gets stuck, or a security hole)
+====================================================================
+H1  A scene removed from the script is still built into the final video   [verified]
+    where: artifacts.load_scene_plans (globs every scenes/sNN/plan.json); driver.py production loop;
+           production_commands.handle_final_command; fingerprints.plans_fingerprint
+    cause: production and final use every plan file on disk, not the script's scenes. The plans fingerprint
+           covers only plan files, so dropping s05 from the script and re-approving CP1 leaves CP2 approved.
+    impact: narration that is no longer in the approved script is built and delivered.
+    fix: filter plans to the script's scene ids, and have the driver ask for orphaned scenes/sNN to be deleted.
+
+H2  Changing the look, transition or music after approval never re-renders   [verified]
+    where: fingerprints.clip_key uses templates.look() (background, colours, font, sizes, inset only);
+           the renderer uses templates.drawing() (border, grid, subtitles, mark, mode, weights); assembly uses
+           scene_transition and music. None of these is in a scene or final fingerprint.
+    impact: after the final is approved, the user changes the transition, music, grid or subtitle style and
+            re-approves the template. The run still shows "done" with the old final.mp4.
+    fix: add drawing(run) and the transition/music settings (and the music file's hash) to the final
+         fingerprint, and the drawing to the scene fingerprint.
+
+H3  One malformed JSON file makes the website treat a run as "Made by an Older Version"   [verified]
+    where: run_views.run_summary catches ValueError (JSONDecodeError) → readable=False; run_detail then shows
+           only the older-version message. The fingerprint helpers (fingerprints.py) read JSON unguarded.
+    impact: an agent writes script.json with a trailing comma, or the page polls mid-write. The run page loses
+            its checkpoints, scenes and console, and shows a false message. Today's change (hiding the side
+            panel for older runs) makes this worse: the whole run page is hidden until the file is fixed.
+    fix: fingerprint helpers return None on unreadable JSON (the stage is simply not approved), and the run
+         page shows the real error, not "older version".
+
+H4  The run page never refreshes by itself   [verified]
+    where: frontend pages/run/RunPage.tsx, ClaudePanel.tsx, Console.tsx. usePolling is used only on Home.
+    impact: while Claude works, stage statuses, scenes and new checkpoints never appear until a reload. A turn
+            started elsewhere leaves "Claude Is Working" on screen forever.
+    fix: poll the run detail and console every ~5 s while a turn is busy or a stage is in progress.
+
+H5  A failed console message is lost, and the panel half-breaks   [read]
+    where: ClaudePanel.tsx send() and Console.tsx submit() clear the text and set live=[] before the stream,
+           and restore nothing on failure (a 409 "still working", a dropped network, a 5xx).
+    impact: a failed "Start Production" removes the kickoff button; a typed answer is lost; the panel stays
+            on stale live output.
+    fix: restore the text and live state in a catch/finally, then reload.
+
+H6  Sign-in trusts any local process   [verified]
+    where: web/app.py POST /api/session; the Origin check only rejects a *different* Origin, and curl sends none.
+    impact: on a shared machine, any user or local program can get a session. It can then run Claude turns on
+            the owner's account, spend Polly/Google credits, read runs and delete runs.
+    fix: print a one-time token when `serve` starts (or put it in the URL it opens) and require it to sign in.
+
+H7  A console turn keeps running after the browser disconnects   [verified]
+    where: web/console.py run_turn (Popen with no try/finally to stop it); app.py releases the turn lock in
+           the stream's finally.
+    impact: a reload mid-turn frees the lock while `claude` keeps running. A second turn then resumes the same
+            session concurrently and both write the run folder. Delete can move the folder under a live
+            session, and the rest of the first turn's cost and output are lost.
+    fix: stop and wait for the process in a finally, or run the turn in a background thread that owns the lock.
+
+H8  A console message starting with "-" is read as a Claude option   [verified]
+    where: sandbox.console_claude_arguments: ["claude", "-p", message, ...flags], with no "--" before message.
+    impact: "- shorter intro" fails; "--add-dir=..." or "--settings=..." changes Claude Code's own config.
+    fix: pass the message on stdin, or put "--" before it.
+
+H9  `final` can render stale code, and can overwrite a good final.mp4 with a broken one   [verified, part]
+    where: production_commands.handle_final_command checks only status READY and the *presence* of scene
+           approvals (not their current fingerprint or build key); assemble writes straight to final.mp4.
+    impact: (a) run out of order (a session or the CLI) after a change, it renders old scene code against new
+            audio; (b) if ffmpeg dies mid-write, a truncated final.mp4 replaces the good one, while the old
+            final_report.json still matches.
+    fix: reuse preview's key and approval checks, write to a temp file and rename it into place after the checks
+         pass, and delete final_report.json at the start.
+
+H10 Accuracy reviews aren't tied to the version they checked   (from the earlier audit)
+    A script rewritten after a change at CP1 is never re-checked for accuracy. Fix: a `reviewed` hash, as the
+    critiques have.
+
+
+MEDIUM
+======
+Workflow, state and data (A)
+M1  Re-approving changed requirements doesn't invalidate the old outline, script or plans. Approvals only
+    check that the upstream stage is approved, not which version it was. Fix: store the upstream
+    fingerprints in each Approval.   [read]
+M2  The final report's fingerprint is computed after the multi-minute render. Inputs that changed during the
+    render are recorded as rendered. Fix: fingerprint before the render and compare after.   [read]
+M3  A forced approval of a stale scene or final is bound to the current inputs, so the next render is
+    pre-approved and never shown to the user. Fix: refuse force when the video is missing or stale.   [read]
+M4  Change-request ids (r{count+1}) are computed outside the lock. Two requests at once can get the same id,
+    and one silently disappears. Fix: compute the id and append inside run_lock.   [read]
+M5  `accept` takes the build key after the gates ran, and marks requests "applied" that the builder never saw
+    (they arrived during the build). Fix: record the key and request ids in TASK.json at `task`.   [read]
+M6  The audio-refactorer's SSML edits make the plan critique stale (its hash includes SSML, the approval's
+    doesn't). That wastes plan-critic rounds and shows misleading "not critiqued" problems. Fix: exclude SSML
+    from the plan critique hash.   [read]
+M7  Editing runtime-environment/agents/scene-builder.md changes every clip key in every run, finished runs
+    included, so they look stale and may be rebuilt at Opus cost. Fix: pin the prompt version per run.   [read]
+M8  Narration reads "10-20 seconds" as "10 minus 20 seconds" (narration.py: any digit-hyphen-digit becomes
+    "minus"). Fix: say "to", and use "−" in the script for a real minus.   [verified]
+M9  Approve doesn't send the fingerprint of what the user saw, so an agent edit between viewing and clicking
+    gets approved unseen. Fix: send the rendered fingerprint and return 409 on mismatch.   [read]
+
+Web server (B)
+M10 One bad run folder, or a temp file vanishing mid-poll (updated_text, run_views.py), returns 500 for the
+    whole run list. Fix: guard each run's summary and skip vanished files.   [read]
+M11 A fresh clone returns 500 on Home: artifacts/runs is created only by the first run. Fix:
+    runs_directory.mkdir(parents=True, exist_ok=True) in create_app.   [read]
+M12 Non-atomic writes (drafts, .profile.json, template.json, audio index, final_report.json) plus parsing
+    with no per-file guard: one torn file breaks a whole endpoint. Internal validation errors are also
+    reported as 400. Fix: one atomic_write helper (temp file + os.replace), and skip and log bad files.   [read]
+M13 Starting or duplicating a run that fails after the folder is made leaves an orphan run and returns 500.
+    Fix: catch the error, remove the folder, and return a clear message.   [read]
+M14 The console's stderr is read only after stdout ends, so a chatty stderr (over ~64 KB) can hang the turn
+    forever. Fix: send stderr to stdout, or drain it in a thread.   [read]
+M15 The jail binds ~/.claude and ~/.cache read-write. A prompt-injected session could add hooks or skills
+    that run on the host later. There is also no --new-session (TIOCSTI). Fix: bind only the needed subpaths
+    read-write.   [read]
+M16 Errors inside the console stream, and 400s from internal validation errors, leave no cause in
+    backend.log. Fix: log with exc_info there, and add a catch-all 500 handler that logs.   [read]
+
+Website (C)
+M17 "Request a Change" on the Scenes stage still defaults to "The Outline": "scenes" is not a target option.
+    This is the same kind of bug as today's Template/Requirements fix, and it missed this stage.   [verified]
+M18 The "Approve All Scenes" checkpoint gets no approval bar or "Decide" button (waitingTab only matches
+    sNN / start:sNN).   [verified]
+M19 The change-request form resets while the user types: its effect depends on `targets`, which changes on
+    every refresh.   [read]
+M20 Recording a change request starts nothing. The UI says "the session applies it at its next step", but no
+    turn is sent, so the run sits idle with approval blocked. Fix: send the session a message, or tell the
+    user to.   [read]
+M21 Start a Run: a failed draft restore lets the next keystroke overwrite the saved draft with blank
+    defaults.   [read]
+M22 Start a Run: an expired session during autosave is swallowed ("Not Saved"), and work typed since is lost
+    at Start.   [read]
+M23 Start a Run: the 8-objective and 4000-character limits are only reported at the last step.   [read]
+M24 The "Approve with Open Problems" tick survives a refresh that brings new problems, so one click can
+    accept problems the user never saw. Fix: reset the tick when the problems change.   [read]
+M25 Closing the console drawer mid-turn orphans the stream (no AbortSignal). Reopening shows a stale, locked
+    console.   [read]
+
+Production and agent wiring (D)
+M26 `preview` runs bwrap but is not in the sandbox's excludedCommands (voice, accept and final are). Nested
+    bwrap inside Claude's sandbox may fail, and if so every preview fails. Confirm in a live run, or add it.
+    [verified config; behaviour needs a live run]
+M27 The Manim API index (~/.cache/text-2-shorts) is built on first use by sandboxed commands (`task`, `doc`),
+    but that path is not in the sandbox's allowWrite. On a fresh machine the first `task` fails. (This machine
+    already has the index.) Fix: build it in `new`, or allow the path.   [verified]
+M28 Missing beat timings are swallowed (narration.py: except Exception → no marks), so sync reports "in
+    sync" with nothing checked and nothing logged.   [read]
+M29 Subprocess stderr is captured and then dropped in accept, compose and the index build. A crashing gate
+    gives "FAILED" with no findings and burns build attempts.   [read]
+M30 `voice` saves the audio index only after the whole scene. One TTS error loses the index for the clips
+    already made, and they are paid for again on retry.   [read]
+M31 Any agent with Bash can run `text-2-shorts approve --force`. Nothing technical separates the user's
+    decision from a model's. Fix: deny approve to subagents, or require a website-issued token.   [read]
+M32 `task` on a scene with no audio raises a raw KeyError instead of saying "run voice first".   [read]
+M33 `reshuffle` recolours the accepted scene_code.py but not work/scene_code.py, so the next rebuild
+    reverts the look. The recoloured code also skips the gates.   [read]
+
+Config, docs and tests (E)
+M34 The committed JSON schemas have no drift test. They match today; a later model change can silently
+    ship stale schemas.   [read]
+M35 Stale docs: docs/guides/naming-conventions.md (modules that no longer exist); PROJECT_STRUCTURE.md
+    (a missing report, and a wrong description of CI); the deployment guide's check_diagrams command fails
+    (needs jsdom and mermaid, and the path is docs/diagrams).   [read]
+M36 No direct tests for hook_command (the agents' validation gate), run_commands or serve_command.   [read]
+
+
+LOW
+===
+L1  Hook crashes are non-blocking and unlogged, so an invalid file passes unvalidated. Writes made through
+    Bash heredocs aren't validated at all.
+L2  Excluded sandbox commands plus a blanket `Bash(text-2-shorts:*)` allow: check that compound commands
+    can't ride the exclusion.
+L3  A render timeout isn't caught, so one slow scene aborts `final` with a raw traceback naming no scene.
+L4  approve_checkpoint checks problems, takes the fingerprint and saves in three separate reads, with no lock.
+L5  Unauthenticated /api/logs can flood the logs or forge lines in them. GET /api/session spawns
+    `claude auth status` on every call. Expired sessions are never swept.
+L6  usage.json uses a fixed temp file name (a race between two writers), and its errors abort a turn.
+L7  Delete and rename only check the console lock (not `open` sessions). Moving to .trash fails when a run
+    with the same name is already there.
+L8  Website: deep links are lost after sign-in; a bad run id is a dead end; approve re-enables before the
+    reload lands; unsaved Template edits are lost on navigation; draft errors are hidden.
+L9  numpy, pillow and starlette are imported but arrive only through other packages.
+L10 Linux/macOS only (fcntl), which isn't stated in the docs. CI doesn't run pyrefly.
+L11 Known from earlier: an audio-refactorer that changes nothing gets re-asked; `status`'s "next:" list
+    doesn't match the driver.
+
+
+WHAT IS HEALTHY
+===============
+- The workflow driver, checkpoints, change requests and loop limits: 17 mock scenarios pass, including one
+  through the website API.
+- Every route except sign-in, /api/logs and the frontend files requires a session. No path traversal in
+  /media, previews, assets, run ids or draft ids. TrustedHost limits requests to 127.0.0.1/localhost
+  (DNS rebinding covered). The cookie is HttpOnly and SameSite=Strict. The email is never logged.
+- The website's types match the backend schemas field for field.
+- Every `text-2-shorts` command and flag the agents and skill are told to use exists with that syntax. The
+  files agents write match what the hook validates. The model policy matches the README.
+- The JSON schemas match the models; the versions agree (0.36.0 everywhere); .env.example covers the
+  user-facing settings; no junk is committed.
+
+
+SUGGESTED ORDER OF WORK
+=======================
+1. Wrong-video risks: H1, H2, H9, H10, M1. They decide whether "done" can be trusted.
+2. Run page usability: H3, H4, H5, M17, M18, M20. Users can't follow a run without these.
+3. Security: H6, H7, H8, M31, M15.
+4. Silent failures and logging: M28, M29, M30, M16, M12, L1.
+5. One live 3-minute run, to settle M26 and M27 and the untested real-agent path.
+6. Clean-up: the CORRECTION test fix, M34-M36, and the over-engineering cuts in repo-audit-2026-11-26.txt.
