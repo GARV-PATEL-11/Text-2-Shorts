@@ -100,11 +100,26 @@ export function Plans(props: StageProps) {
 
 export function Scenes(props: StageProps) {
   const { run } = useRun();
-  if (!run.scenes.length) return <NotYet what="Scenes">Built One at a Time After the Scene Plans Are Approved</NotYet>;
+  if (!run.scenes.length) return <NotYet what="Scenes">Built After the Scene Plans Are Approved</NotYet>;
+  const count = (wanted: string[]) => run.scenes.filter((scene) => wanted.includes(scene.status)).length;
+  const approval = {  // CP3: every scene built and previewed first, then one approval for all of them
+    id: "approval", label: "Approve All Scenes", count: waiting(run.awaiting, "scenes"),
+    content: (
+      <div className="stack">
+        <dl className="facts">
+          <div><dt>Scenes</dt><dd>{run.scenes.length}</dd></div>
+          <div><dt>Ready</dt><dd>{count(["requires_user_approval", "approved"])}</dd></div>
+          <div><dt>Still Building</dt><dd>{count(["pending", "in_progress", "requires_refactoring"])}</dd></div>
+          <div><dt>Failed</dt><dd>{count(["failed"])}</dd></div>
+        </dl>
+        <CheckpointPanel target="scenes" />
+      </div>
+    ),
+  };
   return (
-    <StageTabs {...props} label="Scenes" tabs={run.scenes.map((scene) => {
+    <StageTabs {...props} label="Scenes" tabs={[...run.scenes.map((scene) => {
       const built = scene.clips.filter((clip) => ["completed", "approved"].includes(clip.status)).length;
-      const decision = run.awaiting.find((checkpoint) => checkpoint.target === scene.scene_id || checkpoint.target === `start:${scene.scene_id}`);
+      const decision = run.awaiting.find((checkpoint) => checkpoint.target === `start:${scene.scene_id}`);
       return {
         id: scene.scene_id, label: sceneName(scene.scene_id), count: decision ? 1 : 0,
         content: (
@@ -129,7 +144,7 @@ export function Scenes(props: StageProps) {
           </div>
         ),
       };
-    })} />
+    }), approval]} />
   );
 }
 

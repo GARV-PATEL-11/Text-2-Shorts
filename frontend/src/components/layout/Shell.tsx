@@ -1,14 +1,19 @@
-// The frame of every page: a skip link, the one-tier header (brand · sections · account), the main area, the footer
+// The frame of every page: a skip link, the one-tier header (brand · sections · you, opening your profile), the main
+// area, the footer
 // (Home has its own closing line instead).
 import { type MouseEvent, type ReactNode, useState } from "react";
 import { NAV, type Route } from "../../app/routes";
 import { useSession } from "../../app/session";
-import { Button } from "../ui/Button";
+import { useApi } from "../../hooks/useApi";
+import type { Profile } from "../../types/api";
 import { Logo } from "./Logo";
+import { ProfileDialog } from "./Profile";
 
 export function Shell({ route, children }: { route: Route; children: ReactNode }) {
-  const { account, signOut } = useSession();
-  const [problem, setProblem] = useState<string | null>(null);
+  const { account } = useSession();
+  const [open, setOpen] = useState(false);
+  const profile = useApi<Profile>(account ? "/api/profile" : null);
+  const shown = profile.data?.name || account?.email.split("@")[0] || "";
   // a run belongs to Ongoing or Previous: its breadcrumbs say which, so no section is lit on a run page
   const active = route.page === "run" ? null : route.page;
   const skip = (event: MouseEvent) => {  // focus the content without touching the route (the hash is the route)
@@ -31,10 +36,12 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
                 ))}
               </nav>
               <div className="header__account">
-                <span className="header__email">{account.email}</span>
-                {problem ? <span className="header__problem" role="alert">{problem}</span> : null}
-                <Button variant="secondary" size="sm" onPress={async () => setProblem(await signOut())}>Sign Out</Button>
+                <button type="button" className="header__user" onClick={() => setOpen(true)} aria-haspopup="dialog" title={account.email}>
+                  <span className="header__avatar" aria-hidden="true">{shown.slice(0, 1).toUpperCase()}</span>
+                  <span>{shown}</span>
+                </button>
               </div>
+              <ProfileDialog profile={profile.data} isOpen={open} onOpenChange={setOpen} onSaved={profile.reload} />
             </>
           ) : null}
         </div>

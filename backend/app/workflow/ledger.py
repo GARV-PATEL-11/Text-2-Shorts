@@ -42,6 +42,19 @@ def update_state(run: Path, modify: Callable[[RunState], object]) -> RunState:
         return state
 
 
+def count_attempt(run: Path, name: str, failed: bool) -> int:
+    """A loop's failed tries in a row (state.attempts): a failure adds one to `name`; a success clears every counter
+    that starts with `name` (build:sNN clears build:sNN:<key> of every key). → the count now (0 after a success)."""
+
+    def change(state: RunState) -> None:
+        if failed:
+            state.attempts[name] = state.attempts.get(name, 0) + 1
+        else:
+            state.attempts = {key: value for key, value in state.attempts.items() if not key.startswith(name)}
+
+    return update_state(run, change).attempts.get(name, 0)
+
+
 def append_jsonl(run: Path, name: str, row: BaseModel) -> None:
     with run_lock(run), (run / name).open("a") as jsonl_file:
         jsonl_file.write(row.model_dump_json() + "\n")
@@ -59,6 +72,7 @@ def record_decision(
     requests: list[str] | None = None,
     forced: bool = False,
     fingerprint: str | None = None,
+    by: str = "",
 ) -> CheckpointDecision:
     row = CheckpointDecision.model_validate(
         {
@@ -69,6 +83,7 @@ def record_decision(
             "forced": forced,
             "fingerprint": fingerprint,
             "decided_at": now_text(),
+            "by": by,
         }
     )
     append_jsonl(run, "decisions.jsonl", row)

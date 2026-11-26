@@ -15,7 +15,7 @@ export const STAGE_STEPS: StageStep[] = [
   { id: "outline", label: "Outline", icon: <Outline />, checkpoint: "outline", batch: ["2 outline"] },
   { id: "script", label: "Script", icon: <Script />, checkpoint: "script", batch: ["3 script"] },
   { id: "plan", label: "Scene Plans", icon: <Storyboard />, checkpoint: "plan", batch: ["4 plans"] },
-  { id: "scenes", label: "Scenes", icon: <Clapperboard />, checkpoint: "", batch: ["5 production"] },
+  { id: "scenes", label: "Scenes", icon: <Clapperboard />, checkpoint: "scenes", batch: ["5 production"] },
   { id: "final", label: "Final Video", icon: <FinalVideo />, checkpoint: "final", batch: ["final", "done"] },
   { id: "reshuffle", label: "Reshuffle", icon: <Shuffle />, checkpoint: "", batch: [], optional: true },
 ];

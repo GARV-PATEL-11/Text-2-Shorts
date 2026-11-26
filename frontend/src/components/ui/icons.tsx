@@ -6,10 +6,10 @@ import type { ComponentType, SVGProps } from "react";
 import {
   AlertCircle, AlertTriangle,  ArrowLeft as UArrowLeft, ArrowRight as UArrowRight, Bell01, Calendar as UCalendar, 
   Check as UCheck, CheckCircle, ChevronDown as UChevronDown, ChevronLeft as UChevronLeft, ChevronRight as UChevronRight,
-  Circle, Clapperboard as UClapperboard, ClipboardCheck, Clock as UClock, ClockStopwatch, Dataflow03, Dice3, Edit05, Eye,
+  Circle, Clapperboard as UClapperboard, ClipboardCheck, Clock as UClock, ClockStopwatch, Copy01, Dataflow03, Dice3, Edit03, Edit05, Eye,
   Film01, Home02, Image01, Inbox01, InfoCircle, LayoutGrid01, Loading02, Lock01, Maximize01, MessageChatCircle,
   MessagePlusCircle, Minimize01, MinusCircle, Moon01, Palette as UPalette, PlayCircle, Plus as UPlus, RefreshCw05, SearchLg, Shuffle01,
-  SlashCircle01, Sun as USun, SwitchVertical01, Terminal as UTerminal, VolumeMax, WifiOff, XCircle, XClose,
+  SlashCircle01, Sun as USun, SwitchVertical01, Terminal as UTerminal, Trash01, VolumeMax, WifiOff, XCircle, XClose,
 } from "@untitledui/icons";
 
 type Props = SVGProps<SVGSVGElement>;
@@ -40,6 +40,9 @@ export const Volume = sized(VolumeMax);         // hear the voice
 export const Dice = sized(Dice3);               // a new seed
 export const Moon = sized(Moon01);              // dark mode
 export const Sun = sized(USun);                 // light mode
+export const Rename = sized(Edit03);              // rename a run
+export const Duplicate = sized(Copy01);         // a new run from this one
+export const Delete = sized(Trash01);           // move a run to the trash
 export const Refresh = sized(RefreshCw05);      // check again now
 
 // the stages of a run

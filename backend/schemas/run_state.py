@@ -44,6 +44,15 @@ class RunState(Strict):
     sessions: list[str] = Field(default_factory=list, description="Claude Code transcript paths of this run")
     status: dict[str, Status] = Field(default_factory=dict, description="every stage, scene and clip → its status")
     console_session: str | None = Field(None, description="the Claude Code session the website's console resumes")
+    name: str | None = Field(
+        None, max_length=120, description="the user's name for the run (None: named from its topic)"
+    )
+    spend_usd: float = Field(0.0, ge=0, description="what its console turns cost, as Claude Code reports each turn")
+    attempts: dict[str, int] = Field(
+        default_factory=dict,
+        description="a loop's failed tries in a row (build:sNN:<key>, sync:sNN, review:script|plan); at MAX_ATTEMPTS "
+        "the driver hands the loop to the user",
+    )
 
 
 class LogEntry(Strict):

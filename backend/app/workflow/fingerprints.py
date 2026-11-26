@@ -58,14 +58,16 @@ def scene_video_hash(run: Path, scene_id: str) -> str | None:
 
 def clip_key(run: Path, plan: ScenePlan, clip) -> str:
     """Everything a clip's code depends on. One file per scene (scene_code.py), so every clip of a scene shares the
-    scene's key: the whole plan (execution plan included), its colour roles, the scene's change requests, the template
-    and the scene-builder's instructions. Not the SSML or audio, which are re-timed to the built video."""
+    scene's key: the whole plan (execution plan included), its colour roles, the scene's change requests (not declined
+    ones, nor audio-timing ones, which re-time the audio), the template and the scene-builder's instructions. Not the
+    SSML or audio, which are re-timed to the built video."""
     del clip  # kept in the signature: callers ask per clip, the answer is the scene's
     return content_hash(
         plan.model_dump(exclude={"clips": {"__all__": {"ssml", "sound_effects"}}}),
         [
             (r.id, r.kind, r.text)
             for r in requests_for(run, plan.scene_id, *(scene_clip.clip_id for scene_clip in plan.clips))
+            if r.status != "declined" and r.kind != "audio-timing"
         ],
         look(run),  # the template's background, colour roles, font, sizes and safe area
         SCENE_BUILDER_AGENT_PATH.read_text() if SCENE_BUILDER_AGENT_PATH.exists() else "",

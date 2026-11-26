@@ -23,6 +23,7 @@ from pathlib import Path
 
 from schemas.media import GateResult, SceneTask, SceneTaskClip
 from schemas.plans import ScenePlan
+from schemas.reviews import MistakeIssue
 from schemas.run_state import ClipBuild
 
 from app.config import (
@@ -37,12 +38,13 @@ from app.config import (
     VOICE_LEAD_IN_SECONDS,
 )
 from app.sandbox import render_jail_prefix
+from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_scene_plans
 from app.workflow.change_requests import requests_for, requests_text, resolve_clip_requests
-from app.workflow.checkpoints import require_approval, require_earlier_scenes
+from app.workflow.checkpoints import require_approval
 from app.workflow.critiques import review_notes
 from app.workflow.fingerprints import clip_key
-from app.workflow.ledger import update_state
+from app.workflow.ledger import count_attempt, update_state
 from app.workflow.templates import drawing, install_template, look_brief
 
 SYSTEM_FILE = REFERENCES_DIRECTORY / "codegen-system.md"
@@ -121,7 +123,6 @@ def prepare_scene(run: Path, scene_id: str) -> str:
     return the filled task."""
     require_approval(run, "plan")
     plan = load_plan(run, scene_id)
-    require_earlier_scenes(run, scene_id)
     install_template(run)  # the renderer the harness draws the backdrop with, in the run environment
     audio = load_audio_index(run, scene_id)
     ensure_api_index()
@@ -205,6 +206,10 @@ def accept_scene(run: Path, scene_id: str) -> ClipBuild:
         for clip in plan.clips
     }
     update_state(run, lambda state: state.clips.update(results))
+    built_from = clip_key(run, plan, plan.clips[0])[:12]
+    attempt = count_attempt(run, f"build:{scene_id}" + ("" if passed else f":{built_from}"), failed=not passed)
+    issues = [MistakeIssue(code=finding, severity="ERROR", target=scene_id, problem=finding) for finding in findings]
+    mistakes.record(run, "build", "scene-builder", scene_id, issues if not passed else [], attempt or None)
     if passed:
         for clip in plan.clips:
             resolve_clip_requests(run, clip.clip_id)

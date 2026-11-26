@@ -14,11 +14,11 @@ Run `text-2-shorts next .` (also printed at session start), do exactly the batch
 - `subagent` — dispatch that subagent for its target with paths only (a scene-builder after its `before`
   command, then its `after` command); a `parallel` batch goes out in one message;
 - `command` — run it; `ask_user` — stop and ask the user, never answer for them.
-Start no work `next` did not list: it enforces the order (scenes in series).
+Start no work `next` did not list: it enforces the order.
 
 ## Mandatory
 - **Every checkpoint is the user's**: template · requirements · CP0 outline · CP1 script · CP2 scene plans ·
-  CP3 each scene's preview · CP4 final. `--force` only when the user accepts the open problems. Editing an approved artifact makes it stale.
+  CP3 all scene previews at once · CP4 final. `--force` only when the user accepts the open problems. Editing an approved artifact makes it stale.
 - **Show every change**: after each action, one line to the user: what changed (file, command, subagent, result).
 - **Every artifact passes its gate** (the hook validates what you write); clip code reaches `clips/` only via `accept`.
 - **Plan and video critiques are scored** (pass ≥ `quality_threshold`, default 85), at most 3 rounds; then
@@ -31,7 +31,7 @@ Start no work `next` did not list: it enforces the order (scenes in series).
 | 2 Outline | `outline.json` in the approach's model, by the **script-writer** | order, timing, visual-plan rules → **CP0** `approve . outline` | `references/outline-<approach>.md` (eli5 · visual_intuition · story_driven · step_by_step · feynman · technical · case_study · custom) |
 | 3 Script | `script.json` by the **script-writer**: index scene, then one scene per outline segment with bridge, narration, on-screen/animation/audio/transition needs; `script_review.json` (**accuracy-reviewer**); changes at CP1 → one **script-critic** round, then refactor | objectives, mapping, word budget → **CP1** `approve . script` | `references/standards.md`, `references/script-writing.md`, `references/script-review.md`, `references/transitions.md`, `references/critique-protocol.md` |
 | 4 Plans | `plan.json` (execution plan first) by the **scene-planner**; **plan-critic**; `plan_review.json` | script word for word, SSML, critique → **CP2** `approve . plan` | `references/visual-director-system.md`, `references/visual-director-output-spec.md`, `references/scene-visual-planning.md`, `references/audio-ssml.md`, `references/critique-protocol.md` |
-| 5 Production | per scene: `voice` → `scene_code.py` (**scene-builder**) → `preview` → **audio-refactorer** → **video-critic** + `changes.json` | in sync → **CP3** `approve . sNN`, then the next scene | `references/scene-production.md`, `references/codegen-system.md`, `references/codegen-task.md`, `references/critique-protocol.md` |
+| 5 Production | per scene: `voice` → `scene_code.py` (**scene-builder**) → `preview` → **audio-refactorer** → **video-critic** + `changes.json` | in sync → **CP3** `approve . scenes`, once for all scenes | `references/scene-production.md`, `references/codegen-system.md`, `references/codegen-task.md`, `references/critique-protocol.md` |
 | Final | `final .` → 2560×1440, 120 fps; template transitions, music, sound effects | media and delivery checks → **CP4** `approve . final` | — |
 
 References: pass them by path, read each when its stage starts, reuse the copy already in this session (re-read

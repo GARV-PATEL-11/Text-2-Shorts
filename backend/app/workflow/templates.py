@@ -70,7 +70,9 @@ def build_template(name: str, choices: dict[str, str], custom: dict[str, str], e
     template["elements"] = template["elements"] | choices
     mode = template["elements"].get("theme_mode", "dark")
     template["overrides"] = {
-        element: video_settings.custom_override(element, value, mode) for element, value in custom.items()
+        element: video_settings.custom_override(element, value, mode)
+        for element, value in custom.items()
+        if element in video_settings.CUSTOM  # audio has no custom values any more: its options only
     }
     return template
 
@@ -94,7 +96,7 @@ def install_template(run: Path) -> Path:
     target.mkdir(parents=True, exist_ok=True)
     write_json(target / "template.json", current_template(run))
     write_json(target / "look.json", drawing(run))
-    for name in ("look_renderer.py", "faraday-logo.webp"):  # the renderer and the mark it draws
+    for name in ("look_renderer.py", "faraday-logo.svg"):  # the renderer and the mark it draws
         shutil.copyfile(TEMPLATES_DIRECTORY / name, target / name)
     return target
 
@@ -107,6 +109,8 @@ def choose_template(run: Path, name: str, settings: list[str]) -> Path:
     for setting in settings:
         key, _, text = setting.partition("=")
         if key.startswith("custom."):
+            if key.removeprefix("custom.") not in video_settings.CUSTOM:
+                sys.exit(f"{key.removeprefix('custom.')} has no custom value: choose one of its options")
             custom[key.removeprefix("custom.")] = text
         elif key in video_settings.ELEMENTS:
             choices[key] = text

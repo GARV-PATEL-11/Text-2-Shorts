@@ -9,6 +9,7 @@ import { ProgressBar } from "../../components/feedback/ProgressBar";
 import { StatusPill } from "../../components/feedback/StatusPill";
 import { SystemMessage } from "../../components/feedback/SystemMessage";
 import { Page } from "../../components/layout/Page";
+import { VideoPreview } from "../../components/media/VideoPreview";
 import { Breadcrumbs } from "../../components/navigation/Breadcrumbs";
 import { ProgressSteps } from "../../components/navigation/ProgressSteps";
 import { Button } from "../../components/ui/Button";
@@ -20,7 +21,7 @@ import type { Note } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
 import { runHash, runPath } from "../../services/runs";
 import type { RunDetail } from "../../types/api";
-import { ChangeModal } from "./ChangeModal";
+import { ChangeModal, NO_REQUESTS } from "./ChangeModal";
 import { ClaudePanel } from "./ClaudePanel";
 import { Console } from "./Console";
 import { type Ask, RunContext } from "./context";
@@ -88,24 +89,24 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   const View = VIEWS[open];
   return (
     <RunContext.Provider value={context}>
-      <Page title={`${step.label} · ${runTitle(run.summary.topic)}`}>
-        <div className="run">
-          <aside className="run__rail" aria-label="Run">
-            <ProgressBar label="Stages Approved" value={approved} max={REQUIRED_STEPS.length} valueLabel={`${approved} of ${REQUIRED_STEPS.length}`} />
-            {run.problem ? null : (
+      <Page title={`${step.label} · ${run.summary.name || runTitle(run.summary.topic)}`}>
+        <div className={run.problem ? "run run--solo" : "run"}>
+          {run.problem ? null : (  /* an older version's run: nothing to approve, ask or change, only its final video */
+            <aside className="run__rail" aria-label="Run">
+              <ProgressBar label="Stages Approved" value={approved} max={REQUIRED_STEPS.length} valueLabel={`${approved} of ${REQUIRED_STEPS.length}`} />
               <ProgressSteps label="Stages of This Run" current={open}
                 onSelect={(next) => navigate(runHash(id, next))}
                 steps={STAGE_STEPS.map((candidate) => ({ ...candidate, state: stepState(run, candidate.id) }))} />
-            )}
-            <div className="run__actions">
-              <Button variant="secondary" size="sm" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
-              <Button variant="secondary" size="sm" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>
-            </div>
-          </aside>
+              <div className="run__actions">
+                <Button variant="secondary" size="sm" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
+                {NO_REQUESTS.includes(open) ? null : <Button variant="secondary" size="sm" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>}
+              </div>
+            </aside>
+          )}
           <div className="run__main">
-            <Breadcrumbs trail={[list, { label: runTitle(run.summary.topic) }]} />
+            <Breadcrumbs trail={[list, { label: run.summary.name || runTitle(run.summary.topic) }]} />
             <header className="run__head">
-              <h1 className="page-header__title">{runTitle(run.summary.topic)}</h1>
+              <h1 className="page-header__title">{run.summary.name || runTitle(run.summary.topic)}</h1>
               <Overview />
             </header>
             <Notice note={notice} />
@@ -117,7 +118,10 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             ) : null}
             {run.problem ? null : <ClaudePanel onAsking={setClaudeAsks} />}
             {run.problem ? (
-              <SystemMessage kind="unsupported" title="This Run Was Made by an Older Version"><WithCode text={run.problem} /></SystemMessage>
+              <>
+                <SystemMessage kind="unsupported" title="This Run Was Made by an Older Version"><WithCode text={run.problem} /></SystemMessage>
+                <VideoPreview src={run.final_video} label={`Final Video: ${run.summary.name || runTitle(run.summary.topic)}`} empty="No Final Video" />
+              </>
             ) : (
               <section className="stage" aria-labelledby="stage-title">
                 <div className="stage__head">

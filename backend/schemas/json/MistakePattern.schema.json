@@ -1,0 +1,54 @@
+{
+  "additionalProperties": false,
+  "description": "One kind of mistake of one agent, over every run.",
+  "properties": {
+    "agent": {
+      "title": "Agent",
+      "type": "string"
+    },
+    "code": {
+      "title": "Code",
+      "type": "string"
+    },
+    "count": {
+      "title": "Count",
+      "type": "integer"
+    },
+    "runs": {
+      "description": "in how many runs it happened",
+      "title": "Runs",
+      "type": "integer"
+    },
+    "recurred": {
+      "description": "times it was still there in the next judgement of the same target",
+      "title": "Recurred",
+      "type": "integer"
+    },
+    "loops": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Loops",
+      "type": "array"
+    },
+    "examples": {
+      "description": "up to 3: problem \u2192 fix, with the run and target",
+      "items": {
+        "type": "string"
+      },
+      "title": "Examples",
+      "type": "array"
+    }
+  },
+  "required": [
+    "agent",
+    "code",
+    "count",
+    "runs",
+    "recurred",
+    "loops",
+    "examples"
+  ],
+  "title": "MistakePattern",
+  "type": "object"
+}

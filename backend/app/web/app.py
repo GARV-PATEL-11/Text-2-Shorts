@@ -7,6 +7,14 @@ runs whose requests and responses are the Pydantic contracts in schemas/api.py.
     DELETE /api/session                        sign out
     GET    /api/runs                           [RunSummary]
     POST   /api/runs                           NewRunInput → RunSummary (201): a run started from the website
+    PATCH  /api/runs/{run}                     RenameInput → RunSummary: a new name (files and id unchanged)
+    POST   /api/runs/{run}/duplicate           → RunSummary (201): a new run with its brief and template
+    DELETE /api/runs/{run}                     moves it to the runs folder's .trash/ (recoverable)
+    GET    /api/profile                        ProfileView: the account, the name you go by, runs and net spend
+    PUT    /api/profile                        ProfileInput → ProfileView (kept in the runs folder's .profile.json)
+    GET    /api/drafts                         [Draft]: Start a Run as far as the user got, newest first
+    PUT    /api/drafts/{id}                    DraftInput → Draft: saved as the user goes
+    DELETE /api/drafts/{id}                    the draft is gone (started, or discarded)
     GET    /api/runs/{run}/console             ConsoleView: the console's history, and whether a turn is running
     POST   /api/runs/{run}/console             ConsoleInput → ConsoleEntry lines (NDJSON), one Claude Code turn
     GET    /api/runs/{run}                     RunDetail
@@ -50,6 +58,8 @@ from schemas.api import (
     ClaudeAccount,
     ConsoleInput,
     ConsoleView,
+    Draft,
+    DraftInput,
     LookCatalogue,
     LookInput,
     LookOptionPicture,
@@ -58,6 +68,9 @@ from schemas.api import (
     LookStill,
     LookView,
     NewRunInput,
+    ProfileInput,
+    ProfileView,
+    RenameInput,
     ReshuffleChange,
     ReshuffleInput,
     ReshuffleView,
@@ -74,17 +87,19 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import REPOSITORY_ROOT, RUNS_DIRECTORY
 from app.sandbox import KICKOFF_PROMPT
-from app.utilities import content_hash, format_validation_errors
+from app.utilities import content_hash, format_validation_errors, now_text
 from app.web import auth, console, usage
 from app.workflow import reshuffle, run_workspace, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
 from app.workflow.artifacts import load_brief
 from app.workflow.change_requests import load_requests, record_change_request, resolve_request
+from app.workflow.ledger import load_state, update_state
 from app.workflow.run_views import run_detail, run_summary
 
 FRONTEND_DIRECTORY = REPOSITORY_ROOT / "frontend" / "dist"  # the React build: `npm ci && npm run build` in frontend/
 ASSET_NAME = re.compile(r"^[\w.-]+\.(js|css|woff2?|svg|png|webp)$")
 RUN_NAME = re.compile(r"^\w[\w.-]*$")
+DRAFT_ID = re.compile(r"^[0-9a-f-]{36}$")
 VOICE_SAMPLE = (
     "Here is how your narrator will sound. Square the short sides, add them, and you get the long side squared."
 )
@@ -225,14 +240,18 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     # ── runs ───────────────────────────────────────────────────────────────────────────────────────────────
     @app.get("/api/runs", response_model=list[RunSummary], dependencies=[Depends(signed_in_account)])
     def runs() -> list[RunSummary]:
-        return [run_summary(run) for run in sorted(runs_directory.iterdir(), reverse=True) if run.is_dir()]
+        return [
+            run_summary(run)
+            for run in sorted(runs_directory.iterdir(), reverse=True)
+            if run.is_dir() and not run.name.startswith(".")  # .drafts, .trash
+        ]
 
-    @app.post("/api/runs", response_model=RunSummary, status_code=201, dependencies=[Depends(signed_in_account)])
-    def start_run(new: NewRunInput) -> RunSummary:
+    @app.post("/api/runs", response_model=RunSummary, status_code=201)
+    def start_run(new: NewRunInput, account: ClaudeAccount = Depends(signed_in_account)) -> RunSummary:
         """A new run; with `look`, its first stage (the template) is saved and approved as the user chose it."""
         brief = Brief.model_validate(
             {
-                **new.model_dump(exclude={"look"}),
+                **new.model_dump(exclude={"look", "name"}),
                 "objectives": [objective for objective in new.objectives if objective.strip()],
             }
         )
@@ -248,10 +267,93 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
             folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
             raise ApiProblem(409, str(problem)) from problem
+        if new.name.strip():
+            update_state(folder, lambda state: setattr(state, "name", new.name.strip()))
         if template:
             templates.save_template(folder, template)
-            approve_checkpoint(folder, "template", "chosen in Start a Run")
+            approve_checkpoint(folder, "template", "chosen in Start a Run", by=account.email)
         return run_summary(folder)
+
+    @app.patch("/api/runs/{run}", response_model=RunSummary, dependencies=[Depends(signed_in_account)])
+    def rename_run(run: str, rename: RenameInput) -> RunSummary:
+        folder = run_folder(run)
+        update_state(folder, lambda state: setattr(state, "name", rename.name.strip()))
+        return run_summary(folder)
+
+    @app.post("/api/runs/{run}/duplicate", response_model=RunSummary, status_code=201)
+    def duplicate_run(run: str, account: ClaudeAccount = Depends(signed_in_account)) -> RunSummary:
+        """A new run from this one's brief and look (and preferences): its own folder, nothing produced yet."""
+        source = run_folder(run)
+        brief = load_brief(source)
+        if brief is None:
+            raise ApiProblem(409, "this run has no readable brief to copy")
+        try:
+            folder = run_workspace.create_run(brief, runs_directory)
+        except run_workspace.RunNotCreated as problem:
+            raise ApiProblem(409, str(problem)) from problem
+        for name in ("preferences.json", "template.json"):
+            if (source / name).exists():
+                (folder / name).write_text((source / name).read_text())
+        name = f"Copy of {run_summary(source).name}"[:120]
+        update_state(folder, lambda state: setattr(state, "name", name))
+        if (folder / "template.json").exists() and not templates.validate_template(folder):
+            approve_checkpoint(folder, "template", f"copied from {source.name}", by=account.email)
+        return run_summary(folder)
+
+    @app.delete("/api/runs/{run}", status_code=204, dependencies=[Depends(signed_in_account)])
+    def delete_run(run: str) -> Response:
+        """Not deleted for good: the folder moves to .trash/ in the runs folder, where it can be moved back."""
+        folder = run_folder(run)
+        if console.is_busy(folder):
+            raise ApiProblem(409, "Claude is working on this run: wait for the turn to end")
+        (runs_directory / ".trash").mkdir(exist_ok=True)
+        folder.rename(runs_directory / ".trash" / folder.name)
+        log.info("run %s moved to .trash", folder.name)
+        return Response(status_code=204)
+
+    def profile_view(account: ClaudeAccount) -> ProfileView:
+        saved = runs_directory / ".profile.json"
+        name = ProfileInput.model_validate_json(saved.read_text()).name if saved.exists() else ""
+        runs = [run for run in runs_directory.iterdir() if run.is_dir() and not run.name.startswith(".")]
+        spend = 0.0
+        for run in runs:
+            try:
+                spend += load_state(run).spend_usd
+            except ValidationError:
+                continue  # a run an older version made: no spend recorded
+        return ProfileView(name=name, account=account, runs=len(runs), spend_usd=round(spend, 2))
+
+    @app.get("/api/profile", response_model=ProfileView)
+    def profile(account: ClaudeAccount = Depends(signed_in_account)) -> ProfileView:
+        return profile_view(account)
+
+    @app.put("/api/profile", response_model=ProfileView)
+    def save_profile(change: ProfileInput, account: ClaudeAccount = Depends(signed_in_account)) -> ProfileView:
+        (runs_directory / ".profile.json").write_text(ProfileInput(name=change.name.strip()).model_dump_json())
+        return profile_view(account)
+
+    def draft_path(draft: str) -> Path:
+        if not DRAFT_ID.match(draft):
+            raise ApiProblem(404, f"no draft {draft}")
+        return runs_directory / ".drafts" / f"{draft}.json"
+
+    @app.get("/api/drafts", response_model=list[Draft], dependencies=[Depends(signed_in_account)])
+    def drafts() -> list[Draft]:
+        saved = [Draft.model_validate_json(path.read_text()) for path in (runs_directory / ".drafts").glob("*.json")]
+        return sorted(saved, key=lambda draft: draft.updated, reverse=True)
+
+    @app.put("/api/drafts/{draft}", response_model=Draft, dependencies=[Depends(signed_in_account)])
+    def save_draft(draft: str, data: DraftInput) -> Draft:
+        path = draft_path(draft)
+        path.parent.mkdir(exist_ok=True)
+        saved = Draft(**data.model_dump(), id=draft, updated=now_text())
+        path.write_text(saved.model_dump_json(indent=2))
+        return saved
+
+    @app.delete("/api/drafts/{draft}", status_code=204, dependencies=[Depends(signed_in_account)])
+    def delete_draft(draft: str) -> Response:
+        draft_path(draft).unlink(missing_ok=True)
+        return Response(status_code=204)
 
     @app.get("/api/runs/{run}/console", response_model=ConsoleView, dependencies=[Depends(signed_in_account)])
     def console_view(run: str) -> ConsoleView:
@@ -279,10 +381,14 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     def run(run: str) -> RunDetail:
         return run_detail(run_folder(run))
 
-    @app.post("/api/runs/{run}/approve", response_model=CheckpointDecision, dependencies=[Depends(signed_in_account)])
-    def approve(run: str, approval: ApproveInput) -> CheckpointDecision:
+    @app.post("/api/runs/{run}/approve", response_model=CheckpointDecision)
+    def approve(
+        run: str, approval: ApproveInput, account: ClaudeAccount = Depends(signed_in_account)
+    ) -> CheckpointDecision:
         try:
-            return approve_checkpoint(run_folder(run), approval.checkpoint, approval.notes, approval.force)
+            return approve_checkpoint(
+                run_folder(run), approval.checkpoint, approval.notes, approval.force, by=account.email
+            )
         except ApprovalBlocked as blocked:
             raise ApiProblem(409, str(blocked), blocked.problems) from blocked
         except SystemExit as stopped:  # a workflow gate that stops the command line

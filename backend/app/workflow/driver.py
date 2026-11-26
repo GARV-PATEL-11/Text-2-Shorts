@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from schemas.reviews import Critique
 from schemas.session import Action, ActionBatch
 
-from app.config import REFERENCES_DIRECTORY
+from app.config import MAX_ATTEMPTS, REFERENCES_DIRECTORY
 from app.workflow.artifacts import load_brief, load_final_report, load_scene_plans, load_script
 from app.workflow.change_requests import open_requests, request_route
 from app.workflow.checkpoints import stage_approval_problem
@@ -17,6 +18,7 @@ from app.workflow.critiques import (
     critique_problems,
     critique_state,
     critique_subject_hash,
+    load_changes,
     review_problems,
     script_critique_problems,
 )
@@ -81,6 +83,9 @@ def next_actions(run: Path) -> ActionBatch:
             {"do": "subagent", "agent": "accuracy-reviewer", "target": mode, "what": f"{mode} mode again → {file}"},
         ]
 
+    def gave_up(loop: str) -> bool:  # a loop that failed MAX_ATTEMPTS times in a row is the user's to decide
+        return load_state(run).attempts.get(loop, 0) >= MAX_ATTEMPTS
+
     def critic_loop(scene_id, kind, refactor_file, read):
         read = [*read, *references("critique-protocol.md")]  # tiers, scoring, issue fields, refactor rules
         problems = critique_problems(run, scene_id, kind) if kind == "video" else []
@@ -117,7 +122,14 @@ def next_actions(run: Path) -> ActionBatch:
                 "what": "append this iteration's ChangeRecord (issue, findings, modification, files, rendering, "
                 "audio timing, sync, validation results)",
             }
-            return [refactor, record, critic] if kind == "video" else [refactor, critic]
+            if kind == "plan":
+                return [refactor, critic]
+            # a video round must watch the rebuilt, re-previewed scene, which the driver hands out next; the critic
+            # comes here only when the refactor is recorded but changed nothing, so the round count still ends it
+            done = len(Critique.model_validate_json((run / critique_file(scene_id, kind)).read_text()).rounds)
+            if done in {entry.iteration for entry in load_changes(run, scene_id)}:
+                return [critic]
+            return [refactor, record]
         return []
 
     # the look and sound come first: the user chooses them on the website, before Claude does anything
@@ -254,7 +266,12 @@ def next_actions(run: Path) -> ActionBatch:
                 }
             ],
         )
-    if problems := review_problems(run, "script"):
+    # fixed until the user decides: MAX_ATTEMPTS reviews in a row with an ERROR, or an approval that accepts it
+    if (
+        (problems := review_problems(run, "script"))
+        and not gave_up("review:script")
+        and stage_approval_problem(run, "script")
+    ):
         return batch("3 script", reviewer("script", "script", "script_review.json", problems))
     if stage_approval_problem(run, "script"):
         return batch(
@@ -292,7 +309,12 @@ def next_actions(run: Path) -> ActionBatch:
             )
         if loop := critic_loop(scene.scene_id, "plan", plan_file, planning):
             return batch("4 plans", loop)
-    if problems := review_problems(run, "plan"):
+    # fixed until the user decides: MAX_ATTEMPTS reviews in a row with an ERROR, or an approval that accepts it
+    if (
+        (problems := review_problems(run, "plan"))
+        and not gave_up("review:plan")
+        and stage_approval_problem(run, "plan")
+    ):
         return batch("4 plans", reviewer("plan", "plan", "plan_review.json", problems))
     if stage_approval_problem(run, "plan"):
         return batch(
@@ -308,7 +330,7 @@ def next_actions(run: Path) -> ActionBatch:
     plans = load_scene_plans(run)
     state = load_state(run)
     production = references("scene-production.md")
-    for plan in plans:  # production: scenes in series
+    for plan in plans:  # production: each scene in order, then CP3 for all of them at once
         scene_id = plan.scene_id
         if is_approval_current(state, f"scene:{scene_id}", fingerprint(run, [plan])):
             continue
@@ -344,6 +366,23 @@ def next_actions(run: Path) -> ActionBatch:
             for c in plan.clips
             if (build := state.clips.get(c.clip_id)) is None or build.key != clip_key(run, plan, c)
         ]
+        built_from = clip_key(run, plan, plan.clips[0])[:12]
+        if unbuilt and gave_up(f"build:{scene_id}:{built_from}"):  # the same inputs failed accept again and again
+            findings = ", ".join(
+                dict.fromkeys(f for c in unbuilt if (build := state.clips.get(c.clip_id)) for f in build.open_findings)
+            )
+            return batch(
+                "5 production",
+                [
+                    {
+                        "do": "ask_user",
+                        "target": scene_id,
+                        "what": f"{scene_id} failed accept {MAX_ATTEMPTS} times ({findings or 'no gate findings'}): "
+                        f"show the user the findings and ask for a hint, then record it with `text-2-shorts feedback "
+                        f". {unbuilt[0].clip_id} visual \"<hint>\"`, which lets the scene-builder try again",
+                    }
+                ],
+            )
         if unbuilt:  # one file per scene: every clip is a section of it
             return batch(
                 "5 production",
@@ -355,23 +394,23 @@ def next_actions(run: Path) -> ActionBatch:
                         "before": f"text-2-shorts task . {scene_id}",
                         "after": f"text-2-shorts accept . {scene_id}",
                         "what": f"write scenes/{scene_id}/work/scene_code.py (clips "
-                        f"{', '.join(c.clip_id for c in unbuilt)} to build); a scene that fails accept twice → ask the user",
+                        f"{', '.join(c.clip_id for c in unbuilt)} to build)",
                     }
                 ],
             )
-        if problems := preview_problems(run, plan):
-            if "out of date" in problems[0]:
-                return batch(
-                    "5 production",
-                    [
-                        {
-                            "do": "command",
-                            "command": f"text-2-shorts preview . {scene_id}",
-                            "target": scene_id,
-                            "what": "720p30 scene preview + sync.json",
-                        }
-                    ],
-                )
+        if (problems := preview_problems(run, plan)) and "out of date" in problems[0]:
+            return batch(
+                "5 production",
+                [
+                    {
+                        "do": "command",
+                        "command": f"text-2-shorts preview . {scene_id}",
+                        "target": scene_id,
+                        "what": "720p30 scene preview + sync.json",
+                    }
+                ],
+            )
+        if problems and not gave_up(f"sync:{scene_id}"):  # given up: CP3 shows what is still out of sync
             return batch(
                 "5 production",
                 [
@@ -391,15 +430,15 @@ def next_actions(run: Path) -> ActionBatch:
             production,
         ):
             return batch("5 production", loop)
+    if any(not is_approval_current(state, f"scene:{plan.scene_id}", fingerprint(run, [plan])) for plan in plans):
         return batch(
             "5 production",
             [
                 {
                     "do": "ask_user",
-                    "target": scene_id,
-                    "what": f"CP3: give the user "
-                    f"scenes/{scene_id}/preview.mp4, the sync summary and the last critique "
-                    f"round; on approval `text-2-shorts approve . {scene_id}`",
+                    "what": "CP3: every scene is built, previewed and critiqued; give the user each scene's "
+                    "preview.mp4, sync summary and last critique round, all together; on approval "
+                    "`text-2-shorts approve . scenes`",
                 }
             ],
         )

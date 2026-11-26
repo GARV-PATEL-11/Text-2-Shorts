@@ -1,0 +1,14 @@
+{
+  "additionalProperties": false,
+  "description": "PUT /api/profile: the name Faraday calls you (kept on this machine).",
+  "properties": {
+    "name": {
+      "default": "",
+      "maxLength": 80,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "title": "ProfileInput",
+  "type": "object"
+}

@@ -32,6 +32,7 @@ def runtime_template_directory() -> Path:
 
 
 RUNS_DIRECTORY = REPOSITORY_ROOT / "artifacts" / "runs"  # one workspace per video run (git-ignored)
+REPORTS_DIRECTORY = REPOSITORY_ROOT / "artifacts" / "reports"  # reports over every run (mistakes.json/.md)
 SCHEMAS_DIRECTORY = BACKEND_DIRECTORY / "schemas"  # read by the run session (--add-dir)
 TOOLS_DIRECTORY = BACKEND_DIRECTORY / "tools"  # standalone scripts, also run inside the render jail
 SCENE_GATES_PATH = TOOLS_DIRECTORY / "scene_gates.py"  # the ./check gates of one scene's code
@@ -76,3 +77,4 @@ MAX_PARALLEL_RENDERS = int(os.environ.get("TEXT_2_SHORTS_PARALLEL", "4"))  # sce
 
 # ── Critiques ────────────────────────────────────────────────────────────────────────────────────────────────────
 MAX_CRITIQUE_ROUNDS = 3  # per scene plan and per scene video; the score threshold is a per-run preference
+MAX_ATTEMPTS = 3  # failed builds, out-of-sync previews or accuracy ERROR reviews in a row before the user decides

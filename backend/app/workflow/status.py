@@ -88,9 +88,8 @@ def next_steps(run: Path) -> list[str]:
             steps += preview_problems(run, plan) or [
                 f"video critique: {problem}" for problem in critique_problems(run, plan.scene_id, "video")
             ]
-        if not is_approval_current(state, f"scene:{plan.scene_id}", fingerprint(run, [plan])):
-            steps.append(f"CP3: preview and approve {plan.scene_id}")
-            break  # scenes are produced in series: later scenes wait for this one
+    if any(not is_approval_current(state, f"scene:{plan.scene_id}", fingerprint(run, [plan])) for plan in plans):
+        steps.append("CP3: preview every scene and approve them together (approve . scenes)")
     if plans:
         current_fingerprint = fingerprint(run, plans)
         report = load_final_report(run)

@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "LookInput": {
+      "additionalProperties": false,
+      "description": "POST /api/runs/<run>/look (and \u2026/look/voice): a starter template, the elements changed, custom values.",
+      "properties": {
+        "template": {
+          "minLength": 1,
+          "title": "Template",
+          "type": "string"
+        },
+        "elements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 variant; others keep the default",
+          "title": "Elements",
+          "type": "object"
+        },
+        "custom": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "element \u2192 the user's own value",
+          "title": "Custom",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "LookInput",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "default": "",
+      "maxLength": 120,
+      "title": "Name",
+      "type": "string"
+    },
+    "step": {
+      "default": 0,
+      "maximum": 20,
+      "minimum": 0,
+      "title": "Step",
+      "type": "integer"
+    },
+    "look": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LookInput"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "requirement": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Requirement",
+      "type": "string"
+    },
+    "objectives": {
+      "default": "",
+      "description": "as typed: one per line",
+      "maxLength": 4000,
+      "title": "Objectives",
+      "type": "string"
+    },
+    "approach": {
+      "default": "visual_intuition",
+      "enum": [
+        "eli5",
+        "visual_intuition",
+        "story_driven",
+        "step_by_step",
+        "feynman",
+        "technical",
+        "case_study",
+        "custom"
+      ],
+      "title": "Approach",
+      "type": "string"
+    },
+    "minutes": {
+      "default": "4",
+      "description": "as typed",
+      "maxLength": 8,
+      "title": "Minutes",
+      "type": "string"
+    },
+    "audience": {
+      "default": "curious beginners",
+      "maxLength": 300,
+      "title": "Audience",
+      "type": "string"
+    },
+    "tts": {
+      "default": "polly",
+      "enum": [
+        "polly",
+        "google"
+      ],
+      "title": "Tts",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Notes",
+      "type": "string"
+    },
+    "id": {
+      "pattern": "^[0-9a-f-]{36}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "updated": {
+      "title": "Updated",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "updated"
+  ],
+  "title": "Draft",
+  "type": "object"
+}

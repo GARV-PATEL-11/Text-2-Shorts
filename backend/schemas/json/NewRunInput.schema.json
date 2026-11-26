@@ -66,6 +66,13 @@
       "title": "Approach",
       "type": "string"
     },
+    "name": {
+      "default": "",
+      "description": "optional: the run's name (default: its topic and date)",
+      "maxLength": 120,
+      "title": "Name",
+      "type": "string"
+    },
     "minutes": {
       "default": 4,
       "description": "teaching narration; intro, bridges and closing are extra",

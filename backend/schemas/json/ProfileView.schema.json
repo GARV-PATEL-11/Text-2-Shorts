@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "ClaudeAccount": {
+      "additionalProperties": false,
+      "description": "The Claude account Claude Code is signed in to on this machine: who the web view's user is.",
+      "properties": {
+        "email": {
+          "title": "Email",
+          "type": "string"
+        },
+        "organization": {
+          "default": "",
+          "title": "Organization",
+          "type": "string"
+        },
+        "plan": {
+          "default": "",
+          "title": "Plan",
+          "type": "string"
+        },
+        "method": {
+          "default": "",
+          "description": "claude.ai (subscription) or console (API billing)",
+          "title": "Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "email"
+      ],
+      "title": "ClaudeAccount",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "GET /api/profile: who is signed in, and what the runs on this machine have cost.",
+  "properties": {
+    "name": {
+      "default": "",
+      "maxLength": 80,
+      "title": "Name",
+      "type": "string"
+    },
+    "account": {
+      "$ref": "#/$defs/ClaudeAccount"
+    },
+    "runs": {
+      "default": 0,
+      "description": "runs on this machine (not drafts or the trash)",
+      "minimum": 0,
+      "title": "Runs",
+      "type": "integer"
+    },
+    "spend_usd": {
+      "default": 0.0,
+      "description": "the cost Claude Code reported for every console turn, all runs",
+      "minimum": 0,
+      "title": "Spend Usd",
+      "type": "number"
+    }
+  },
+  "required": [
+    "account"
+  ],
+  "title": "ProfileView",
+  "type": "object"
+}

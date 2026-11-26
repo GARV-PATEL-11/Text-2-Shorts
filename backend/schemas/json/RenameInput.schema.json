@@ -1,0 +1,17 @@
+{
+  "additionalProperties": false,
+  "description": "PATCH /api/runs/<run>: a new name (the run's files and id do not change).",
+  "properties": {
+    "name": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "RenameInput",
+  "type": "object"
+}

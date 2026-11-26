@@ -129,6 +129,35 @@
       "default": null,
       "description": "the Claude Code session the website's console resumes",
       "title": "Console Session"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 120,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the user's name for the run (None: named from its topic)",
+      "title": "Name"
+    },
+    "spend_usd": {
+      "default": 0.0,
+      "description": "what its console turns cost, as Claude Code reports each turn",
+      "minimum": 0,
+      "title": "Spend Usd",
+      "type": "number"
+    },
+    "attempts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "description": "a loop's failed tries in a row (build:sNN:<key>, sync:sNN, review:script|plan); at MAX_ATTEMPTS the driver hands the loop to the user",
+      "title": "Attempts",
+      "type": "object"
     }
   },
   "title": "RunState",

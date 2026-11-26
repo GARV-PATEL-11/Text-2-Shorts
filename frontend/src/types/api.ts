@@ -3,9 +3,17 @@ export type Status =
   | "pending" | "in_progress" | "completed" | "failed" | "requires_refactoring" | "requires_user_approval" | "approved";
 
 export interface Account { email: string; organization: string; plan: string; method: string }
+export interface Profile { name: string; account: Account; runs: number; spend_usd: number }
 export interface SessionView { signed_in: boolean; account?: Account | null; claude_code_signed_in?: boolean }
+export type RunStatus = "configuring" | "in_progress" | "awaiting_approval" | "failed" | "completed";
 export interface RunSummary {
-  id: string; topic: string; created: string; stage: string; readable: boolean; has_final: boolean; stages_approved: number;
+  id: string; name: string; topic: string; created: string; updated: string; template: string; status: RunStatus;
+  stage: string; readable: boolean; has_final: boolean; stages_approved: number;
+}
+/** Start a Run as far as the user got, saved on this machine as they go (PUT /api/drafts/<id>). */
+export interface Draft {
+  id: string; updated: string; name: string; step: number; look: LookChoice | null; requirement: string; objectives: string;
+  approach: string; minutes: string; audience: string; tts: string; notes: string;
 }
 export interface Action {
   do: "write" | "subagent" | "command" | "ask_user"; what: string; agent?: string | null; target?: string | null;
@@ -20,7 +28,7 @@ export interface SceneView {
 }
 export interface MediaFinding { severity: "ERROR" | "WARN"; code: string; message: string }
 export interface TrackedRequest { id: string; target: string; kind: string; text: string; status: string; note?: string | null }
-export interface Decision { checkpoint: string; decision: string; forced: boolean; decided_at: string; notes: string }
+export interface Decision { checkpoint: string; decision: string; forced: boolean; decided_at: string; notes: string; by?: string }
 export interface RunDetail {
   summary: RunSummary; objectives: string[]; approach?: string | null; minutes?: number | null;
   stages: Record<string, Status>; next?: ActionBatch | null; awaiting: Checkpoint[]; scenes: SceneView[];

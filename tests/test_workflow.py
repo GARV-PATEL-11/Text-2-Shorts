@@ -363,15 +363,12 @@ def test_objects_a_clip_takes_over_must_be_described(tmp_path):
     assert any("s01c02" in error and "descriptions" in error for error in validation.validate_plan(tmp_path, "s01"))
 
 
-def test_a_scene_task_carries_its_plan_and_timings_and_scenes_go_in_series(tmp_path):
+def test_a_scene_task_carries_its_plan_and_timings_and_no_scene_waits_for_another_approval(tmp_path):
     two_scenes_after_cp2(tmp_path)
     task = scene_code.prepare_scene(tmp_path, "s01")
     assert "<CLIP_SEQUENCE>" in task and "_clip_1" in task and "Scene01" in task
     assert (tmp_path / "scenes" / "s01" / "work" / "TASK.json").exists()
-    with pytest.raises(SystemExit, match="s01.*CP3"):
-        scene_code.prepare_scene(tmp_path, "s02")  # scenes are produced in series
-    with pytest.raises(SystemExit, match="s01.*CP3"):
-        production_commands.handle_preview_command(argparse.Namespace(run=str(tmp_path), scene="s02"))
+    assert "Scene02" in scene_code.prepare_scene(tmp_path, "s02")  # CP3 approves all scenes at once, at the end
 
 
 def test_every_clip_of_a_scene_shares_the_scene_key(tmp_path):
@@ -689,6 +686,74 @@ def test_every_video_refactor_iteration_is_recorded_before_cp3(tmp_path):
     assert ["REQUIRES ATTENTION" in p for p in critiques.critique_problems(tmp_path, "s01", "video")] == [True]
 
 
+def built_and_previewed(run, plans):
+    """Every clip of these plans accepted from its current inputs, and each scene's preview current."""
+    from schemas.plans import ScenePlan
+
+    for plan in map(ScenePlan.model_validate, plans):
+        for clip in plan.clips:
+            build = ClipBuild(status="READY", key=fingerprints.clip_key(run, plan, clip))
+            ledger.update_state(run, lambda state, c=clip, b=build: state.clips.__setitem__(c.clip_id, b))
+        write_json_file(run / "scenes" / plan.scene_id / "sync.json", {
+            "scene_id": plan.scene_id, "tolerance": 0.3, "clips": [], "in_sync": True,
+            "scene_hash": fingerprints.scene_video_hash(run, plan.scene_id),
+        })  # fmt: skip
+
+
+def test_a_video_critique_round_watches_the_rebuilt_scene_not_the_one_it_asked_to_fix(tmp_path):
+    plans = two_scenes_after_cp2(tmp_path)
+    built_and_previewed(tmp_path, plans)
+    write_critique(tmp_path, "s01", "video", "revise")
+    batch = driver.next_actions(tmp_path)  # refactor and record; no critic before the rebuild and preview
+    assert [a.agent or a.file for a in batch.actions] == [batch.actions[0].file, "scenes/s01/changes.json"]
+    feedback(tmp_path, "s01c01", "visual", "name the object in beat 2")
+    assert driver.next_actions(tmp_path).actions[0].agent == "scene-builder"  # the refactor rebuilds the clip
+    built_and_previewed(tmp_path, plans)
+    assert driver.next_actions(tmp_path).actions[0].agent == "video-critic"  # then the critic sees the new scene
+    write_critique(tmp_path, "s01", "video", "revise")
+    write_json_file(tmp_path / "scenes" / "s01" / "changes.json", {"entries": [CHANGE]})
+    assert driver.next_actions(tmp_path).actions[0].agent == "video-critic"  # recorded, nothing changed: next round
+
+
+def test_declined_and_audio_timing_requests_do_not_rebuild_a_scene(tmp_path):
+    from schemas.plans import ScenePlan
+
+    plan = ScenePlan.model_validate(two_scenes_after_cp2(tmp_path)[0])
+    built = fingerprints.clip_key(tmp_path, plan, plan.clips[0])
+    feedback(tmp_path, "s01", "audio-timing", "a longer pause before the result")
+    assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) == built  # re-timed audio, same code
+    feedback(tmp_path, "s01c01", "visual", "slower")
+    assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) != built
+    change_requests.resolve_request(tmp_path, "r002", "declined")
+    assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) == built
+
+
+def test_media_check_errors_block_the_final_checkpoint(tmp_path):
+    from app.workflow.approvals import approval_problems
+    from schemas.plans import ScenePlan
+
+    plans = [ScenePlan.model_validate(plan) for plan in two_scenes_after_cp2(tmp_path)]
+    report = {"clips": {}, "final_s": 60, "sum_clips_s": 60, "fingerprint": fingerprints.fingerprint(tmp_path, plans)}
+    write_json_file(
+        tmp_path / "final_report.json", report | {"checks": [{"severity": "WARN", "code": "W", "message": "w"}]}
+    )
+    assert approval_problems(tmp_path, "final") == []
+    write_json_file(
+        tmp_path / "final_report.json", report | {"checks": [{"severity": "ERROR", "code": "PEAK", "message": "clips"}]}
+    )
+    assert approval_problems(tmp_path, "final") == ["media check PEAK: clips"]
+
+
+def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):
+    write_brief(tmp_path)
+    for _ in range(2):
+        ledger.count_attempt(tmp_path, "build:s01:abc", failed=True)
+    ledger.count_attempt(tmp_path, "build:s02:def", failed=True)
+    assert ledger.load_state(tmp_path).attempts == {"build:s01:abc": 2, "build:s02:def": 1}
+    ledger.count_attempt(tmp_path, "build:s01", failed=False)  # s01 built: every key of s01 starts over
+    assert ledger.load_state(tmp_path).attempts == {"build:s02:def": 1}
+
+
 def test_every_stage_scene_and_clip_has_a_status_kept_in_state_json(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
     approved_outline(tmp_path, (30, 30))
@@ -750,10 +815,10 @@ def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path)
         templates.choose_template(tmp_path, "paper", ["grid_type=hexagons"])  # not a variant
     with pytest.raises(SystemExit, match="contrast"):  # the user's own colour, unreadable under white text
         templates.choose_template(tmp_path, "obsidian", ["custom.background_color=#ffffff"])
+    with pytest.raises(SystemExit, match="voice has no custom value"):  # audio: its options only
+        templates.choose_template(tmp_path, "paper", ["custom.voice=Joanna"])
     templates.choose_template(
-        tmp_path,
-        "paper",
-        ["accent_color=coral", "custom.text_font=Lato", "custom.voice=Joanna", "transition_seconds=0.8"],
+        tmp_path, "paper", ["accent_color=coral", "custom.text_font=Lato", "transition_seconds=0.8"]
     )
     template = json.loads((tmp_path / "template.json").read_text())
     assert (template["name"], template["elements"]["accent_color"], template["transition_seconds"]) == (
@@ -762,8 +827,12 @@ def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path)
         0.8,
     )
     view = templates.look_view(tmp_path)  # the website reads back exactly what was chosen
-    assert view.saved and view.custom == {"text_font": "Lato", "voice": "Joanna"}
-    assert templates.look(tmp_path)["font"] == "Lato" and templates.sound(tmp_path)["voice"] == "Joanna"
+    assert view.saved and view.custom == {"text_font": "Lato"}
+    assert templates.look(tmp_path)["font"] == "Lato"
+    saved = json.loads((tmp_path / "template.json").read_text())  # a run saved with a custom voice before 0.36
+    saved["overrides"]["voice"] = {"polly": {"voice_id": "Joanna"}, "google": {"neural2": "en-US-Neural2-F"}}
+    (tmp_path / "template.json").write_text(json.dumps(saved))
+    assert templates.validate_template(tmp_path) == [] and templates.sound(tmp_path)["voice"] == "Joanna"  # still read
     assert "font=\"Lato\"" in templates.look_brief(tmp_path)  # what every clip's TASK.md says
     approve(tmp_path, "template")
     approve(tmp_path, "requirements")

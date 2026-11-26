@@ -14,7 +14,7 @@ from app.workflow.change_requests import blocking_requests
 from app.workflow.checkpoints import stage_approval_problem
 from app.workflow.critiques import critique_problems, critique_subject_hash, review_problems
 from app.workflow.fingerprints import STAGE_FINGERPRINTS, clip_key, fingerprint
-from app.workflow.ledger import load_state, record_decision, update_state
+from app.workflow.ledger import count_attempt, load_state, record_decision, update_state
 from app.workflow.production import preview_problems
 from app.workflow.templates import validate_template
 from app.workflow.validation import (
@@ -63,10 +63,15 @@ def stage_problems(run: Path, target: str) -> list[str]:
             if plan_path.parent.name not in scene_ids
         ]
         return problems + review_problems(run, "plan")
+    if target == "scenes":  # CP3: every scene built, previewed and critiqued, approved together
+        return [problem for plan in plans for problem in stage_problems(run, f"scene:{plan.scene_id}")] or (
+            [] if plans else ["no scene plans yet"]
+        )
     if target == "final":
         report = load_final_report(run)
-        current = report is not None and report.fingerprint == fingerprint(run, plans)
-        return [] if current else ["final.mp4 is missing or out of date"]
+        if report is None or report.fingerprint != fingerprint(run, plans):
+            return ["final.mp4 is missing or out of date"]
+        return [f"media check {f.code}: {f.message}" for f in report.checks if f.severity == "ERROR"]
     scene_id = target.removeprefix("scene:")
     plan = next((scene_plan for scene_plan in plans if scene_plan.scene_id == scene_id), None)
     if plan is None:
@@ -89,14 +94,14 @@ class ApprovalBlocked(Exception):
 
 
 def checkpoint_target(name: str) -> str:
-    """The ledger key of a checkpoint: a stage, final, start:sNN, or scene:sNN for a scene's CP3."""
-    return name if name in (*STAGE_FINGERPRINTS, "final") or name.startswith("start:") else f"scene:{name}"
+    """The ledger key of a checkpoint: a stage, scenes (CP3, all scenes at once), final, start:sNN, or scene:sNN."""
+    return name if name in (*STAGE_FINGERPRINTS, "scenes", "final") or name.startswith("start:") else f"scene:{name}"
 
 
 log = logging.getLogger(__name__)
 
 
-def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = False) -> CheckpointDecision:
+def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = False, by: str = "") -> CheckpointDecision:
     """The user's approval, bound to the fingerprint of exactly what they approved, and recorded as a decision.
     Open problems refuse it (ApprovalBlocked) unless the user accepts them (force=True, recorded as forced)."""
     target = checkpoint_target(name)
@@ -105,6 +110,16 @@ def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = Fals
         log.warning("%s: %s blocked — %s", run.name, target, "; ".join(problems)[:1500])
         raise ApprovalBlocked(target, problems)
     plans = load_scene_plans(run)
+    if target == "scenes":  # one decision; each scene keeps its own approval, bound to its own fingerprint
+        entries = {
+            f"scene:{plan.scene_id}": Approval(at=now_text(), fingerprint=fingerprint(run, [plan])) for plan in plans
+        }
+        update_state(run, lambda state: state.approved.update(entries))
+        log.info("%s: scenes approved%s", run.name, " with open problems" if problems else "")
+        return record_decision(
+            run, "scenes", "approved_with_notes" if notes else "approved", notes, forced=bool(problems),
+            fingerprint=fingerprint(run, plans), by=by,
+        )  # fmt: skip
     if target in STAGE_FINGERPRINTS:
         approved_fingerprint = STAGE_FINGERPRINTS[target](run)
     elif target.startswith("start:"):
@@ -114,6 +129,8 @@ def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = Fals
         approved_fingerprint = fingerprint(run, scope) if scope else None
     entry = Approval(at=now_text(), fingerprint=approved_fingerprint)
     update_state(run, lambda state: state.approved.__setitem__(target, entry))
+    if target in ("script", "plan"):
+        count_attempt(run, f"review:{target}", failed=False)
     log.info("%s: %s approved%s", run.name, target, " with open problems" if problems else "")
     return record_decision(
         run,
@@ -122,4 +139,5 @@ def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = Fals
         notes,
         forced=bool(problems),
         fingerprint=approved_fingerprint,
+        by=by,
     )

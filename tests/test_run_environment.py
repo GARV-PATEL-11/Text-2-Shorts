@@ -165,6 +165,12 @@ def test_hooks_resume_validate_and_log(tmp_path):
         }
     )
     assert result.returncode == 2 and "CP1" in result.stderr  # errors go back to Claude: no plans before CP1
+    [mistake] = [json.loads(line) for line in (run / "mistakes.jsonl").read_text().splitlines()]
+    assert (mistake["loop"], mistake["agent"], mistake["target"]) == (
+        "validation",
+        "scene-planner",
+        "scenes/s01/plan.json",
+    )
     result = run_hook(
         {
             "hook_event_name": "PostToolUse",

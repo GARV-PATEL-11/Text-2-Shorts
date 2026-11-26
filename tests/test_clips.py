@@ -146,16 +146,16 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
     with pytest.raises(SystemExit, match="not approved"):
         production_commands.handle_final_command(argparse.Namespace(run=str(run), force=False))
     with pytest.raises(SystemExit, match="preview"):
-        approve(run, "s01")  # CP3 needs the scene preview, the sync report and a video critique
+        approve(run, "scenes")  # CP3 needs the scene preview, the sync report and a video critique
     production_commands.handle_preview_command(argparse.Namespace(run=str(run), scene="s01"))
     preview = scene_directory / "preview.mp4"
     assert video_format(preview) == (1280, 720, "30/1")  # drafts: 720p30
     sync = json.loads((scene_directory / "sync.json").read_text())
     assert [clip["clip_id"] for clip in sync["clips"]] == ["s01c01", "s01c02"] and "in_sync" in sync
     with pytest.raises(SystemExit, match="video_critique"):
-        approve(run, "s01")
+        approve(run, "scenes")
     write_critique(run, "s01", "video", "pass")
-    approve(run, "s01", force=not sync["in_sync"])  # the test audio is a tone: no word timings to sync
+    approve(run, "scenes", force=not sync["in_sync"])  # the test audio is a tone: no word timings to sync
     production_commands.handle_final_command(argparse.Namespace(run=str(run), force=False))
     report = json.loads((run / "final_report.json").read_text())
     assert not [finding for finding in report["checks"] if finding["severity"] == "ERROR"], report["checks"]
@@ -179,11 +179,11 @@ def test_next_steps_tracks_stale_audio_and_stale_approvals(tmp_path):
             "s01c01", ClipBuild(status="READY", key=fingerprints.clip_key(tmp_path, scene_plan, scene_plan.clips[0]))
         ),
     )
-    approve(tmp_path, "s01", force=True)  # (preview, sync and critique are covered elsewhere)
-    assert not any("CP3" in step and "s01" in step for step in status.next_steps(tmp_path))
+    approve(tmp_path, "scenes", force=True)  # CP3: all scenes at once (preview, sync and critique: covered elsewhere)
+    assert not any("CP3" in step for step in status.next_steps(tmp_path))
     change_requests.add_request(tmp_path, "s01c01", "visual", "bigger")  # clip stale → approval stale
     steps = status.next_steps(tmp_path)
-    assert any("build s01" in step for step in steps) and any("CP3" in step and "s01" in step for step in steps)
+    assert any("build s01" in step for step in steps) and any("CP3" in step for step in steps)
 
 
 def test_approve_refuses_unfinished_checkpoints(tmp_path):
@@ -194,8 +194,8 @@ def test_approve_refuses_unfinished_checkpoints(tmp_path):
         approve(tmp_path, "script")  # no script.json
     with pytest.raises(SystemExit, match="CP1"):
         approve(tmp_path, "plan")  # plans before the script is approved
-    with pytest.raises(SystemExit, match="s01"):
-        approve(tmp_path, "s01")  # clips not READY
+    with pytest.raises(SystemExit, match="no scene plans"):
+        approve(tmp_path, "scenes")  # clips not READY
     approve(tmp_path, "script", force=True)
     assert "script" in ledger.load_state(tmp_path).approved
 
@@ -207,7 +207,7 @@ def test_retiming_the_audio_keeps_the_clip_code_and_cp2_but_asks_cp3_again(tmp_p
     scene_plan = ScenePlan.model_validate(plan)
     key = fingerprints.clip_key(tmp_path, scene_plan, scene_plan.clips[0])
     ledger.update_state(tmp_path, lambda state: state.clips.__setitem__("s01c01", ClipBuild(status="READY", key=key)))
-    approve(tmp_path, "s01", force=True)
+    approve(tmp_path, "scenes", force=True)
     assert not any(step.startswith("CP3") for step in status.next_steps(tmp_path))
 
     words = plan["clips"][0]["narration"].split()  # the audio-refactorer: same words, a new pause → new audio

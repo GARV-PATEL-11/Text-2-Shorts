@@ -1,6 +1,6 @@
 [project]
 name = "text-2-shorts"
-version = "0.35.0"
+version = "0.36.0"
 description = "Faraday — Curiosity, Illustrated: topic in, narrated Manim explainer video out; every LLM stage is a sandboxed Claude Code run"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -51,3 +51,6 @@ ignore = ["PLW1510"]
 
 [tool.ruff.format]
 quote-style = "preserve"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends"]  # FastAPI dependencies are declared as argument defaults

@@ -113,7 +113,7 @@ function LiveRun({ run, others }: { run: RunSummary; others: RunSummary[] }) {
   return (
     <div className="live card">
       <div className="live__head">
-        <a className="live__topic" href={runHash(run.id)}>{runTitle(run.topic)}</a>
+        <a className="live__topic" href={runHash(run.id)}>{run.name || runTitle(run.topic)}</a>
         <Pill icon={state.icon}>{state.label}</Pill>
       </div>
       {data ? (

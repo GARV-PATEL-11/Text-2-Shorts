@@ -3,7 +3,7 @@
   "description": "POST /api/runs/<run>/approve",
   "properties": {
     "checkpoint": {
-      "pattern": "^(requirements|template|outline|script|plan|final|s\\d{2}|start:s\\d{2})$",
+      "pattern": "^(requirements|template|outline|script|plan|scenes|final|s\\d{2}|start:s\\d{2})$",
       "title": "Checkpoint",
       "type": "string"
     },

@@ -105,6 +105,8 @@ def blocking_requests(run: Path, target: str) -> list[str]:
             return where == "script" or (scene is not None and kind in ("wording", "accuracy", "structure"))
         if target == "plan":
             return where == "plan" or (scene is not None and len(where) == 3 and kind == "visual")
+        if target == "scenes":
+            return scene is not None
         if target.startswith("scene:"):
             return scene == target.removeprefix("scene:")
         return target == "final"

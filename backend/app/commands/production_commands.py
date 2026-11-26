@@ -9,14 +9,16 @@ from pathlib import Path
 
 from schemas.media import AssemblyManifest, BackgroundMusic, ClipAudio, FinalReport, SceneRender, SceneTransition
 from schemas.plans import ScenePlan
+from schemas.reviews import MistakeIssue
 
 from app import narration
 from app.config import DRAFT_QUALITY, FINAL_FRAME_RATE, TOOLS_DIRECTORY
 from app.utilities import probe_duration_seconds, run_in_parallel
+from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
-from app.workflow.checkpoints import require_approval, require_earlier_scenes
+from app.workflow.checkpoints import require_approval
 from app.workflow.fingerprints import clip_key, fingerprint, scene_video_hash
-from app.workflow.ledger import load_state
+from app.workflow.ledger import count_attempt, load_state
 from app.workflow.preferences import clip_speech
 from app.workflow.production import (
     check_delivery,
@@ -84,7 +86,7 @@ def handle_final_command(arguments) -> None:
         sys.exit(f"Not built yet: {missing}. Run build first.")
     unapproved = [plan.scene_id for plan in plans if f"scene:{plan.scene_id}" not in state.approved]
     if unapproved and not arguments.force:
-        sys.exit(f"Scene previews not approved (CP3): {unapproved} — `approve <run> sNN` (or --force).")
+        sys.exit(f"Scene previews not approved (CP3): {unapproved} — `approve <run> scenes` (or --force).")
     if not 60 <= FINAL_FRAME_RATE <= 120:
         sys.exit(f"TEXT_2_SHORTS_FPS={FINAL_FRAME_RATE}: must be 60–120")
 
@@ -122,7 +124,6 @@ def handle_preview_command(arguments) -> None:
     plan = next((plan for plan in load_scene_plans(run) if plan.scene_id == scene_id), None)
     if plan is None:
         sys.exit(f"{scene_id}: no valid plan")
-    require_earlier_scenes(run, scene_id)
     clip_states = load_state(run).clips
     if unbuilt := [
         c.clip_id
@@ -164,6 +165,10 @@ def handle_preview_command(arguments) -> None:
     report = sync_report(run, plan, {clip.clip_id: sections[f"clip_{clip.index:02d}"] for clip in plan.clips})
     report.scene_hash = scene_video_hash(run, scene_id)
     (scene_directory / "sync.json").write_text(report.model_dump_json(indent=2))
+    attempt = count_attempt(run, f"sync:{scene_id}", failed=not report.in_sync)
+    issues = [MistakeIssue(code=mistakes.sync_code(problem), severity="ERROR", target=problem.split(" ")[0].rstrip(":"),
+                           problem=problem) for problem in report.problems]  # fmt: skip
+    mistakes.record(run, "sync", "audio-refactorer", scene_id, issues, attempt or None)
     print(
         f"{scene_directory / 'preview.mp4'} (720p30) · sync: "
         + ("in sync" if report.in_sync else "\n  " + "\n  ".join(report.problems))

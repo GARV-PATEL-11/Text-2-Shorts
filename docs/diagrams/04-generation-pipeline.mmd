@@ -12,7 +12,7 @@ flowchart TD
 
     subgraph T["1 · Template"]
         TK[/"backend/templates/template_kit/<br/>elements.json · templates/*.json (12 starters)"/] --> TJ["template.json"]
-        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.webp"]
+        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.svg"]
         VS[/"video_settings.py · audio_settings.py<br/>look_brief(): the TEMPLATE block"/]
     end
     T --> CPT(("template<br/>checkpoint"))
@@ -55,7 +55,7 @@ flowchart TD
     MR[/"skills/manim-ce-0-20-1-reference/topics/<br/>manim-vocabulary · construction-patterns (PART 9) · common-mistakes<br/>+ text-2-shorts doc Names (API index)"/]
     MR -.-> SP
 
-    subgraph C["5 · Production (scene by scene, in series)"]
+    subgraph C["5 · Production (scene by scene, then one approval)"]
         VO{{"text-2-shorts voice .<br/>narration.py → Polly or Google TTS"}} --> AU["scenes/sNN/audio/*.mp3 · index.json<br/>word timings"]
         AU --> TK2{{"text-2-shorts task . sNN<br/>scene_code.py fills codegen-task.md"}}
         CG[/"codegen-system.md (CG1-CG13, X1-X12)<br/>codegen-task.md"/] --> TK2
@@ -70,7 +70,7 @@ flowchart TD
         PVF --> VC(["video-critic · Sonnet<br/>critique-protocol.md"]) --> VCJ["video_critique.json · changes.json"]
         VCJ -.->|"visual issue → feedback, rebuild"| SB
     end
-    CP2 --> C --> CP3(("CP3 per scene"))
+    CP2 --> C --> CP3(("CP3 all scenes"))
     MR -.-> SB
     TC -.->|"backdrop, border, fonts"| CK
 

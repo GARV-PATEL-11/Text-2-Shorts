@@ -30,8 +30,9 @@ from app.commands.workflow_commands import (
     handle_status_command,
     handle_validate_command,
 )
-from app.config import DEFAULT_TTS
+from app.config import DEFAULT_TTS, REPORTS_DIRECTORY, RUNS_DIRECTORY
 from app.workflow import visual_director
+from app.workflow.mistakes import write_report
 from app.workflow.run_workspace import resolve_run_path
 from app.workflow.scene_code import prepare_scene
 from app.workflow.templates import choose_template, starter_templates
@@ -151,6 +152,14 @@ def register_subcommands(subparsers) -> None:
     add_subcommand("final", handle_final_command, force=True)
     add_subcommand("status", handle_status_command)
     add_subcommand("report", handle_report_command)
+    mistakes_parser = subparsers.add_parser(
+        "mistakes", help="what each agent gets wrong, over every run → artifacts/reports/mistakes.json and .md"
+    )
+    mistakes_parser.add_argument("--runs", default=str(RUNS_DIRECTORY), help="the runs folder to read")
+    mistakes_parser.add_argument("--out", default=str(REPORTS_DIRECTORY), help="where to write the report")
+    mistakes_parser.set_defaults(
+        handler=lambda arguments: print("\n".join(map(str, write_report(Path(arguments.runs), Path(arguments.out)))))
+    )
     subparsers.add_parser("hook", help="Claude Code hook entry point (reads the hook JSON on stdin)").set_defaults(
         handler=handle_hook_command
     )

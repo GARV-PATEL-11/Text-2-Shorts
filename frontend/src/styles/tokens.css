@@ -53,7 +53,7 @@
   /* layout */
   --max: 2400px;                  /* wide enough to use the whole screen up to 2560px; text keeps --measure */
   --gut: clamp(16px, 2.5vw, 48px);
-  --header-h: 60px;
+  --header-h: 52px;
   --rail-w: 264px;
   --stack: var(--s-4);
   --card-pad: var(--s-4);

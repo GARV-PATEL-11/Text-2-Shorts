@@ -165,6 +165,7 @@ def test_the_frontend_approves_a_checkpoint_and_refuses_one_with_open_problems(w
     )
     body = response.json()
     assert response.status_code == 200 and (body["decision"], body["forced"]) == ("approved_with_notes", False)
+    assert body["by"] == ACCOUNT.email  # who approved, kept with the decision
     assert client.get("/api/runs/20261124-120000-cp1").json()["stages"]["script"] == "approved"
     response = client.post(
         "/api/runs/20261124-120000-cp1/approve", json={"checkpoint": "plan", "force": True}, headers=ORIGIN
@@ -598,3 +599,54 @@ def test_every_frame_carries_the_faraday_mark_above_the_content():
     drawing = video_settings.drawing(template)
     assert drawing["brand"]["color"] == video_settings.resolve(template)["roles"]["text"]  # readable in both modes
     assert f"below y = {video_settings.content_top(drawing['inset'])}" in video_settings.brief(template)
+
+
+def test_a_run_lives_on_this_machine_from_its_first_draft_to_its_trash(web, monkeypatch):
+    from app.workflow import run_workspace
+    from conftest import environment_report
+
+    runs, client = web
+    signed_in(client)
+    monkeypatch.setattr(run_workspace, "environment_check", environment_report)
+    monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
+
+    draft_id = "0b6b2f0e-8c3e-4f53-9a8e-2d4a5c6f7a10"  # Start a Run saves as the user goes, before any run exists
+    draft = {"name": "Tides", "step": 3, "requirement": "Why do tides happen?", "minutes": "5", "approach": "feynman"}
+    assert client.put(f"/api/drafts/{draft_id}", json=draft, headers=ORIGIN).status_code == 200
+    listed = client.get("/api/drafts").json()
+    assert [d["id"] for d in listed] == [draft_id] and listed[0]["step"] == 3  # survives a refresh or a sign-out
+    assert client.get("/api/runs").json() == []  # a draft is not a run (and .drafts is not listed as one)
+    assert client.put("/api/drafts/../x", json=draft, headers=ORIGIN).status_code == 404
+
+    started = client.post("/api/runs", json={"requirement": "Why do tides happen?", "minutes": 5, "name": "Tides"},
+                          headers=ORIGIN).json()  # fmt: skip
+    assert client.delete(f"/api/drafts/{draft_id}", headers=ORIGIN).status_code == 204
+    assert started["name"] == "Tides" and started["status"] == "configuring" and started["updated"]
+    unnamed = client.post(
+        "/api/runs", json={"requirement": "Why is ice slippery?", "minutes": 4}, headers=ORIGIN
+    ).json()
+    assert unnamed["name"].startswith("Why is ice slippery — ")  # named from its topic and date
+
+    renamed = client.patch(f"/api/runs/{started['id']}", json={"name": "Moon and Tides"}, headers=ORIGIN).json()
+    assert renamed["name"] == "Moon and Tides" and renamed["id"] == started["id"]  # its files and id stay
+    copy = client.post(f"/api/runs/{started['id']}/duplicate", headers=ORIGIN)
+    assert copy.status_code == 201 and copy.json()["name"] == "Copy of Moon and Tides"
+    assert json.loads((runs / copy.json()["id"] / "brief.json").read_text())["requirement"] == "Why do tides happen?"
+
+    assert client.delete(f"/api/runs/{started['id']}", headers=ORIGIN).status_code == 204
+    assert (runs / ".trash" / started["id"] / "brief.json").exists()  # recoverable, not gone
+    assert started["id"] not in [run["id"] for run in client.get("/api/runs").json()]
+
+
+def test_the_profile_keeps_your_name_and_adds_up_what_every_run_cost(web):
+    from app.workflow import ledger
+
+    runs, client = web
+    signed_in(client)
+    for name, cost in (("20261126-100000-a", 1.25), ("20261126-110000-b", 0.5)):
+        write_brief(runs / name)
+        ledger.update_state(runs / name, lambda state, cost=cost: setattr(state, "spend_usd", cost))
+    view = client.get("/api/profile").json()
+    assert (view["runs"], view["spend_usd"], view["account"]["email"]) == (2, 1.75, ACCOUNT.email)
+    assert client.put("/api/profile", json={"name": " Garv "}, headers=ORIGIN).json()["name"] == "Garv"
+    assert client.get("/api/profile").json()["name"] == "Garv"  # kept on this machine

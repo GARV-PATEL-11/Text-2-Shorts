@@ -8,13 +8,15 @@ from pathlib import Path
 
 import faraday_logging
 from pydantic import ValidationError
+from schemas.reviews import MistakeIssue, ReviewReport
 from schemas.run_state import LogEntry
 from schemas.session import HookEvent, HookOutput, SessionStartContext
 
 from app.utilities import now_text
-from app.workflow.critiques import validate_changes, validate_critique, write_changes_text
+from app.workflow import mistakes
+from app.workflow.critiques import review_problems, validate_changes, validate_critique, write_changes_text
 from app.workflow.driver import format_actions, next_actions
-from app.workflow.ledger import append_jsonl, update_state
+from app.workflow.ledger import append_jsonl, count_attempt, update_state
 from app.workflow.preferences import validate_preferences
 from app.workflow.run_workspace import find_run_directory
 from app.workflow.status import status_text
@@ -94,6 +96,15 @@ def handle_hook_command(arguments) -> None:
         (log.warning if errors else log.info)("%s", row.shown[:2000])
         append_jsonl(run, "log.jsonl", row)
         if errors:
+            mistakes.record_invalid(run, written_path, errors)
             print(f"{written_path.name} is invalid — fix it:\n" + "\n".join(errors), file=sys.stderr)
             sys.exit(2)
+        if written_path.name in ("script_review.json", "plan_review.json"):
+            stage = written_path.name.split("_")[0]
+            attempt = count_attempt(run, f"review:{stage}", failed=bool(review_problems(run, stage)))
+            findings = ReviewReport.model_validate_json(written_path.read_text()).findings
+            issues = [MistakeIssue(code=f"accuracy:{f.kind}", severity=f.severity, target=f.target,
+                                   problem=f"{f.why} (\"{f.quote}\")", fix=f.fix) for f in findings]  # fmt: skip
+            mistakes.record(run, f"review:{stage}", "script-writer" if stage == "script" else "scene-planner",
+                            stage, issues, attempt or None)  # fmt: skip
         print(HookOutput(systemMessage="text-2-shorts · " + message).model_dump_json(exclude_none=True))

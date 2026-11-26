@@ -201,7 +201,7 @@
 .spinner { display: inline-block; width: var(--icon-md); height: var(--icon-md); border-radius: var(--r-round); border: var(--bw-strong) solid var(--rule); border-top-color: var(--fg); }
 
 /* ── overlays ─────────────────────────────────────────────────────────────────────────────────────────── */
-.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--scrim); display: grid; place-items: center; padding: var(--s-6); }
+.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--glass); -webkit-backdrop-filter: blur(14px) saturate(0.7); backdrop-filter: blur(14px) saturate(0.7); display: grid; place-items: center; padding: var(--s-6); }  /* frosted: the page stays visible behind the pop-up */
 .overlay--drawer { place-items: stretch end; padding: 0; }
 .modal { width: min(100%, 520px); max-height: calc(100vh - var(--s-12)); overflow: auto; background: var(--night-2); border: var(--bw) solid var(--check-line); border-radius: var(--r-xl); outline: none; }
 .modal--lg { width: min(100%, 720px); }
@@ -313,7 +313,13 @@
 .table__link { color: var(--fg); font-weight: var(--fw-semibold); text-decoration: none; }
 .table__link:hover { text-decoration: underline; text-underline-offset: 4px; }
 .table__muted { color: var(--mute); }
-.table__progress { min-width: 200px; display: flex; align-items: center; gap: var(--s-3); white-space: nowrap; }
+.table__progress { min-width: 200px; }  /* a table cell stays a table cell: the bar and its count sit in a row inside it */
+.table__bar { display: flex; align-items: center; gap: var(--s-3); white-space: nowrap; }
+.table td { vertical-align: middle; }
+.table__nowrap { white-space: nowrap; }
+.table__sub { display: block; margin-top: 2px; font-size: var(--fs-note); color: var(--mute); }
+.table__actions { white-space: nowrap; text-align: right; }
+.table__actions > * { display: inline-flex; }
 .table td .badge { margin-left: var(--s-2); }
 
 /* ── run content ──────────────────────────────────────────────────────────────────────────────────────── */
@@ -422,14 +428,14 @@
 .journey__sep { color: var(--field-line); }
 .journey__stage--done { color: var(--fg-2); }
 .journey__stage--current, .journey__stage--waiting { color: var(--fg); font-weight: var(--fw-semibold); }
-.journey__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-5); }
-.journey__step { display: inline-flex; align-items: center; gap: var(--s-2); padding: var(--s-1) 0; border: 0; border-bottom: var(--bw-strong) solid transparent; background: none; color: var(--mute); font: var(--fw-medium) var(--fs-small) / 1 var(--sans); cursor: pointer; outline: none; }
+.journey__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); }
+.journey__crumb { display: inline-flex; align-items: center; gap: var(--s-2); white-space: nowrap; }
+.journey__step { display: inline-flex; align-items: center; gap: var(--s-1); padding: var(--s-1) 0; border: 0; background: none; color: var(--mute); font: var(--fw-medium) var(--fs-note) / 1 var(--sans); cursor: pointer; outline: none; }
 .journey__step[data-hovered] { color: var(--fg); }
 .journey__step[data-disabled] { color: var(--check-line); cursor: default; }
 .journey__step[data-focus-visible] { outline: var(--bw-strong) solid var(--fg); outline-offset: 2px; }
-.journey__number { font-variant-numeric: tabular-nums; display: inline-grid; } .journey__number svg { width: var(--icon-xs); height: var(--icon-xs); }
 .journey__step--done { color: var(--fg-2); }
-.journey__step--current { color: var(--fg); font-weight: var(--fw-semibold); border-bottom-color: var(--fg); }
+.journey__step--current { color: var(--fg); font-weight: var(--fw-semibold); }
 
 /* ── a run at a glance: lookup chips and the clips-per-scene chart ──────────────────────────────────── */
 .overview { display: grid; gap: var(--s-4); }
@@ -522,3 +528,6 @@
 .limit__reset svg { width: var(--icon-xs); height: var(--icon-xs); }
 .limit__used { text-align: right; font-size: var(--fs-note); color: var(--fg-2); font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .limit { grid-template-columns: 1fr auto; } .limit .progress { grid-column: 1 / -1; grid-row: 2; } }
+
+/* Start a Run: the draft's save state, above every step */
+.save-state { max-width: none; min-height: var(--lh-small); text-align: right; margin-bottom: var(--s-2); }

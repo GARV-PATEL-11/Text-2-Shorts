@@ -9,8 +9,9 @@
 .header__link { display: inline-flex; white-space: nowrap; align-items: center; height: var(--h-sm); padding: 0 var(--s-3); border-radius: var(--r-md); text-decoration: none; font: var(--fw-semibold) var(--fs-small) / 1 var(--sans); color: var(--mute); }
 .header__link:hover, .header__link[aria-current="page"] { color: var(--fg); background: var(--night-2); }
 .header__account { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
-.header__email { font-size: var(--fs-note); color: var(--fg-2); }
-.header__problem { font-size: var(--fs-note); color: var(--fg); font-weight: var(--fw-semibold); }
+.header__user { display: inline-flex; align-items: center; gap: var(--s-2); height: var(--h-sm); padding: 0 var(--s-2) 0 var(--s-1); border: 0; border-radius: var(--r-pill); background: none; color: var(--fg-2); font: var(--fw-medium) var(--fs-small) / 1 var(--sans); cursor: pointer; }
+.header__user:hover { background: var(--night-2); color: var(--fg); }
+.header__avatar { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-round); background: var(--fg); color: var(--night); font-weight: var(--fw-semibold); font-size: var(--fs-note); }
 
 .page { width: 100%; max-width: var(--max); margin: 0 auto; padding: var(--s-6) var(--gut) var(--s-12); display: grid; gap: var(--s-6); align-content: start; }
 .page--form { max-width: 560px; }
@@ -46,6 +47,7 @@
 
 /* a run: the rail and the main pane */
 .run { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); gap: var(--s-8); align-items: start; }
+.run--solo { grid-template-columns: minmax(0, 1fr); }
 .run__rail { position: sticky; top: calc(var(--header-h) + var(--s-6)); display: grid; gap: var(--s-4); padding: var(--s-4); border: var(--bw) solid var(--rule); border-radius: var(--r-lg); background: var(--night-2); }
 .run__actions { display: grid; gap: var(--s-2); }
 .run__actions .button { justify-content: flex-start; }
@@ -76,7 +78,7 @@
 @media (max-width: 640px) {
   .header__inner { height: auto; flex-wrap: wrap; row-gap: var(--s-2); padding-block: var(--s-2); }
   .header__nav { order: 3; width: 100%; overflow-x: auto; }
-  .header__email { display: none; }
+  .header__user > span:last-child { display: none; }  /* the avatar alone */
   .form-row { grid-template-columns: 1fr; }
   .run__actions { grid-template-columns: 1fr; }
   /* the step's Back and Continue stay in reach under long lists of templates */

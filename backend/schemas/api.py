@@ -13,6 +13,8 @@ from schemas.outline_models.approaches import ApproachName
 from schemas.run_state import Status
 from schemas.session import ActionBatch
 
+RunStatus = Literal["configuring", "in_progress", "awaiting_approval", "failed", "completed"]
+
 
 class ClaudeAuthStatus(BaseModel):
     """What `claude auth status --json` reports (Claude Code's format: only the fields used here are read)."""
@@ -34,6 +36,20 @@ class ClaudeAccount(Strict):
     method: str = Field("", description="claude.ai (subscription) or console (API billing)")
 
 
+class ProfileInput(Strict):
+    """PUT /api/profile: the name Faraday calls you (kept on this machine)."""
+
+    name: str = Field("", max_length=80)
+
+
+class ProfileView(ProfileInput):
+    """GET /api/profile: who is signed in, and what the runs on this machine have cost."""
+
+    account: ClaudeAccount
+    runs: int = Field(0, ge=0, description="runs on this machine (not drafts or the trash)")
+    spend_usd: float = Field(0.0, ge=0, description="the cost Claude Code reported for every console turn, all runs")
+
+
 class SessionView(Strict):
     """GET/POST/DELETE /api/session"""
 
@@ -46,14 +62,24 @@ class RunSummary(Strict):
     """One row of the run list."""
 
     id: str = Field(..., description="the run folder name, e.g. 20261124-101500-keplers-laws")
+    name: str = Field("", description="the user's name for it, or '<topic> — <date>' when they gave none")
     topic: str
     created: str = Field(..., description="YYYY-MM-DD HH:MM, from the folder name")
+    updated: str = Field("", description="YYYY-MM-DD HH:MM: the last time any of its files changed")
+    template: str = Field("", description="the starter template its look started from")
+    status: RunStatus = "in_progress"
     stage: str = Field(..., description="the stage the next batch belongs to, or why the run cannot be read")
     stages_approved: int = Field(
         0, ge=0, le=7, description="of the 7 the website shows: the 6 checkpoints, and all scenes as one"
     )
     has_final: bool
     readable: bool = Field(True, description="False when an older version of the workflow made it")
+
+
+class RenameInput(Strict):
+    """PATCH /api/runs/<run>: a new name (the run's files and id do not change)."""
+
+    name: str = Field(..., min_length=1, max_length=120)
 
 
 class ClipView(Strict):
@@ -101,7 +127,9 @@ class RunDetail(Strict):
 class ApproveInput(Strict):
     """POST /api/runs/<run>/approve"""
 
-    checkpoint: str = Field(..., pattern=r"^(requirements|template|outline|script|plan|final|s\d{2}|start:s\d{2})$")
+    checkpoint: str = Field(
+        ..., pattern=r"^(requirements|template|outline|script|plan|scenes|final|s\d{2}|start:s\d{2})$"
+    )
     notes: str = Field("", max_length=4000)
     force: bool = Field(False, description="approve although problems are open (the user accepts them)")
 
@@ -133,6 +161,7 @@ class NewRunInput(Strict):
     requirement: str = Field(..., min_length=3, max_length=2000, description="the topic, in the user's words")
     objectives: list[str] = Field(default_factory=list, max_length=8)
     approach: ApproachName = "visual_intuition"
+    name: str = Field("", max_length=120, description="optional: the run's name (default: its topic and date)")
     minutes: float = Field(4, ge=3, le=20, description="teaching narration; intro, bridges and closing are extra")
     notes: str = Field("", max_length=2000, description="for Custom: how the user wants it taught")
     audience: str = Field("curious beginners", max_length=300)
@@ -293,3 +322,24 @@ class UsageView(Strict):
     plan: str = ""
     checked_at: str | None = Field(None, description="when Claude Code last reported them (local ISO time)")
     windows: list[UsageWindow] = Field(default_factory=list)
+
+
+class DraftInput(Strict):
+    """PUT /api/drafts/<id>: Start a Run as far as the user got, saved as they go (on this machine, in the runs
+    folder). Lenient on purpose: a draft may be half filled; POST /api/runs checks it all."""
+
+    name: str = Field("", max_length=120)
+    step: int = Field(0, ge=0, le=20)
+    look: LookInput | None = None
+    requirement: str = Field("", max_length=2000)
+    objectives: str = Field("", max_length=4000, description="as typed: one per line")
+    approach: ApproachName = "visual_intuition"
+    minutes: str = Field("4", max_length=8, description="as typed")
+    audience: str = Field("curious beginners", max_length=300)
+    tts: Literal["polly", "google"] = "polly"
+    notes: str = Field("", max_length=2000)
+
+
+class Draft(DraftInput):
+    id: str = Field(..., pattern=r"^[0-9a-f-]{36}$")
+    updated: str

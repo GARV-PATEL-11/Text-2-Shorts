@@ -3,7 +3,7 @@
   "description": "How the user decided at a checkpoint (CP0\u2013CP4, or the start of a scene when they asked to confirm each).",
   "properties": {
     "checkpoint": {
-      "pattern": "^(requirements|template|outline|script|plan|final|s\\d{2}|start:s\\d{2})$",
+      "pattern": "^(requirements|template|outline|script|plan|scenes|final|s\\d{2}|start:s\\d{2})$",
       "title": "Checkpoint",
       "type": "string"
     },
@@ -48,6 +48,12 @@
     },
     "decided_at": {
       "title": "Decided At",
+      "type": "string"
+    },
+    "by": {
+      "default": "",
+      "description": "who decided: the signed-in account on the website, 'session' from the CLI",
+      "title": "By",
       "type": "string"
     }
   },

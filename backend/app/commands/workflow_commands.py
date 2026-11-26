@@ -58,7 +58,7 @@ def handle_resolve_command(arguments) -> None:
 def handle_approve_command(arguments) -> None:
     try:
         decision = approve_checkpoint(
-            Path(arguments.run), arguments.target, getattr(arguments, "notes", "") or "", arguments.force
+            Path(arguments.run), arguments.target, getattr(arguments, "notes", "") or "", arguments.force, by="session"
         )
     except ApprovalBlocked as blocked:
         sys.exit(

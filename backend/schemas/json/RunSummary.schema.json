@@ -7,6 +7,12 @@
       "title": "Id",
       "type": "string"
     },
+    "name": {
+      "default": "",
+      "description": "the user's name for it, or '<topic> \u2014 <date>' when they gave none",
+      "title": "Name",
+      "type": "string"
+    },
     "topic": {
       "title": "Topic",
       "type": "string"
@@ -14,6 +20,30 @@
     "created": {
       "description": "YYYY-MM-DD HH:MM, from the folder name",
       "title": "Created",
+      "type": "string"
+    },
+    "updated": {
+      "default": "",
+      "description": "YYYY-MM-DD HH:MM: the last time any of its files changed",
+      "title": "Updated",
+      "type": "string"
+    },
+    "template": {
+      "default": "",
+      "description": "the starter template its look started from",
+      "title": "Template",
+      "type": "string"
+    },
+    "status": {
+      "default": "in_progress",
+      "enum": [
+        "configuring",
+        "in_progress",
+        "awaiting_approval",
+        "failed",
+        "completed"
+      ],
+      "title": "Status",
       "type": "string"
     },
     "stage": {

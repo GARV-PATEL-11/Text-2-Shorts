@@ -77,7 +77,12 @@ def create_run(brief: Brief, runs_directory: Path = RUNS_DIRECTORY) -> Path:
     if problem := voice_credentials_problem(brief.tts):
         raise RunNotCreated(problem)
     slug = re.sub(r"[^a-z0-9]+", "-", brief.requirement.lower())[:40].strip("-")
-    run = runs_directory / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
+    stem = f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
+    run = runs_directory / stem
+    copy = 1
+    while run.exists():  # the same topic twice in one second (a duplicate, a double click): never reuse a folder
+        copy += 1
+        run = runs_directory / f"{stem}-{copy}"
     provision_run_workspace(run, brief, environment)
     logging.getLogger(__name__).info("run %s created", run.name)
     return run

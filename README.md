@@ -23,7 +23,7 @@ uv run text-2-shorts new "<topic>" --objective "…" --approach visual_intuition
 uv run text-2-shorts open artifacts/runs/<id>     # interactive Claude Code session for this run, inside its jail
 ```
 The run session works through the stages below and asks you at every checkpoint (template · requirements · CP0 outline · CP1 script ·
-CP2 scene visual plans · CP3 each scene's preview · CP4 final video), then offers an optional reshuffle of the look. Re-running `text-2-shorts open` resumes from where the run stopped.
+CP2 scene visual plans · CP3 all scene previews at once · CP4 final video), then offers an optional reshuffle of the look. Re-running `text-2-shorts open` resumes from where the run stopped.
 `uv run text-2-shorts status artifacts/runs/<id>` shows approvals, every stage, scene and clip status and the next steps from anywhere.
 **Faraday is used from its website only.** Build it once (`cd frontend && npm ci && npm run build`), then
 `uv run text-2-shorts serve` opens it at http://127.0.0.1:8765 (FastAPI; `npm run dev` in `frontend/` gives live reload on :5173):
@@ -37,8 +37,7 @@ scene previews and the final video; approve checkpoints, ask for changes and mar
 Each stage starts from the approved output of the one before, and the commands enforce it: plans are rejected
 before CP1; `voice`, `task` and `preview` refuse to run before CP2; editing an approved artifact makes its
 checkpoint stale. `text-2-shorts next <run>` hands the session the exact next batch of work; scenes are produced
-one after another, and the clips of a scene one at a time, in order: the next starts only after the current one
-passed `accept`. Everything is drafted at 720p30; only the delivery is rendered at 1440p, 120 fps. Every stage,
+one after another, each its one `scene_code.py` that must pass `accept`, and CP3 approves them all at once. Everything is drafted at 720p30; only the delivery is rendered at 1440p, 120 fps. Every stage,
 scene and clip has a status (pending · in_progress · completed · failed · requires_refactoring ·
 requires_user_approval · approved), kept in `state.json` and shown by `status`.
 
@@ -49,7 +48,7 @@ requires_user_approval · approved), kept in `state.json` and shown by `status`.
 | 2 Outline | `outline.json`: segments with type, timing, talking points, visual plan — validated by `VideoOutline` and the approach's stages (`backend/schemas/outline_models/approaches.py`) | every stage in order, segment count, 10–120 s, transitions, visual-plan rules → **CP0** | `outline-<approach>.md`, one per approach (generated from the approach table by `runtime-environment/prompts/export_references.py`) |
 | 3 Complete script | `script.json`: index scene s01 (what the video covers), then one scene per outline segment: objective, key concepts, duration, spoken bridge, full narration, on-screen text, animations, audio and transition needs, dependencies; `script_review.json` | objectives covered, every segment narrated in order, bridges, word budget, length ±20%, no accuracy ERROR → **CP1**; changes asked at CP1 → one **script-critic** round, one refactor, back to the user | `script-writing.md`, `script-review.md`, `transitions.md` |
 | 4 Visual + audio plans | per scene the Visual Director's `plan.json`: its `execution_plan` (atomic, time-ordered events: what, how, where, look, speech, why) and the fields derived from it: composition, opening transition, clips (narration slice, beats, positions, entry/exit) with **SSML** (waits, pauses, pace) and sound effects (the user's files); scored critique rounds; `plan_review.json` | narration = script word for word, on-screen text shown, valid SSML, **plan-critic score ≥ 85, ≤ 3 rounds**, no accuracy ERROR → **CP2** | `scene-visual-planning.md`, `audio-ssml.md` |
-| 5 Scene code + video | scene by scene: audio from SSML → the **scene-builder** writes the scene's one `scene_code.py` (a `_clip_N` method per clip, 720p30 drafts, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** per scene | `scene-production.md` |
+| 5 Scene code + video | scene by scene: audio from SSML → the **scene-builder** writes the scene's one `scene_code.py` (a `_clip_N` method per clip, 720p30 drafts, CHANGES.md) → scene preview + `sync.json` → **audio-refactorer** re-times the SSML → **video-critic score ≥ 85, ≤ 3 rounds**, each refactor recorded in `changes.json` → `changes.txt` | `./check` + jailed `accept`, speech in sync with animation; below the threshold after 3 rounds: requires attention → **CP3** for all scenes at once | `scene-production.md` |
 | Final | `final.mp4`, 2560×1440 at 120 fps: stream parameters checked, scenes joined with the template's transition, music and sound effects mixed | media and delivery checks (resolution, 16:9, frame rate, audio, loudness, true peak, silence, black frames, decoding, duration, completeness) → **CP4** | — |
 
 Transitions have two levels: between clips of a scene, continuity with simple moves (the entry state is the
@@ -71,7 +70,7 @@ flowchart TD
 
     subgraph T["1 · Template"]
         TK[/"backend/templates/template_kit/<br/>elements.json · templates/*.json (12 starters)"/] --> TJ["template.json"]
-        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.webp"]
+        TJ --> TC["install_template → runtime-environment/template/<br/>template.json · look.json · look_renderer.py · faraday-logo.svg"]
         VS[/"video_settings.py · audio_settings.py<br/>look_brief(): the TEMPLATE block"/]
     end
     T --> CPT(("template<br/>checkpoint"))
@@ -114,7 +113,7 @@ flowchart TD
     MR[/"skills/manim-ce-0-20-1-reference/topics/<br/>manim-vocabulary · construction-patterns (PART 9) · common-mistakes<br/>+ text-2-shorts doc Names (API index)"/]
     MR -.-> SP
 
-    subgraph C["5 · Production (scene by scene, in series)"]
+    subgraph C["5 · Production (scene by scene, then one approval)"]
         VO{{"text-2-shorts voice .<br/>narration.py → Polly or Google TTS"}} --> AU["scenes/sNN/audio/*.mp3 · index.json<br/>word timings"]
         AU --> TK2{{"text-2-shorts task . sNN<br/>scene_code.py fills codegen-task.md"}}
         CG[/"codegen-system.md (CG1-CG13, X1-X12)<br/>codegen-task.md"/] --> TK2
@@ -129,7 +128,7 @@ flowchart TD
         PVF --> VC(["video-critic · Sonnet<br/>critique-protocol.md"]) --> VCJ["video_critique.json · changes.json"]
         VCJ -.->|"visual issue → feedback, rebuild"| SB
     end
-    CP2 --> C --> CP3(("CP3 per scene"))
+    CP2 --> C --> CP3(("CP3 all scenes"))
     MR -.-> SB
     TC -.->|"backdrop, border, fonts"| CK
 
@@ -203,7 +202,7 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
 |---|---|
 | `validate <run> brief\|topics\|content\|outline\|preferences\|script\|script-critique\|script-review\|plan\|plan-review\|plan-critique\|video-critique\|changes` | schema + rules for what the session wrote |
 | `templates` · `template <run> <name> [--set element=variant \| custom.element=value \| key=value]` | the starter templates · writes `template.json` (the website's Template stage does the same) |
-| `next <run> [--json]` | the exact next batch: who does what (you, a subagent, a command, the user), for which target, reading which files; scenes in series |
+| `next <run> [--json]` | the exact next batch: who does what (you, a subagent, a command, the user), for which target, reading which files; one stage at a time |
 | `preview <run> sNN` | the whole scene at 720p30 with audio, `sync.json` (spoken vs shown time per beat, audio fit, builders' CHANGES.md), contact sheets |
 | `hash <run> script\|sNN [plan\|video]` · `doc <Names>` | the version id a critique round records · Manim 0.20.1 API cards for planners and critics |
 | `voice <run>` | narration per clip via AWS Polly or Google Cloud TTS: symbols, units, abbreviations and M-vs-m spoken correctly (`backend/app/narration.py`), SSML pauses, word timings → beat start times; only changed clips are re-synthesised |
@@ -213,6 +212,7 @@ artifacts/runs/<id>/                        one run = one workspace (git-ignored
 | `approve <run> <checkpoint> [--notes]` | records the user's decision (approved, approved with notes, forced) in `decisions.jsonl`; open change requests block it |
 | `feedback <run> <target> --kind K --text T [--checkpoint C]` · `resolve <run> rNNN applied\|declined` | a validated change request in `requests.jsonl`, routed by `next`; a clip's visual request resolves when its scene is accepted |
 | `status` / `report` | every stage, scene and clip status (saved in `state.json`), open requests + next steps; token totals from the run's transcripts |
+| `mistakes [--runs DIR] [--out DIR]` | what each agent gets wrong over every run (critique rounds, accuracy reviews, build gates, sync, invalid files, change requests; each run's `mistakes.jsonl` keeps what is otherwise overwritten) → `artifacts/reports/mistakes.json` and `mistakes.md`, with the patterns that repeat across runs or survive a fix as prompt candidates |
 
 Settings: `TEXT_2_SHORTS_FPS` (final frame rate, 60–120, default 120), `TEXT_2_SHORTS_PARALLEL` (scenes rendered at once, default 4), `TEXT_2_SHORTS_TTS`
 (`polly` default, or `google`), `POLLY_ENGINE`, `POLLY_VOICE`, `GOOGLE_VOICE`.

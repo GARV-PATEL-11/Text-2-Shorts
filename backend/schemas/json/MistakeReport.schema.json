@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "MistakePattern": {
+      "additionalProperties": false,
+      "description": "One kind of mistake of one agent, over every run.",
+      "properties": {
+        "agent": {
+          "title": "Agent",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "runs": {
+          "description": "in how many runs it happened",
+          "title": "Runs",
+          "type": "integer"
+        },
+        "recurred": {
+          "description": "times it was still there in the next judgement of the same target",
+          "title": "Recurred",
+          "type": "integer"
+        },
+        "loops": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Loops",
+          "type": "array"
+        },
+        "examples": {
+          "description": "up to 3: problem \u2192 fix, with the run and target",
+          "items": {
+            "type": "string"
+          },
+          "title": "Examples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "agent",
+        "code",
+        "count",
+        "runs",
+        "recurred",
+        "loops",
+        "examples"
+      ],
+      "title": "MistakePattern",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "artifacts/reports/mistakes.json (and .md): what each agent gets wrong, and what keeps coming back.",
+  "properties": {
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "runs": {
+      "title": "Runs",
+      "type": "integer"
+    },
+    "judgements": {
+      "description": "judgements read (passes included)",
+      "title": "Judgements",
+      "type": "integer"
+    },
+    "mistakes": {
+      "title": "Mistakes",
+      "type": "integer"
+    },
+    "gave_up": {
+      "description": "loops that reached MAX_ATTEMPTS or 3 critique rounds: run \u00b7 loop \u00b7 target",
+      "items": {
+        "type": "string"
+      },
+      "title": "Gave Up",
+      "type": "array"
+    },
+    "patterns": {
+      "description": "most frequent first",
+      "items": {
+        "$ref": "#/$defs/MistakePattern"
+      },
+      "title": "Patterns",
+      "type": "array"
+    },
+    "prompt_candidates": {
+      "description": "patterns in 2+ runs or that recurred 2+ times: fix them in the agent's prompt or context",
+      "items": {
+        "$ref": "#/$defs/MistakePattern"
+      },
+      "title": "Prompt Candidates",
+      "type": "array"
+    }
+  },
+  "required": [
+    "generated_at",
+    "runs",
+    "judgements",
+    "mistakes",
+    "gave_up",
+    "patterns",
+    "prompt_candidates"
+  ],
+  "title": "MistakeReport",
+  "type": "object"
+}

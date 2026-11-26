@@ -115,6 +115,8 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
             session_id = event["session_id"]
             update_state(run, lambda state, session_id=session_id: setattr(state, "console_session", session_id))
         usage.record(event)  # the usage limits on Home follow every turn
+        if event.get("type") == "result" and (cost := event.get("total_cost_usd")):  # the profile's net spend
+            update_state(run, lambda state, cost=cost: setattr(state, "spend_usd", state.spend_usd + float(cost)))
         for entry in entries_from_event(event):
             yield keep(entry)
     if process.wait() == 0:

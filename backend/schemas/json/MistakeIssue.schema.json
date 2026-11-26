@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "description": "One thing a judge found wrong: a critique issue, an accuracy finding, a gate finding, a sync problem, a\nvalidation error or a user's change request.",
+  "properties": {
+    "code": {
+      "description": "what kind of mistake, for grouping: V-B3 \u00b7 accuracy:FALSE \u00b7 layout: OVERLAP \u2026",
+      "title": "Code",
+      "type": "string"
+    },
+    "severity": {
+      "description": "basic/good/great, ERROR/WARN, or the request's kind",
+      "title": "Severity",
+      "type": "string"
+    },
+    "target": {
+      "description": "the scene, clip or file it is about",
+      "title": "Target",
+      "type": "string"
+    },
+    "problem": {
+      "title": "Problem",
+      "type": "string"
+    },
+    "fix": {
+      "default": "",
+      "title": "Fix",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "severity",
+    "target",
+    "problem"
+  ],
+  "title": "MistakeIssue",
+  "type": "object"
+}

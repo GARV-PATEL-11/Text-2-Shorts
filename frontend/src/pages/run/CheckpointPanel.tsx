@@ -13,6 +13,7 @@ import { useAction } from "../../hooks/useAction";
 import { send } from "../../services/http";
 import { runHash, runPath } from "../../services/runs";
 import type { Decision } from "../../types/api";
+import { NO_REQUESTS } from "./ChangeModal";
 import { useRun } from "./context";
 
 export function CheckpointPanel({ target }: { target: string }) {
@@ -31,7 +32,7 @@ export function CheckpointPanel({ target }: { target: string }) {
         {decisions.map((decision, index) => (
           <li key={index}>
             <span>{`${titleCase(decision.decision)}${decision.forced ? " (Accepted With Open Problems)" : ""}`}</span>
-            <span className="list__meta">{decision.decided_at.replace("T", " ")}</span>
+            <span className="list__meta">{decision.decided_at.replace("T", " ")}{decision.by ? ` · ${decision.by}` : ""}</span>
             {decision.notes ? <Markdown text={decision.notes} compact /> : null}
           </li>
         ))}
@@ -71,10 +72,10 @@ export function CheckpointPanel({ target }: { target: string }) {
         ) : <p className="note">Nothing Blocks This Checkpoint</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />
         <div className="row">
-          <Button onPress={approve} isDisabled={action.busy || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve</Button>
-          <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>
+          <Button onPress={approve} isDisabled={action.busy || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve & Continue</Button>
+          {NO_REQUESTS.includes(target) ? null : <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>}
         </div>
-        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick Approve with Open Problems to Approve Anyway, or Request a Change</p> : null}
+        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick Approve with Open Problems to Approve Anyway, or {NO_REQUESTS.includes(target) ? "Ask Claude in the Console" : "Request a Change"}</p> : null}
         <Notice note={action.note} />
       </div>
       {history}

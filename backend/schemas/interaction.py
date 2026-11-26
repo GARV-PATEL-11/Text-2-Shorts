@@ -53,10 +53,13 @@ class RequestResolution(Strict):
 class CheckpointDecision(Strict):
     """How the user decided at a checkpoint (CP0–CP4, or the start of a scene when they asked to confirm each)."""
 
-    checkpoint: str = Field(..., pattern=r"^(requirements|template|outline|script|plan|final|s\d{2}|start:s\d{2})$")
+    checkpoint: str = Field(
+        ..., pattern=r"^(requirements|template|outline|script|plan|scenes|final|s\d{2}|start:s\d{2})$"
+    )
     decision: Literal["approved", "approved_with_notes", "changes_requested"]
     notes: str = ""
     requests: list[str] = Field(default_factory=list, description="change request ids raised with this decision")
     forced: bool = False
     fingerprint: str | None = None
     decided_at: str
+    by: str = Field("", description="who decided: the signed-in account on the website, 'session' from the CLI")

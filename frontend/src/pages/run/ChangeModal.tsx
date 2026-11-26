@@ -18,6 +18,10 @@ const KINDS = [
   { id: "other", label: "Something Else" },
 ];
 
+/** Stages a change request cannot name: the look is edited on the Template stage, the requirements and a
+ * reshuffle through the console. */
+export const NO_REQUESTS = ["template", "requirements", "reshuffle"];
+
 export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => void }) {
   const { run, refresh } = useRun();
   const targets = useMemo(() => [

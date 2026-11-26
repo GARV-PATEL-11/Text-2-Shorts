@@ -118,3 +118,62 @@ class ChangeRecord(Strict):
 
 class ChangeLog(Strict):
     entries: list[ChangeRecord] = Field(..., min_length=1)
+
+
+# ── the mistake log: every judgement of an agent's output, kept to improve the agents' prompts ─────────────────
+
+
+class MistakeIssue(Strict):
+    """One thing a judge found wrong: a critique issue, an accuracy finding, a gate finding, a sync problem, a
+    validation error or a user's change request."""
+
+    code: str = Field(..., description="what kind of mistake, for grouping: V-B3 · accuracy:FALSE · layout: OVERLAP …")
+    severity: str = Field(..., description="basic/good/great, ERROR/WARN, or the request's kind")
+    target: str = Field(..., description="the scene, clip or file it is about")
+    problem: str
+    fix: str = ""
+
+
+class MistakeEvent(Strict):
+    """One row of a run's mistakes.jsonl: a judgement of an agent's output that would otherwise be overwritten (an
+    accuracy review, a build's gates, a preview's sync, a file that failed validation). Critique rounds, refactors and
+    change requests keep their own history and are read from their files when the report is made."""
+
+    ts: str
+    loop: str = Field(
+        ..., description="review:script · review:plan · build · sync · validation · critique:<kind> · request"
+    )
+    agent: str = Field(..., description="whose output was judged (the agent that owns the fix)")
+    target: str
+    outcome: Literal["pass", "fail"]
+    attempt: int | None = Field(None, description="the loop's failures in a row, as counted in state.json")
+    issues: list[MistakeIssue] = Field(default_factory=list)
+    refactor: str = Field("", description="what was changed in response, when recorded (changes.json)")
+
+
+class MistakePattern(Strict):
+    """One kind of mistake of one agent, over every run."""
+
+    agent: str
+    code: str
+    count: int
+    runs: int = Field(..., description="in how many runs it happened")
+    recurred: int = Field(..., description="times it was still there in the next judgement of the same target")
+    loops: list[str]
+    examples: list[str] = Field(..., description="up to 3: problem → fix, with the run and target")
+
+
+class MistakeReport(Strict):
+    """artifacts/reports/mistakes.json (and .md): what each agent gets wrong, and what keeps coming back."""
+
+    generated_at: str
+    runs: int
+    judgements: int = Field(..., description="judgements read (passes included)")
+    mistakes: int
+    gave_up: list[str] = Field(
+        ..., description="loops that reached MAX_ATTEMPTS or 3 critique rounds: run · loop · target"
+    )
+    patterns: list[MistakePattern] = Field(..., description="most frequent first")
+    prompt_candidates: list[MistakePattern] = Field(
+        ..., description="patterns in 2+ runs or that recurred 2+ times: fix them in the agent's prompt or context"
+    )

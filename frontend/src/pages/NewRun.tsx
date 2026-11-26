@@ -1,9 +1,12 @@
 // Start a run, one step after another, under the journey strip (every stage of a run; the current one's steps below
 // it): the template's steps (starter templates with Build Your Own, audio and subtitles, whole look), then the requirements' (the question, who it
 // is for and how long, review). Starting saves and approves the template, so the run opens at the requirements.
-import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useState } from "react";
+// Everything is saved as a draft on this machine from the first change (#/new?draft=<id>), so a refresh, a closed
+// browser or a sign-out loses nothing; Ongoing Runs lists the draft until the run starts.
+import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useRef, useState } from "react";
 import { navigate } from "../app/routes";
 import { Notice } from "../components/feedback/Notice";
+import { Modal } from "../components/feedback/Overlay";
 import { SystemMessage } from "../components/feedback/SystemMessage";
 import { Page } from "../components/layout/Page";
 import { Journey } from "../components/navigation/Journey";
@@ -16,10 +19,10 @@ import { Said } from "../components/ui/Said";
 import { useAction } from "../hooks/useAction";
 import { STAGE_STEPS } from "../config/stages";
 import { useApi } from "../hooks/useApi";
-import { send } from "../services/http";
+import { load, send } from "../services/http";
 import { APPROACHES } from "../config/approaches";
 import { runHash } from "../services/runs";
-import type { LookCatalogue, LookChoice, RunSummary } from "../types/api";
+import type { Draft, LookCatalogue, LookChoice, RunSummary } from "../types/api";
 import { starterChoice, useTemplateEditor } from "./run/stages/look/useTemplateEditor";
 
 const PROVIDERS = [
@@ -61,10 +64,50 @@ export function NewRunPage() {
   const [minutes, setMinutes] = useState("4");
   const [audience, setAudience] = useState("curious beginners");
   const [tts, setTts] = useState("polly");
+  const [name, setName] = useState("");
+  const [typed, setTyped] = useState("");  // the name pop-up's field, applied with Enter
+  const [naming, setNaming] = useState(!window.location.hash.includes("draft="));  // a new run asks for its name first
   const { run, busy, note } = useAction();
+
+  // the draft: restored when the address names one, then saved (debounced) on every change after the first
+  const [draftId] = useState(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("draft") ?? crypto.randomUUID());
+  const [restored, setRestored] = useState(!window.location.hash.includes("draft="));
+  const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "failed">("idle");
+  const [savedAt, setSavedAt] = useState("");
+  const baseline = useRef<string | null>(null);
   useEffect(() => {
-    if (catalogue.data && !choice) setChoice(starterChoice(catalogue.data, "obsidian") ?? starterChoice(catalogue.data, catalogue.data.templates[0].name));
-  }, [catalogue.data, choice]);
+    if (restored) return;
+    load<Draft[]>("/api/drafts").then((drafts) => {
+      const draft = drafts.find((candidate) => candidate.id === draftId);
+      if (draft) {
+        setName(draft.name); setStep(draft.step); setChoice(draft.look); setTopic(draft.requirement);
+        setObjectives(draft.objectives); setApproach(draft.approach); setMinutes(draft.minutes); setAudience(draft.audience);
+        setTts(draft.tts); setNotes(draft.notes); setSaving("saved"); setSavedAt(draft.updated.slice(11, 16));
+      }
+    }).finally(() => setRestored(true));
+  }, [draftId, restored]);
+  useEffect(() => {
+    if (restored && catalogue.data && !choice) setChoice(starterChoice(catalogue.data, "obsidian") ?? starterChoice(catalogue.data, catalogue.data.templates[0].name));
+  }, [catalogue.data, choice, restored]);
+  const draft = { name, step, look: choice, requirement: topic, objectives, approach, minutes, audience, tts, notes };
+  const snapshot = JSON.stringify(draft);
+  useEffect(() => {
+    if (!restored || !choice) return;
+    if (baseline.current === null) { baseline.current = snapshot; return; }  // opening the page is not a change
+    if (baseline.current === snapshot) return;
+    baseline.current = "";  // from the first change on, every change is saved
+    const timer = window.setTimeout(() => {
+      setSaving("saving");
+      send<Draft>(`/api/drafts/${draftId}`, JSON.parse(snapshot), "PUT")
+        .then((saved) => {
+          setSaving("saved"); setSavedAt(saved.updated.slice(11, 16));
+          if (!window.location.hash.includes("draft=")) window.history.replaceState(null, "", `#/new?draft=${draftId}`);
+        })
+        .catch(() => setSaving("failed"));
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [snapshot, restored, choice, draftId]);
+  const saveState = { idle: "", saving: "Saving…", saved: `All Changes Saved${savedAt ? ` · ${savedAt}` : ""}`, failed: "Not Saved: Trying Again on Your Next Change" }[saving];
 
   const goals = objectives.split("\n").map((line) => line.trim()).filter(Boolean);
   const ready: Record<string, boolean> = {
@@ -80,7 +123,9 @@ export function NewRunPage() {
     run("Checking Manim, LaTeX, ffmpeg and Voice Credentials, Then Creating the Run…", async () => {
       const created = await send<RunSummary>("/api/runs", {
         requirement: topic.trim(), objectives: goals, approach, minutes: Number(minutes), audience: audience.trim(), tts, look: choice, notes: notes.trim(),
+        name: name.trim(),
       });
+      await send(`/api/drafts/${draftId}`, null, "DELETE").catch(() => undefined);  // the run holds it all now
       navigate(runHash(created.id));  // the template is approved: the run opens at its next stage
     });
 
@@ -175,7 +220,15 @@ export function NewRunPage() {
           const target = STEPS.findIndex((candidate) => candidate.id === id);
           if (canReach(target)) setStep(target);
         }} />
+      <p className="save-state note" role="status" aria-live="polite">{saveState}</p>
       {body}
+      <Modal isOpen={naming} onOpenChange={setNaming} title="Name Your Run" description="Optional: Skip It and the Run Is Named From Its Topic and Date"
+        footer={<Button icon={<ArrowRight />} onPress={() => { setName(typed.trim()); setNaming(false); }}>{typed.trim() ? "Enter" : "Skip"}</Button>}>
+        <form onSubmit={(event) => { event.preventDefault(); setName(typed.trim()); setNaming(false); }}>
+          <Field label="Run Name" value={typed} onChange={setTyped} maxLength={120}
+            placeholder={`Untitled Run — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`} />
+        </form>
+      </Modal>
     </Page>
   );
 }

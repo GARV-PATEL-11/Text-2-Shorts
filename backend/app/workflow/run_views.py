@@ -4,6 +4,7 @@ built from the run's files through their contracts. Nothing here writes to a run
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -14,8 +15,9 @@ from app.workflow.approvals import approval_problems, checkpoint_target
 from app.workflow.artifacts import load_brief, load_final_report, load_scene_plans, load_sync_report
 from app.workflow.change_requests import load_requests
 from app.workflow.driver import next_actions
-from app.workflow.ledger import load_decisions
+from app.workflow.ledger import load_decisions, load_state
 from app.workflow.status import compute_statuses
+from app.workflow.templates import load_template
 
 CHECKPOINT_ORDER = ("requirements", "template", "outline", "script", "plan", "final")
 
@@ -29,28 +31,67 @@ def created_text(run: Path) -> str:
     return f"{match[1]}-{match[2]}-{match[3]} {match[4]}:{match[5]}" if match else ""
 
 
+def updated_text(run: Path) -> str:
+    """When any of the run's own files last changed (its state, logs, decisions, outputs at the top level)."""
+    times = [path.stat().st_mtime for path in run.iterdir() if path.is_file()] or [run.stat().st_mtime]
+    return f"{datetime.fromtimestamp(max(times)):%Y-%m-%d %H:%M}"
+
+
+def run_status(statuses: dict, batch: ActionBatch) -> str:
+    """Where the run stands, in the run list's words (a run moves only when the user or Claude moves it)."""
+    if statuses.get("final") == "approved":
+        return "completed"
+    if "failed" in statuses.values():
+        return "failed"
+    if statuses.get("requirements") != "approved":  # the look and the requirements are still being set
+        return "configuring"
+    return "awaiting_approval" if any(action.do == "ask_user" for action in batch.actions) else "in_progress"
+
+
 def run_summary(run: Path) -> RunSummary:
     """One row of the run list; a run an older workflow version made is listed as not readable."""
     brief = load_brief(run)
-    readable, stage, approved = brief is not None, "made by an older version", 0
+    readable, stage, approved, status = brief is not None, "made by an older version", 0, "completed"
     if readable:
         try:
-            stage = next_actions(run).stage
+            batch = next_actions(run)
+            stage = batch.stage
             statuses = compute_statuses(run)
             scenes = [status for key, status in statuses.items() if len(key) == 3 and key.startswith("s")]
             approved = sum(statuses.get(name) == "approved" for name in CHECKPOINT_ORDER)
             approved += bool(scenes) and all(status == "approved" for status in scenes)
+            status = run_status(statuses, batch)
         except (ValidationError, ValueError, KeyError) as error:
-            readable, stage = False, f"cannot be read: {type(error).__name__}"
+            readable, stage, status = False, f"cannot be read: {type(error).__name__}", "failed"
+    topic = brief.requirement if brief else run.name.split("-", 2)[-1].replace("-", " ")
+    try:
+        name = load_state(run).name
+    except ValidationError:
+        name = None
+    template = load_template(run) if readable else None
     return RunSummary(
         id=run.name,
-        topic=brief.requirement if brief else run.name.split("-", 2)[-1].replace("-", " "),
+        name=name or default_name(topic, run),
+        topic=topic,
         created=created_text(run),
+        updated=updated_text(run),
+        template=template.name if template else "",
+        status=status if readable or not (run / "final.mp4").exists() else "completed",
         stage=stage,
         has_final=(run / "final.mp4").exists(),
         readable=readable,
         stages_approved=approved,
     )
+
+
+def default_name(topic: str, run: Path) -> str:
+    """'<topic> — Nov 26, 2026' from the run's topic and start date, when the user named it nothing."""
+    words = re.sub(r"[*_`#>]", "", topic).strip().rstrip("?.!") or "Untitled Run"
+    match = re.match(r"^(\d{4})(\d{2})(\d{2})", run.name)
+    when = datetime(int(match[1]), int(match[2]), int(match[3])).strftime("%b %-d, %Y") if match else ""
+    short = words if len(words) <= 60 else words[:57].rsplit(" ", 1)[0] + "…"
+    short = short[0].upper() + short[1:]  # names from an old folder slug are all lower case
+    return f"{short} — {when}" if when else short
 
 
 LABELS = {
@@ -66,6 +107,8 @@ LABELS = {
 def checkpoint_label(target: str) -> str:
     if target.startswith("start:"):
         return f"Start Scene {int(target.removeprefix('start:s'))}"
+    if target == "scenes":
+        return "All Scenes"
     return LABELS.get(target, f"Scene {int(target[1:])}" if re.fullmatch(r"s\d{2}", target) else target)
 
 
@@ -74,7 +117,7 @@ def awaiting_checkpoints(run: Path, statuses: dict, batch: ActionBatch) -> list[
     targets = [
         name
         for name, value in statuses.items()
-        if value == "requires_user_approval" and not re.match(r"^s\d{2}c\d{2}$", name)  # clips are not checkpoints
+        if value == "requires_user_approval" and not re.match(r"^s\d{2}(c\d{2})?$", name)  # scenes: one CP3, "scenes"
     ]
     targets += [action.checkpoint for action in batch.actions if action.checkpoint and action.checkpoint not in targets]
     return [

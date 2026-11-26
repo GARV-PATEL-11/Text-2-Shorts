@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 import random
+import shutil
+import tempfile
 from pathlib import Path
 from typing import ClassVar
 
@@ -16,7 +18,7 @@ import manim as M
 import numpy as np
 
 FONT_DIRECTORY = Path.home() / ".cache" / "text-2-shorts" / "fonts"  # fetched by `generate_preview.py fonts`
-LOGO = Path(__file__).with_name("faraday-logo.webp")  # mark + wordmark, white on transparent (copied with this file)
+LOGO = Path(__file__).with_name("faraday-logo.svg")  # mark + wordmark as vector paths (copied with this file)
 BACKDROP_Z, BORDER_Z, SUBTITLE_Z = -100, 400, 500
 
 
@@ -62,20 +64,16 @@ def backdrop(look: dict) -> list[M.Mobject]:
     return parts
 
 
-def brand(look: dict) -> M.ImageMobject | None:
-    """The Faraday mark and wordmark in the top-right corner, tinted with the template's text colour."""
+def brand(look: dict) -> M.SVGMobject | None:
+    """The Faraday mark and wordmark in the top-right corner, as vectors, in the template's text colour."""
     spec = look.get("brand")
     if not spec or not LOGO.exists():
         return None
-    from PIL import Image
-
-    alpha = np.asarray(Image.open(LOGO).convert("RGBA"))[:, :, 3]
-    red, green, blue = (int(spec["color"].lstrip("#")[i : i + 2], 16) for i in (0, 2, 4))
-    pixels = np.zeros((*alpha.shape, 4), dtype=np.uint8)
-    pixels[:, :, :3] = (red, green, blue)
-    pixels[:, :, 3] = (alpha * spec["opacity"]).astype(np.uint8)
-    mark = M.ImageMobject(pixels).set_resampling_algorithm(M.RESAMPLING_ALGORITHMS["bicubic"])
-    mark.height = spec["height"]
+    # Manim writes a cleaned copy beside the SVG it reads, and the template folder is read-only in the render jail
+    copy = Path(tempfile.mkdtemp()) / LOGO.name
+    shutil.copyfile(LOGO, copy)
+    mark = M.SVGMobject(str(copy), height=spec["height"])
+    mark.set_fill(colour(spec["color"]), opacity=spec["opacity"]).set_stroke(width=0)
     inset = look["inset"]
     return mark.move_to(
         [M.config.frame_width / 2 - inset - mark.width / 2, M.config.frame_height / 2 - inset - mark.height / 2, 0]

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.36.0 — 2026-11-26
+Runs you can name, leave and come back to; approval once per stage. Everything stays on this machine.
+- **Drafts**: Start a Run saves itself from the first change (the runs folder's `.drafts/`), with "Saving… / All
+  Changes Saved / Not Saved"; a refresh, a closed browser or a sign-out loses nothing. Ongoing Runs lists drafts on
+  top; opening one restores every step. Starting the run removes its draft.
+- **Names**: an optional name in Start a Run; without one a run is named "<topic> — <date>". Rename any time (files
+  and id unchanged).
+- **Run list**: name, template, status (Configuring, In Progress, Awaiting Approval, Failed, Completed), where it
+  is, progress, last saved; Rename, Duplicate (a new run with the same brief, look and preferences) and Move to the
+  Trash (the folder moves to `.trash/`, recoverable), each confirmed.
+- **CP3 once for all scenes**: every scene is built, previewed and critiqued, then one approval (`approve . scenes`,
+  the Scenes stage's Approve All Scenes tab with its counts) covers them all. Scenes no longer wait for each other's
+  approval; each still keeps its own approval, so changing one scene asks again only for what changed.
+- Every decision records who made it (the signed-in account, or `session` from the command line).
+- **Audio has no Custom option** (voice and speaking speed: their options only). Runs saved with a custom voice or
+  speed keep it; a new one is refused. Subtitles never had one.
+- Two runs of the same topic started in the same second (a duplicate, a double click) get their own folders.
+- **Start a Run asks for the name in a pop-up** (Enter, or Skip to name it from the topic and date), over a frosted
+  page; every pop-up now blurs the page behind it.
+- **Header**: thinner; your name on the right opens **Your Profile** (the name Faraday calls you, kept on this
+  machine; the Claude account; runs here; net spend, summed from the cost Claude Code reports for each console turn;
+  Sign Out).
+- **The Faraday logo is vector art everywhere**: an SVG component on the website, an SVG favicon (dark or light with
+  the system), and SVG paths in every video frame and preview (traced once from the brand banner).
+- Run list: table cells stay cells (the progress column no longer breaks the row lines), one line per date, older
+  runs say "Not Tracked" instead of an empty bar.
+
 ## 0.35.0 — 2026-11-25
 Previews that look like a frame of the video, and a sharper website.
 - **Previews** (starters and every Build Your Own option) are one frame of a real lesson: a titled parabola with

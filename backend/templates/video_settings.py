@@ -46,9 +46,8 @@ CUSTOM = {
     "background_color": "color or gradient",  # one color, or "base,shade": the gradient's top and bottom
     "accent_color": "color",
     "text_font": "font family",
-    "voice": "Polly voice id or Google voice name",
-    "speaking_speed": "rate 0.8–1.2",
 }
+LEGACY_CUSTOM = ("voice", "speaking_speed")  # custom audio before 0.36: still read from saved runs, never offered
 
 # What the optional last stage may reshuffle, by group. Never typography or the frame: text sizes keep every clip's
 # layout, so a reshuffled video needs a re-render, not a rebuild.
@@ -126,9 +125,9 @@ def problems(template: dict) -> list[str]:
         if name in chosen and chosen[name] not in lib[name]["variants"]
     ]
     for name, override in template.get("overrides", {}).items():
-        if name not in CUSTOM:
+        if name not in CUSTOM and name not in LEGACY_CUSTOM:
             errors.append(f"{name}: no custom value allowed (custom: {', '.join(CUSTOM)})")
-        elif CUSTOM[name].startswith("color") and not all(
+        elif CUSTOM.get(name, "").startswith("color") and not all(
             HEX.match(colour) for part in override.values() for colour in part.values()
         ):
             errors.append(f"{name}: a custom colour is #RRGGBB")

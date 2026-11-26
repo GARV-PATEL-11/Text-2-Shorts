@@ -6,7 +6,7 @@ see your files and you cannot change theirs.
 
 - Workflow, checkpoints and which reference to read when: the `text-2-shorts-produce` skill. Start there.
 - What to do now: `text-2-shorts next .` returns the exact next batch (printed at session start with the status);
-  do it, then ask again. Scenes go one after another; each scene is one Python file.
+  do it, then ask again. Scenes are built one after another, then approved together (CP3); each scene is one Python file.
 - Stages, in order: template (template.json, chosen by the user on the website; template checkpoint) →
   requirements (brief.json, topics.md, content.md; requirements checkpoint) → outline (outline.json, CP0) → complete script (script.json, CP1; one
   script-critic round per change the user asks for) → scene visual + audio plans (scenes/sNN/plan.json with SSML,
