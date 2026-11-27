@@ -13,7 +13,13 @@ from app.workflow.artifacts import load_final_report, load_scene_plans, load_scr
 from app.workflow.change_requests import blocking_requests
 from app.workflow.checkpoints import stage_approval_problem
 from app.workflow.critiques import critique_problems, critique_subject_hash, review_problems
-from app.workflow.fingerprints import STAGE_FINGERPRINTS, clip_key, fingerprint
+from app.workflow.fingerprints import (
+    STAGE_FINGERPRINTS,
+    clip_key,
+    final_fingerprint,
+    fingerprint,
+    upstream_fingerprints,
+)
 from app.workflow.ledger import count_attempt, load_state, record_decision, update_state
 from app.workflow.production import preview_problems
 from app.workflow.templates import validate_template
@@ -69,7 +75,7 @@ def stage_problems(run: Path, target: str) -> list[str]:
         )
     if target == "final":
         report = load_final_report(run)
-        if report is None or report.fingerprint != fingerprint(run, plans):
+        if report is None or report.fingerprint != final_fingerprint(run, plans):
             return ["final.mp4 is missing or out of date"]
         return [f"media check {f.code}: {f.message}" for f in report.checks if f.severity == "ERROR"]
     scene_id = target.removeprefix("scene:")
@@ -101,11 +107,40 @@ def checkpoint_target(name: str) -> str:
 log = logging.getLogger(__name__)
 
 
-def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = False, by: str = "") -> CheckpointDecision:
+# Problems force cannot accept: the video the user would approve does not exist yet, or is not the one they saw.
+# Approving it anyway would pre-approve the next render, which the user then never sees (M3).
+UNFORCEABLE = ("is not built from its current inputs", "preview missing or out of date", "final.mp4 is missing or out")
+
+
+def approval_fingerprint(run: Path, target: str) -> str | None:
+    """What approving this target binds it to: the version of it the user is shown now."""
+    plans = load_scene_plans(run)
+    if target == "scenes":
+        return fingerprint(run, plans)
+    if target in STAGE_FINGERPRINTS:
+        return STAGE_FINGERPRINTS[target](run)
+    if target.startswith("start:"):
+        return critique_subject_hash(run, target.removeprefix("start:"), "plan")
+    if target == "final":
+        return final_fingerprint(run, plans) if plans else None
+    scope = [plan for plan in plans if f"scene:{plan.scene_id}" == target]
+    return fingerprint(run, scope) if scope else None
+
+
+def approve_checkpoint(
+    run: Path, name: str, notes: str = "", force: bool = False, by: str = "", seen: str | None = None
+) -> CheckpointDecision:
     """The user's approval, bound to the fingerprint of exactly what they approved, and recorded as a decision.
-    Open problems refuse it (ApprovalBlocked) unless the user accepts them (force=True, recorded as forced)."""
+    Open problems refuse it (ApprovalBlocked) unless the user accepts them (force=True, recorded as forced). `seen`
+    (from the website) is the fingerprint of the version the page showed: a newer one is refused, not approved."""
     target = checkpoint_target(name)
+    approved_fingerprint = approval_fingerprint(run, target)
+    if seen is not None and seen != approved_fingerprint:
+        raise ApprovalBlocked(target, [f"{target} changed since you opened it: reload the page to see it as it is now"])
     problems = approval_problems(run, target)
+    if force and (unseen := [p for p in problems if any(text in p for text in UNFORCEABLE)]):
+        log.warning("%s: %s forced but nothing to see — %s", run.name, target, "; ".join(unseen)[:1500])
+        raise ApprovalBlocked(target, unseen)
     if problems and not force:
         log.warning("%s: %s blocked — %s", run.name, target, "; ".join(problems)[:1500])
         raise ApprovalBlocked(target, problems)
@@ -118,16 +153,9 @@ def approve_checkpoint(run: Path, name: str, notes: str = "", force: bool = Fals
         log.info("%s: scenes approved%s", run.name, " with open problems" if problems else "")
         return record_decision(
             run, "scenes", "approved_with_notes" if notes else "approved", notes, forced=bool(problems),
-            fingerprint=fingerprint(run, plans), by=by,
+            fingerprint=approved_fingerprint, by=by,
         )  # fmt: skip
-    if target in STAGE_FINGERPRINTS:
-        approved_fingerprint = STAGE_FINGERPRINTS[target](run)
-    elif target.startswith("start:"):
-        approved_fingerprint = critique_subject_hash(run, target.removeprefix("start:"), "plan")
-    else:
-        scope = plans if target == "final" else [plan for plan in plans if f"scene:{plan.scene_id}" == target]
-        approved_fingerprint = fingerprint(run, scope) if scope else None
-    entry = Approval(at=now_text(), fingerprint=approved_fingerprint)
+    entry = Approval(at=now_text(), fingerprint=approved_fingerprint, upstream=upstream_fingerprints(run, target))
     update_state(run, lambda state: state.approved.__setitem__(target, entry))
     if target in ("script", "plan"):
         count_attempt(run, f"review:{target}", failed=False)

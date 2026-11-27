@@ -55,6 +55,11 @@
   },
   "additionalProperties": false,
   "properties": {
+    "reviewed": {
+      "description": "`text-2-shorts hash <run> script` or `\u2026 plans`: the version of the script or plans checked",
+      "title": "Reviewed",
+      "type": "string"
+    },
     "findings": {
       "items": {
         "$ref": "#/$defs/ReviewFinding"
@@ -64,6 +69,7 @@
     }
   },
   "required": [
+    "reviewed",
     "findings"
   ],
   "title": "ReviewReport",

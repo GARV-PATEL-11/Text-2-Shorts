@@ -196,7 +196,7 @@ def register_subcommands(subparsers) -> None:
     command_parser = add_subcommand("preview", handle_preview_command)
     command_parser.add_argument("scene", help="sNN")
     command_parser = add_subcommand("hash", handle_hash_command)
-    command_parser.add_argument("scene", help="script | sNN")
+    command_parser.add_argument("scene", help="script | plans | sNN")
     command_parser.add_argument("kind", nargs="?", choices=["script", "plan", "video"])
     command_parser = add_subcommand(
         "task", lambda arguments: print(prepare_scene(Path(arguments.run), arguments.scene))

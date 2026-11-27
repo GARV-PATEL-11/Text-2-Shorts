@@ -8,7 +8,7 @@ import subprocess
 import pytest
 from app.web import auth
 from app.web.app import create_app
-from conftest import REPOSITORY_ROOT, approved_outline, make_script, write_brief, write_json_file
+from conftest import REPOSITORY_ROOT, approved_outline, make_script, write_brief, write_json_file, write_review
 from fastapi.testclient import TestClient
 from schemas.api import ClaudeAccount
 from test_workflow import two_scenes_after_cp2
@@ -51,7 +51,7 @@ def run_at_cp1(runs):
     write_brief(run, objectives=["understand the topic"])
     approved_outline(run, (30, 30))
     write_json_file(run / "script.json", make_script(30, 30))
-    write_json_file(run / "script_review.json", {"findings": []})
+    write_review(run, "script", [])
     return run
 
 
@@ -180,6 +180,24 @@ def test_the_frontend_approves_a_checkpoint_and_refuses_one_with_open_problems(w
         "/api/runs/20261124-120000-cp1/approve", json={"checkpoint": "plan", "force": True}, headers=ORIGIN
     )
     assert response.status_code == 200 and response.json()["forced"] is True
+
+
+def test_an_approval_from_the_page_is_for_the_version_the_page_showed(web):  # M9
+    runs, client = web
+    signed_in(client)
+    run = run_at_cp1(runs)
+    shown = client.get("/api/runs/20261124-120000-cp1").json()["awaiting"][0]
+    assert shown["target"] == "script" and shown["fingerprint"]
+    script = json.loads((run / "script.json").read_text())
+    script["scenes"][0]["narration"] += " Added by an agent after the page loaded."
+    write_json_file(run / "script.json", script)
+    write_review(run, "script")
+    seen = {"checkpoint": "script", "fingerprint": shown["fingerprint"]}
+    response = client.post("/api/runs/20261124-120000-cp1/approve", json=seen, headers=ORIGIN)
+    assert response.status_code == 409 and "changed since" in response.json()["error"]
+    current = client.get("/api/runs/20261124-120000-cp1").json()["awaiting"][0]["fingerprint"]
+    seen["fingerprint"] = current
+    assert client.post("/api/runs/20261124-120000-cp1/approve", json=seen, headers=ORIGIN).status_code == 200
 
 
 def test_the_frontend_records_change_requests_and_resolves_them(web):

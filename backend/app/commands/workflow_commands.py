@@ -18,6 +18,7 @@ from app.workflow.preferences import validate_preferences
 from app.workflow.scene_code import ensure_api_index
 from app.workflow.status import status_text, sum_session_tokens
 from app.workflow.validation import (
+    review_subject_hash,
     validate_brief,
     validate_content,
     validate_outline,
@@ -134,6 +135,9 @@ def handle_doc_command(arguments) -> None:
 
 
 def handle_hash_command(arguments) -> None:
-    """The version id a critique round records in `reviewed`."""
+    """The version id a critique round or an accuracy review records in `reviewed`."""
+    if arguments.scene == "plans":  # the plan review covers every scene plan at once
+        print(review_subject_hash(Path(arguments.run), "plan"))
+        return
     kind = arguments.kind or ("script" if arguments.scene == "script" else "plan")
     print(critique_subject_hash(Path(arguments.run), arguments.scene, kind) or "missing")

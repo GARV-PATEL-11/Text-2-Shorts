@@ -18,6 +18,19 @@
       },
       "title": "Problems",
       "type": "array"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the version shown; ApproveInput sends it back",
+      "title": "Fingerprint"
     }
   },
   "required": [

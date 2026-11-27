@@ -19,6 +19,7 @@ from app.utilities import format_validation_errors
 from app.workflow import visual_director
 from app.workflow.artifacts import load_brief, load_outline, load_scene_plans, load_script, read_topics, spoken_text
 from app.workflow.checkpoints import stage_approval_problem
+from app.workflow.fingerprints import plans_fingerprint, script_fingerprint
 
 
 def scene_end_problems(plan: ScenePlan) -> list[str]:
@@ -264,9 +265,17 @@ def validate_review(run: Path, stage: str) -> list[str]:
         return [f"{name} does not exist: run the accuracy-reviewer subagent"]
     except ValidationError as validation_error:
         return [f"{name}: {error}" for error in format_validation_errors(validation_error)]
+    if report.reviewed != review_subject_hash(run, stage):
+        what = "script" if stage == "script" else "plans"
+        return [f"{name} reviewed an older version of the {what}: run the accuracy-reviewer again"]
     if stage == "script":
         script = load_script(run)
         known = {scene.scene_id for scene in script.scenes} if script else set()
     else:
         known = {clip.clip_id for plan in load_scene_plans(run) for clip in plan.clips}
     return [f"{name}: unknown target {finding.target}" for finding in report.findings if finding.target not in known]
+
+
+def review_subject_hash(run: Path, stage: str) -> str | None:
+    """What an accuracy review must have checked: the script, or every scene plan (without SSML, as CP2)."""
+    return script_fingerprint(run) if stage == "script" else plans_fingerprint(run)

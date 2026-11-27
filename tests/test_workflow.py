@@ -33,6 +33,7 @@ from conftest import (
     write_critique,
     write_json_file,
     write_requirements,
+    write_review,
 )
 from schemas.media import ClipMux, FinalReport
 from schemas.run_state import ClipBuild
@@ -43,7 +44,7 @@ def approved_script_run(run, *scene_seconds):
     approved_outline(run, scene_seconds)
     script = make_script(*scene_seconds)
     write_json_file(run / "script.json", script)
-    write_json_file(run / "script_review.json", {"findings": []})
+    write_review(run, "script", [])
     approve(run, "script")
     return script
 
@@ -74,6 +75,8 @@ def test_script_covers_every_objective_bridges_scenes_and_fits_its_word_budget(t
     assert "words" in errors_with(lambda s: s["scenes"][0].update(narration="far too short"))
     assert "±20%" in errors_with(lambda s: [scene.update(duration_seconds=60) for scene in s["scenes"]])
     write_brief(tmp_path, objectives=["an objective the script dropped"])
+    approve(tmp_path, "requirements")  # changed requirements ask for CP0 again (M1)
+    approve(tmp_path, "outline")
     write_json_file(tmp_path / "script.json", script)
     assert any("an objective the script dropped" in error for error in validation.validate_script(tmp_path))
 
@@ -86,7 +89,7 @@ def test_scene_plans_wait_for_the_approved_script_and_must_follow_it(tmp_path):
     write_json_file(tmp_path / "scenes" / "s01" / "plan.json", make_plan(script, 1, clip_count=2))
     assert any("CP1" in error for error in validation.validate_plan(tmp_path, "s01"))  # not approved yet
 
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     approve(tmp_path, "script")
     assert validation.validate_plan(tmp_path, "s01") == []
 
@@ -122,21 +125,21 @@ def test_accuracy_reviews_point_at_real_scenes_and_clips_and_errors_block_approv
     script = make_script(30, 30)
     write_json_file(tmp_path / "script.json", script)
     finding = {"severity": "ERROR", "kind": "FALSE", "quote": "q", "why": "w", "fix": "f"}
-    write_json_file(tmp_path / "script_review.json", {"findings": [{**finding, "target": "s09"}]})
+    write_review(tmp_path, "script", [{**finding, "target": "s09"}])
     assert any("s09" in error for error in validation.validate_review(tmp_path, "script"))
-    write_json_file(tmp_path / "script_review.json", {"findings": [{**finding, "target": "s01"}]})
+    write_review(tmp_path, "script", [{**finding, "target": "s01"}])
     with pytest.raises(SystemExit, match="accuracy"):
         approve(tmp_path, "script")
 
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     approve(tmp_path, "script")
     for number in (1, 2):
         write_json_file(tmp_path / "scenes" / f"s{number:02d}" / "plan.json", make_plan(script, number))
     with pytest.raises(SystemExit, match="plan_review.json"):
         approve(tmp_path, "plan")
-    write_json_file(tmp_path / "plan_review.json", {"findings": [{**finding, "target": "s01c09"}]})
+    write_review(tmp_path, "plan", [{**finding, "target": "s01c09"}])
     assert any("s01c09" in error for error in validation.validate_review(tmp_path, "plan"))
-    write_json_file(tmp_path / "plan_review.json", {"findings": [{**finding, "target": "s01c01", "severity": "WARN"}]})
+    write_review(tmp_path, "plan", [{**finding, "target": "s01c01", "severity": "WARN"}])
     for scene_id in ("s01", "s02"):
         write_critique(tmp_path, scene_id, "plan", "pass")
     approve(tmp_path, "plan")
@@ -151,7 +154,7 @@ def test_voice_and_clip_tasks_wait_for_the_approved_plans(tmp_path):
     with pytest.raises(SystemExit, match="CP2"):
         scene_code.prepare_scene(tmp_path, "s01")
 
-    write_json_file(tmp_path / "plan_review.json", {"findings": []})
+    write_review(tmp_path, "plan", [])
     for scene_id in ("s01", "s02"):
         write_critique(tmp_path, scene_id, "plan", "pass")
     approve(tmp_path, "plan")
@@ -167,7 +170,7 @@ def test_a_clip_task_without_audio_says_to_run_voice_first(tmp_path):
     for number in (1, 2):
         write_json_file(tmp_path / "scenes" / f"s{number:02d}" / "plan.json", make_plan(script, number))
         write_critique(tmp_path, f"s{number:02d}", "plan", "pass")
-    write_json_file(tmp_path / "plan_review.json", {"findings": []})
+    write_review(tmp_path, "plan", [])
     approve(tmp_path, "plan")
     with pytest.raises(SystemExit, match="run voice first"):
         scene_code.prepare_scene(tmp_path, "s01")
@@ -183,6 +186,42 @@ def test_re_timed_ssml_keeps_the_plan_critique_current_but_a_visual_edit_does_no
     plan["composition"] = "changed"
     write_json_file(path, plan)
     assert critiques.critique_state(tmp_path, "s01", "plan") == "stale"
+
+
+def test_a_scene_dropped_from_the_script_is_not_built_or_delivered(tmp_path):  # H1
+    from app.workflow import artifacts
+
+    two_scenes_after_cp2(tmp_path)
+    assert checkpoints.stage_approval_problem(tmp_path, "plan") is None
+    script = json.loads((tmp_path / "script.json").read_text())
+    script["scenes"] = script["scenes"][:1]
+    script["scenes"][0]["previews"] = []
+    write_json_file(tmp_path / "script.json", script)
+    assert [plan.scene_id for plan in artifacts.load_scene_plans(tmp_path)] == ["s01"]
+    assert checkpoints.stage_approval_problem(tmp_path, "plan") is not None  # the set of plans changed: CP2 again
+
+
+def test_an_accuracy_review_covers_only_the_version_it_checked(tmp_path):  # H10
+    approved_script_run(tmp_path, 30, 30)
+    write_review(tmp_path, "script")
+    assert critiques.review_problems(tmp_path, "script") == []
+    script = json.loads((tmp_path / "script.json").read_text())
+    script["scenes"][0]["narration"] += " A new claim nobody checked."
+    write_json_file(tmp_path / "script.json", script)
+    assert any("older version" in problem for problem in critiques.review_problems(tmp_path, "script"))
+    action = driver.next_actions(tmp_path).actions[0]
+    assert (action.agent, action.target) == ("accuracy-reviewer", "script")
+
+
+def test_re_approved_requirements_ask_for_the_outline_and_script_again(tmp_path):  # M1
+    approved_script_run(tmp_path, 30, 30)
+    assert checkpoints.stage_approval_problem(tmp_path, "script") is None
+    write_requirements(tmp_path, ["a different first topic", "and a second"])
+    approve(tmp_path, "requirements")  # the user changed what the video covers
+    assert checkpoints.stage_approval_problem(tmp_path, "outline") is not None
+    assert checkpoints.stage_approval_problem(tmp_path, "script") is not None
+    approve(tmp_path, "outline")
+    assert checkpoints.stage_approval_problem(tmp_path, "script") is not None  # approved before the new requirements
 
 
 def test_next_steps_follow_the_stage_order(tmp_path):
@@ -203,7 +242,7 @@ def test_next_steps_follow_the_stage_order(tmp_path):
     assert any("script_review.json" in step for step in steps) and any(step.startswith("CP1") for step in steps)
     assert not any(step.startswith("s01") for step in steps)  # no visual planning before CP1
 
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     approve(tmp_path, "script")
     steps = status.next_steps(tmp_path)
     assert any(step.startswith("s01 plan") for step in steps) and any(step.startswith("s02 plan") for step in steps)
@@ -293,7 +332,7 @@ def plans_ready_for_cp2(run):
     script = approved_script_run(run, 30, 30)
     for number in (1, 2):
         write_json_file(run / "scenes" / f"s{number:02d}" / "plan.json", make_plan(script, number))
-    write_json_file(run / "plan_review.json", {"findings": []})
+    write_review(run, "plan", [])
     return script
 
 
@@ -309,6 +348,7 @@ def test_every_scene_plan_needs_a_passing_critique_of_its_current_version_before
     with pytest.raises(SystemExit, match="s02.*changed since"):
         approve(tmp_path, "plan")  # the critique must have seen the plan as it is now
     write_critique(tmp_path, "s02", "plan", "pass")
+    write_review(tmp_path, "plan")  # the edited plan is checked for accuracy again too (H10)
     approve(tmp_path, "plan")
 
 
@@ -373,7 +413,7 @@ def two_scenes_after_cp2(run, clips_in_first_scene=2):
                 for clip in plan["clips"]
             },
         )
-    write_json_file(run / "plan_review.json", {"findings": []})
+    write_review(run, "plan", [])
     approve(run, "plan")
     return plans
 
@@ -527,7 +567,7 @@ def test_change_requests_are_validated_routed_and_resolved(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
     approved_outline(tmp_path, (30, 30))
     write_json_file(tmp_path / "script.json", make_script(30, 30))
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     feedback(tmp_path, "s02", "wording", "say 'orbit' instead of 'path'", checkpoint="script")
     request = change_requests.load_requests(tmp_path)[0]
     assert (request.id, request.status, request.kind) == ("r001", "open", "wording")
@@ -549,7 +589,7 @@ def test_checkpoint_decisions_record_how_the_user_decided(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
     approved_outline(tmp_path, (30, 30))
     write_json_file(tmp_path / "script.json", make_script(30, 30))
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     feedback(tmp_path, "script", "style", "a bit warmer", checkpoint="script")
     write_critique(tmp_path, "script", "script", "pass")
     workflow_commands.handle_resolve_command(
@@ -603,7 +643,7 @@ def test_one_script_critique_iteration_runs_for_each_change_request_at_cp1(tmp_p
     approved_outline(tmp_path, (30, 30))
     script = make_script(30, 30)
     write_json_file(tmp_path / "script.json", script)
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     assert driver.next_actions(tmp_path).actions[0].do == "ask_user"  # no critique unless asked: CP1 now
 
     feedback(tmp_path, "s02", "wording", "shorter sentences", checkpoint="script")
@@ -756,7 +796,12 @@ def test_media_check_errors_block_the_final_checkpoint(tmp_path):
     from schemas.plans import ScenePlan
 
     plans = [ScenePlan.model_validate(plan) for plan in two_scenes_after_cp2(tmp_path)]
-    report = {"clips": {}, "final_s": 60, "sum_clips_s": 60, "fingerprint": fingerprints.fingerprint(tmp_path, plans)}
+    report = {
+        "clips": {},
+        "final_s": 60,
+        "sum_clips_s": 60,
+        "fingerprint": fingerprints.final_fingerprint(tmp_path, plans),
+    }
     write_json_file(
         tmp_path / "final_report.json", report | {"checks": [{"severity": "WARN", "code": "W", "message": "w"}]}
     )
@@ -765,6 +810,109 @@ def test_media_check_errors_block_the_final_checkpoint(tmp_path):
         tmp_path / "final_report.json", report | {"checks": [{"severity": "ERROR", "code": "PEAK", "message": "clips"}]}
     )
     assert approval_problems(tmp_path, "final") == ["media check PEAK: clips"]
+
+
+def test_the_drawn_look_and_the_assembly_are_part_of_what_a_video_was_made_from(tmp_path):  # H2
+    from app.workflow.approvals import approval_problems
+    from schemas.plans import ScenePlan
+
+    plans = [ScenePlan.model_validate(plan) for plan in two_scenes_after_cp2(tmp_path)]
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "song.mp3").write_bytes(b"one")
+    chosen = ["grid_opacity=faint", "music=assets/song.mp3"]
+    templates.choose_template(tmp_path, "obsidian", chosen)
+    scene = fingerprints.fingerprint(tmp_path, plans[:1])
+
+    def record_final():
+        report = {"clips": {}, "final_s": 60, "sum_clips_s": 60}
+        write_json_file(
+            tmp_path / "final_report.json", report | {"fingerprint": fingerprints.final_fingerprint(tmp_path, plans)}
+        )
+        assert approval_problems(tmp_path, "final") == []
+
+    record_final()
+    templates.choose_template(tmp_path, "obsidian", [*chosen, "scene_transition=crossfade"])
+    assert fingerprints.fingerprint(tmp_path, plans[:1]) == scene  # a transition belongs to the final, not a scene
+    assert approval_problems(tmp_path, "final") == ["final.mp4 is missing or out of date"]
+    record_final()
+    (tmp_path / "assets" / "song.mp3").write_bytes(b"two")  # the same name, another song
+    assert approval_problems(tmp_path, "final") == ["final.mp4 is missing or out of date"]
+    templates.choose_template(tmp_path, "obsidian", ["grid_opacity=visible", "music=assets/song.mp3"])
+    assert fingerprints.fingerprint(tmp_path, plans[:1]) != scene  # the grid is drawn behind every clip
+
+
+def final_without_rendering(monkeypatch, assemble):
+    """`final` with the renders, the media probe and tools/assemble_clips.py replaced by stand-ins."""
+    import sys
+    from types import SimpleNamespace
+
+    from schemas.media import ManifestScene, SceneRender
+
+    monkeypatch.setattr(production_commands, "render_scene_sections", lambda *_: SceneRender(ok=True))
+    monkeypatch.setattr(
+        production_commands, "scene_manifest", lambda _, plan, __: ManifestScene(scene_id=plan.scene_id, clips=[])
+    )
+    monkeypatch.setattr(production_commands, "check_final_media", lambda _: [])
+    monkeypatch.setitem(sys.modules, "assemble_clips", SimpleNamespace(assemble=assemble))
+
+
+def test_final_refuses_clips_built_from_an_older_plan(tmp_path):  # H9
+    plans = two_scenes_after_cp2(tmp_path)
+    built_and_previewed(tmp_path, plans)
+    feedback(tmp_path, "s01c01", "visual", "bigger arrow")  # the clip's key moves on: its build is out of date
+    with pytest.raises(SystemExit, match="s01c01"):
+        production_commands.handle_final_command(argparse.Namespace(run=str(tmp_path), force=True))
+
+
+def test_a_failed_final_keeps_the_last_good_video(tmp_path, monkeypatch):  # H9
+    import subprocess
+
+    plans = two_scenes_after_cp2(tmp_path)
+    built_and_previewed(tmp_path, plans)
+    (tmp_path / "final.mp4").write_bytes(b"the good one")
+
+    def dies_mid_write(_, output, __):
+        output.write_bytes(b"trunc")
+        raise subprocess.CalledProcessError(1, "ffmpeg")
+
+    final_without_rendering(monkeypatch, dies_mid_write)
+    with pytest.raises(subprocess.CalledProcessError):
+        production_commands.handle_final_command(argparse.Namespace(run=str(tmp_path), force=True))
+    assert (tmp_path / "final.mp4").read_bytes() == b"the good one"
+
+
+def test_a_change_during_the_final_render_leaves_the_final_out_of_date(tmp_path, monkeypatch):  # M2
+    from app.workflow.approvals import approval_problems
+
+    plans = two_scenes_after_cp2(tmp_path)
+    built_and_previewed(tmp_path, plans)
+
+    def assembled(_, output, __):
+        output.write_bytes(b"video")
+        return {"clips": {}, "final_s": 60, "sum_clips_s": 60}
+
+    final_without_rendering(monkeypatch, assembled)
+    production_commands.handle_final_command(argparse.Namespace(run=str(tmp_path), force=True))
+    assert "final.mp4 is missing or out of date" not in approval_problems(tmp_path, "final")  # nothing changed
+
+    def user_edits_the_template_meanwhile(_, output, __):
+        templates.choose_template(tmp_path, "obsidian", ["scene_transition=crossfade"])
+        return assembled(_, output, __)
+
+    final_without_rendering(monkeypatch, user_edits_the_template_meanwhile)
+    production_commands.handle_final_command(argparse.Namespace(run=str(tmp_path), force=True))
+    assert (tmp_path / "final.mp4").read_bytes() == b"video"
+    assert approval_problems(tmp_path, "final")[0] == "final.mp4 is missing or out of date"
+
+
+def test_force_accepts_problems_the_user_saw_not_a_video_that_is_missing_or_stale(tmp_path):  # M3
+    plans = two_scenes_after_cp2(tmp_path)
+    with pytest.raises(SystemExit, match="not built"):
+        approve(tmp_path, "scenes", force=True)  # nothing built: there is nothing to have seen
+    with pytest.raises(SystemExit, match="final.mp4 is missing"):
+        approve(tmp_path, "final", force=True)
+    built_and_previewed(tmp_path, plans)
+    approve(tmp_path, "scenes", force=True)  # the previews exist; their open critique issues are accepted
 
 
 def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):
@@ -785,7 +933,7 @@ def test_every_stage_scene_and_clip_has_a_status_kept_in_state_json(tmp_path):
     write_json_file(tmp_path / "script.json", {"scenes": []})
     assert status.update_statuses(tmp_path)["script"] == "in_progress"  # written, not valid yet
     write_json_file(tmp_path / "script.json", make_script(30, 30))
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     assert status.update_statuses(tmp_path)["script"] == "requires_user_approval"
     feedback(tmp_path, "s02", "wording", "shorter", checkpoint="script")
     status.update_statuses(tmp_path)
@@ -881,7 +1029,7 @@ def test_script_scenes_name_their_on_screen_text_animations_audio_transitions_an
     assert any("earlier scenes" in error for error in validation.validate_script(tmp_path))
     script["scenes"][0]["depends_on"] = []
     write_json_file(tmp_path / "script.json", script)
-    write_json_file(tmp_path / "script_review.json", {"findings": []})
+    write_review(tmp_path, "script", [])
     approve(tmp_path, "script")
     plan = make_plan(script, 2)
     write_json_file(tmp_path / "scenes" / "s02" / "plan.json", plan)

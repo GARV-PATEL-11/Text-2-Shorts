@@ -12,7 +12,7 @@ from app.workflow.artifacts import load_final_report, load_scene_plans, load_scr
 from app.workflow.change_requests import open_requests, requests_text
 from app.workflow.checkpoints import stage_approval_problem
 from app.workflow.critiques import critique_problems, critique_state, review_problems
-from app.workflow.fingerprints import clip_key, fingerprint
+from app.workflow.fingerprints import clip_key, final_fingerprint, fingerprint
 from app.workflow.ledger import is_approval_current, load_state, update_state
 from app.workflow.production import preview_problems, stale_audio
 from app.workflow.templates import validate_template
@@ -91,7 +91,7 @@ def next_steps(run: Path) -> list[str]:
     if any(not is_approval_current(state, f"scene:{plan.scene_id}", fingerprint(run, [plan])) for plan in plans):
         steps.append("CP3: preview every scene and approve them together (approve . scenes)")
     if plans:
-        current_fingerprint = fingerprint(run, plans)
+        current_fingerprint = final_fingerprint(run, plans)
         report = load_final_report(run)
         if not (run / "final.mp4").exists() or report is None or report.fingerprint != current_fingerprint:
             steps.append("text-2-shorts final <run>")
@@ -156,9 +156,9 @@ def compute_statuses(run: Path) -> dict[str, Status]:
         else:
             statuses[plan.scene_id] = "pending" if set(clips) == {"pending"} else "in_progress"
     report = load_final_report(run)
-    if plans and is_approval_current(state, "final", fingerprint(run, plans)):
+    if plans and is_approval_current(state, "final", final_fingerprint(run, plans)):
         statuses["final"] = "approved"
-    elif plans and report is not None and report.fingerprint == fingerprint(run, plans):
+    elif plans and report is not None and report.fingerprint == final_fingerprint(run, plans):
         failed = any(finding.severity == "ERROR" for finding in report.checks)
         statuses["final"] = "failed" if failed else "requires_user_approval"
     else:

@@ -18,6 +18,19 @@
       "description": "approve although problems are open (the user accepts them)",
       "title": "Force",
       "type": "boolean"
+    },
+    "fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "CheckpointView.fingerprint the page showed (409 if it moved on)",
+      "title": "Fingerprint"
     }
   },
   "required": [

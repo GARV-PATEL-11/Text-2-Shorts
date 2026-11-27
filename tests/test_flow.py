@@ -11,9 +11,17 @@ from app import narration
 from app.workflow import change_requests, critiques, driver, production, run_views, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
 from app.workflow.artifacts import load_scene_plans
-from app.workflow.fingerprints import clip_key, fingerprint, scene_video_hash
+from app.workflow.fingerprints import clip_key, final_fingerprint, scene_video_hash
 from app.workflow.ledger import count_attempt, update_state
-from conftest import make_outline, make_plan, make_script, write_brief, write_json_file, write_requirements
+from conftest import (
+    make_outline,
+    make_plan,
+    make_script,
+    write_brief,
+    write_json_file,
+    write_requirements,
+    write_review,
+)
 from schemas.run_state import ClipBuild
 
 MAX_STEPS = 250
@@ -127,7 +135,7 @@ def simulate(run, b: Behaviour, user=None):
             elif who == "accuracy-reviewer":
                 stage = "script" if a.target == "script" else "plan"
                 errors = [{"target": "s02", "kind": "FALSE", "severity": "ERROR", "quote": "q", "why": "w", "fix": "f"}]
-                write_json_file(run / f"{stage}_review.json", {"findings": errors if b.reviewer_errors else []})
+                write_review(run, stage, errors if b.reviewer_errors else [])
                 count_attempt(run, f"review:{stage}", failed=b.reviewer_errors)  # what the PostToolUse hook does
             elif a.do == "write" and a.file in ("topics.md", "content.md"):
                 write_requirements(run)
@@ -201,7 +209,7 @@ def simulate(run, b: Behaviour, user=None):
                 checks = [{"severity": "ERROR", "code": "PEAK", "message": "clips"}] if b.final_error else []
                 write_json_file(run / "final_report.json", {
                     "clips": {}, "final_s": 70, "sum_clips_s": 70, "checks": checks,
-                    "fingerprint": fingerprint(run, load_scene_plans(run)),
+                    "fingerprint": final_fingerprint(run, load_scene_plans(run)),
                 })  # fmt: skip
             else:
                 return "UNHANDLED", f"{a.do} {who} {a.file}: {a.what[:100]}", forced

@@ -23,6 +23,9 @@ class Approval(Strict):
 
     at: str
     fingerprint: str | None = None
+    upstream: dict[str, str | None] = Field(
+        default_factory=dict, description="the earlier stages' fingerprints this approval was made on (M1)"
+    )
 
 
 class ClipBuild(Strict):

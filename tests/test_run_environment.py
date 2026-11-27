@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app import config, sandbox, utilities
 from app.workflow import run_workspace, status
-from conftest import environment_report
+from conftest import environment_report, write_review
 from schemas.requirements import Brief
 from schemas.run_state import TokenUsage
 
@@ -313,7 +313,7 @@ def test_status_survives_a_malformed_plan(tmp_path):
     write_brief(tmp_path / "r", objectives=["understand the topic"])
     approved_outline(tmp_path / "r", (30, 30))
     write_json_file(tmp_path / "r" / "script.json", make_script(30, 30))
-    write_json_file(tmp_path / "r" / "script_review.json", {"findings": []})
+    write_review(tmp_path / "r", "script", [])
     approve(tmp_path / "r", "script")
     (tmp_path / "r" / "scenes" / "s01").mkdir(parents=True)
     (tmp_path / "r" / "scenes" / "s01" / "plan.json").write_text('{"scene_id": "s01"}')

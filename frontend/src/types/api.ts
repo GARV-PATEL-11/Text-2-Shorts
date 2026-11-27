@@ -21,7 +21,7 @@ export interface Action {
   checkpoint?: string | null;
 }
 export interface ActionBatch { stage: string; parallel: boolean; actions: Action[] }
-export interface Checkpoint { target: string; label: string; problems: string[] }
+export interface Checkpoint { target: string; label: string; problems: string[]; fingerprint?: string | null }
 export interface ClipView { clip_id: string; objective: string; status: Status }
 export interface SceneView {
   scene_id: string; title: string; status: Status; clips: ClipView[]; preview?: string | null; sync_problems: string[];

@@ -388,7 +388,12 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     ) -> CheckpointDecision:
         try:
             return approve_checkpoint(
-                run_folder(run), approval.checkpoint, approval.notes, approval.force, by=account.email
+                run_folder(run),
+                approval.checkpoint,
+                approval.notes,
+                approval.force,
+                by=account.email,
+                seen=approval.fingerprint,
             )
         except ApprovalBlocked as blocked:
             raise ApiProblem(409, str(blocked), blocked.problems) from blocked

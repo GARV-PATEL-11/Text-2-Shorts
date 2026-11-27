@@ -103,6 +103,7 @@ class CheckpointView(Strict):
     target: str = Field(..., description="what `approve` takes: a stage, sNN, start:sNN or final")
     label: str
     problems: list[str] = Field(default_factory=list, description="open problems (approving anyway records it)")
+    fingerprint: str | None = Field(None, description="the version shown; ApproveInput sends it back")
 
 
 class RunDetail(Strict):
@@ -132,6 +133,7 @@ class ApproveInput(Strict):
     )
     notes: str = Field("", max_length=4000)
     force: bool = Field(False, description="approve although problems are open (the user accepts them)")
+    fingerprint: str | None = Field(None, description="CheckpointView.fingerprint the page showed (409 if it moved on)")
 
 
 class ChangeRequestInput(Strict):

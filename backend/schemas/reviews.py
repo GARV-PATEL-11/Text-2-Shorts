@@ -20,6 +20,9 @@ class ReviewFinding(Strict):
 
 
 class ReviewReport(Strict):
+    reviewed: str = Field(
+        ..., description="`text-2-shorts hash <run> script` or `… plans`: the version of the script or plans checked"
+    )
     findings: list[ReviewFinding]
 
 

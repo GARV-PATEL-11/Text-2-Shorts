@@ -51,13 +51,14 @@ session fixes, so never edit the script or plans. The session tells you which mo
 
 ## Rules
 - Facts only. Style, pacing, visuals and wording preferences belong to the critics.
-- One finding per error. Merge repeats of the same mistake into one finding, and name the other places in `why`.
-- No findings is a valid result: `{"findings": []}`.
+- One finding per error. Merge repeats of a mistake into one finding, naming the other places in `why`.
+- No findings is a valid result: `"findings": []`.
 
 ## Output
-`{"findings": [{"target", "severity": "ERROR"|"WARN", "kind": "FALSE"|"UNSTATED"|"NOTATION"|"MISLEADING"|"SPOKEN",
-"quote", "why", "fix"}]}` (schema `ReviewReport`). Validate with `text-2-shorts validate . script-review` or
-`text-2-shorts validate . plan-review`, and fix the file until it passes.
+`{"reviewed", "findings": [{"target", "severity": "ERROR"|"WARN", "kind": "FALSE"|"UNSTATED"|"NOTATION"|"MISLEADING"|
+"SPOKEN", "quote", "why", "fix"}]}` (schema `ReviewReport`). `reviewed` = what
+`text-2-shorts hash . script|plans` (your mode) prints, run first. Fix the file until
+`text-2-shorts validate . script-review|plan-review` passes.
 
 ## Reply
 `<mode> review: E errors, W warnings.` Then one line per finding: `SEVERITY KIND target: "quote" → fix`.

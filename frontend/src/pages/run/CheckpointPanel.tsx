@@ -54,7 +54,7 @@ export function CheckpointPanel({ target }: { target: string }) {
   const blocked = checkpoint.problems.length > 0;
   const approve = () =>
     action.run("Approving…", async () => {
-      const decision = await send<Decision>(runPath(run.summary.id, "/approve"), { checkpoint: target, notes: notes.trim(), force: blocked });
+      const decision = await send<Decision>(runPath(run.summary.id, "/approve"), { checkpoint: target, notes: notes.trim(), force: blocked, fingerprint: checkpoint.fingerprint ?? null });
       const index = REQUIRED_STEPS.findIndex((step) => step.id === target);  // -1 for a scene's checkpoint: stay on it
       const next = index >= 0 ? REQUIRED_STEPS[index + 1] : undefined;
       const after = target === "final" ? STAGE_STEPS.find((step) => step.optional) : next;  // stages follow one after the other

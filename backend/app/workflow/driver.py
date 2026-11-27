@@ -22,7 +22,7 @@ from app.workflow.critiques import (
     review_problems,
     script_critique_problems,
 )
-from app.workflow.fingerprints import clip_key, fingerprint
+from app.workflow.fingerprints import clip_key, final_fingerprint, fingerprint
 from app.workflow.ledger import is_approval_current, load_state
 from app.workflow.preferences import load_preferences
 from app.workflow.production import preview_problems, stale_audio
@@ -443,12 +443,12 @@ def next_actions(run: Path) -> ActionBatch:
             ],
         )
     report = load_final_report(run)
-    if not (run / "final.mp4").exists() or report is None or report.fingerprint != fingerprint(run, plans):
+    if not (run / "final.mp4").exists() or report is None or report.fingerprint != final_fingerprint(run, plans):
         return batch(
             "final",
             [{"do": "command", "command": "text-2-shorts final .", "what": "2560×1440, 120 fps delivery render"}],
         )
-    if not is_approval_current(state, "final", fingerprint(run, plans)):
+    if not is_approval_current(state, "final", final_fingerprint(run, plans)):
         return batch(
             "final",
             [

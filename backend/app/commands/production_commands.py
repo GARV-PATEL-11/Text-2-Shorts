@@ -17,8 +17,8 @@ from app.utilities import probe_duration_seconds, run_in_parallel
 from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
 from app.workflow.checkpoints import require_approval
-from app.workflow.fingerprints import clip_key, fingerprint, scene_video_hash
-from app.workflow.ledger import count_attempt, load_state
+from app.workflow.fingerprints import clip_key, final_fingerprint, fingerprint, scene_video_hash
+from app.workflow.ledger import count_attempt, is_approval_current, load_state
 from app.workflow.preferences import clip_speech
 from app.workflow.production import (
     check_delivery,
@@ -73,22 +73,36 @@ def handle_voice_command(arguments) -> None:
 
 
 def handle_final_command(arguments) -> None:
+    """The 1440p delivery render: only from clips built from the current plans, with current audio, and (unless
+    --force) scenes approved as they are now. A failed render or assembly leaves the last final.mp4 in place."""
     run = Path(arguments.run)
+    require_approval(run, "plan")
     state = load_state(run)
     plans = load_scene_plans(run)
     missing = [
         clip.clip_id
         for plan in plans
         for clip in plan.clips
-        if (build := state.clips.get(clip.clip_id)) is None or build.status != "READY"
+        if (build := state.clips.get(clip.clip_id)) is None
+        or build.status != "READY"
+        or build.key != clip_key(run, plan, clip)
     ]
     if missing:
-        sys.exit(f"Not built yet: {missing}. Run build first.")
-    unapproved = [plan.scene_id for plan in plans if f"scene:{plan.scene_id}" not in state.approved]
+        sys.exit(f"Not built, or built from an older plan or request: {missing}. Build them first (task, accept).")
+    if stale := stale_audio(run, plans):
+        sys.exit(f"audio missing or outdated for {sorted(stale)}: text-2-shorts voice <run>")
+    unapproved = [
+        plan.scene_id
+        for plan in plans
+        if not is_approval_current(state, f"scene:{plan.scene_id}", fingerprint(run, [plan]))
+    ]
     if unapproved and not arguments.force:
         sys.exit(f"Scene previews not approved (CP3): {unapproved} — `approve <run> scenes` (or --force).")
     if not 60 <= FINAL_FRAME_RATE <= 120:
         sys.exit(f"TEXT_2_SHORTS_FPS={FINAL_FRAME_RATE}: must be 60–120")
+
+    rendered_from = final_fingerprint(run, plans)  # before the render: a change made during it leaves it stale
+    (run / "final_report.json").unlink(missing_ok=True)
 
     def render_scene(plan: ScenePlan) -> SceneRender:
         return render_scene_sections(run, plan, "p", FINAL_FRAME_RATE, "media_final")
@@ -108,9 +122,11 @@ def handle_final_command(arguments) -> None:
     sys.path.insert(0, str(TOOLS_DIRECTORY))
     from assemble_clips import assemble  # backend/tools/ is a script folder, not a package
 
-    report = FinalReport.model_validate(assemble(manifest.model_dump(), run / "final.mp4", run / "assembly_work"))
+    partial = run / "final.partial.mp4"
+    report = FinalReport.model_validate(assemble(manifest.model_dump(), partial, run / "assembly_work"))
+    partial.replace(run / "final.mp4")  # only a finished assembly replaces the last good video
     report.checks = check_final_media(run / "final.mp4") + check_delivery(run, plans, report)
-    report.fingerprint = fingerprint(run, plans)  # next_steps marks the video stale when any clip changes
+    report.fingerprint = rendered_from
     (run / "final_report.json").write_text(report.model_dump_json(indent=2))
     print(f"{run / 'final.mp4'}\nduration: {report.final_s}s · clips: {len(report.clips)}")
     for finding in report.checks:

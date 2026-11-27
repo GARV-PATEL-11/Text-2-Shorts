@@ -15,9 +15,14 @@ from schemas.script import Script
 
 
 def load_scene_plans(run: Path) -> list[ScenePlan]:
-    """The valid scene plans, in order. An invalid plan.json is skipped here; next_steps reports it."""
+    """The valid plans of the script's scenes, in order: a scene dropped from the script keeps its folder but is
+    never built, fingerprinted or delivered. An invalid plan.json is skipped here; next_steps reports it."""
+    script = load_script(run)
+    current = {scene.scene_id for scene in script.scenes} if script else None
     plans = []
     for plan_path in sorted((run / "scenes").glob("s[0-9][0-9]/plan.json")):
+        if current is not None and plan_path.parent.name not in current:
+            continue
         try:
             plans.append(ScenePlan.model_validate_json(plan_path.read_text()))
         except ValueError:

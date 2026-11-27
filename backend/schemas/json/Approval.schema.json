@@ -17,6 +17,21 @@
       ],
       "default": null,
       "title": "Fingerprint"
+    },
+    "upstream": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "description": "the earlier stages' fingerprints this approval was made on (M1)",
+      "title": "Upstream",
+      "type": "object"
     }
   },
   "required": [

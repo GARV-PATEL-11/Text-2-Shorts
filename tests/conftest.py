@@ -250,6 +250,14 @@ def critique_issue(kind, target, tier="basic", criterion=None, aspect=None):
     }
 
 
+def write_review(run, stage, findings=()):
+    """script_review.json or plan_review.json from the accuracy-reviewer, reviewing the current script or plans."""
+    from app.workflow import fingerprints
+
+    reviewed = fingerprints.script_fingerprint(run) if stage == "script" else fingerprints.plans_fingerprint(run)
+    write_json_file(run / f"{stage}_review.json", {"reviewed": reviewed, "findings": list(findings)})
+
+
 def write_critique(run, scene_id, kind, *verdicts):
     """scenes/sNN/<kind>_critique.json (script_critique.json for the script) with one round per verdict; the last
     round reviewed the current version."""

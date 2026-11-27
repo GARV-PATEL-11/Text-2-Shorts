@@ -3,6 +3,7 @@ work stale."""
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from schemas.plans import ScenePlan
@@ -11,7 +12,7 @@ from app.config import SCENE_BUILDER_AGENT_PATH
 from app.utilities import content_hash, read_json
 from app.workflow.artifacts import load_scene_plans
 from app.workflow.change_requests import requests_for
-from app.workflow.templates import look
+from app.workflow.templates import drawing, load_template, look
 
 
 def requirements_fingerprint(run: Path) -> str | None:
@@ -48,6 +49,17 @@ STAGE_FINGERPRINTS = {
     "script": script_fingerprint,
     "plan": plans_fingerprint,
 }
+UPSTREAM = {
+    "outline": ("requirements",),
+    "script": ("requirements", "outline"),
+    "plan": ("requirements", "outline", "script"),
+}
+
+
+def upstream_fingerprints(run: Path, stage: str) -> dict[str, str | None]:
+    """The earlier stages a stage is built on, as they are now: an approval records them, and a change to any of
+    them asks for the approval again (changed requirements → CP0, CP1 and CP2 again)."""
+    return {earlier: STAGE_FINGERPRINTS[earlier](run) for earlier in UPSTREAM.get(stage, ())}
 
 
 def scene_video_hash(run: Path, scene_id: str) -> str | None:
@@ -74,17 +86,36 @@ def clip_key(run: Path, plan: ScenePlan, clip) -> str:
     )
 
 
+def file_hash(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16] if path.is_file() else None
+
+
 def scene_fingerprint(run: Path, plan: ScenePlan) -> str:
-    """A scene's video and audio as they are now: its clip keys plus each clip's audio."""
+    """A scene's video and audio as they are now: its clip keys, each clip's audio and sound effects (their files'
+    content too), and what the renderer draws behind every clip (backdrop, grid, border, subtitles)."""
     audio_index_path = run / "scenes" / plan.scene_id / "audio" / "index.json"
     audio_index = read_json(audio_index_path) if audio_index_path.exists() else {}
     return content_hash(
         [clip_key(run, plan, clip) for clip in plan.clips],
         [audio_index.get(clip.clip_id) for clip in plan.clips],
-        [[effect.model_dump() for effect in clip.sound_effects] for clip in plan.clips],
+        [[(effect.model_dump(), file_hash(run / effect.file)) for effect in clip.sound_effects] for clip in plan.clips],
+        drawing(run),
     )
 
 
 def fingerprint(run: Path, plans: list[ScenePlan]) -> str:
     """These scenes' videos and audio: changes whenever a clip would be rebuilt or its audio changes."""
     return content_hash([scene_fingerprint(run, plan) for plan in plans])
+
+
+def final_fingerprint(run: Path, plans: list[ScenePlan]) -> str:
+    """final.mp4 as it would be made now: the scenes plus how they are assembled (transition and its colour, the
+    music file's content and level)."""
+    template = load_template(run)
+    assembly = (
+        template.model_dump(include={"scene_transition", "transition_seconds", "music", "music_volume_db"})
+        if template
+        else None
+    )
+    music = file_hash(run / template.music) if template and template.music else None
+    return content_hash(fingerprint(run, plans), assembly, music, look(run)["background"])

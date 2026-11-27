@@ -9,7 +9,16 @@ import pytest
 from app import narration
 from app.commands import production_commands
 from app.workflow import change_requests, fingerprints, ledger, production, scene_code, status
-from conftest import approve, approved_outline, make_plan, make_script, write_brief, write_critique, write_json_file
+from conftest import (
+    approve,
+    approved_outline,
+    make_plan,
+    make_script,
+    write_brief,
+    write_critique,
+    write_json_file,
+    write_review,
+)
 from schemas.plans import ScenePlan
 from schemas.run_state import ClipBuild
 
@@ -73,11 +82,11 @@ def run_with_approved_plans(run, clip_count=1, exits=None):
     approved_outline(run, (30,))
     script = make_script(30)
     write_json_file(run / "script.json", script)
-    write_json_file(run / "script_review.json", {"findings": []})
+    write_review(run, "script", [])
     approve(run, "script")
     plan = make_plan(script, 1, clip_count=clip_count, exits=exits)
     write_json_file(run / "scenes" / "s01" / "plan.json", plan)
-    write_json_file(run / "plan_review.json", {"findings": []})
+    write_review(run, "plan", [])
     write_critique(run, "s01", "plan", "pass")
     approve(run, "plan")
     return plan
@@ -165,6 +174,14 @@ def test_task_accept_status_final(tmp_path, monkeypatch):
     assert video_format(run / "final.mp4") == (2560, 1440, "120/1")  # delivery: 1440p at 120 fps
 
 
+def previewed(run, scene_id):
+    """A current preview's sync report: force accepts a scene's open problems, never a video nobody has seen."""
+    write_json_file(run / "scenes" / scene_id / "sync.json", {
+        "scene_id": scene_id, "tolerance": 0.3, "clips": [], "in_sync": True,
+        "scene_hash": fingerprints.scene_video_hash(run, scene_id),
+    })  # fmt: skip
+
+
 def test_next_steps_tracks_stale_audio_and_stale_approvals(tmp_path):
     plan = run_with_approved_plans(tmp_path)
     scene_directory = tmp_path / "scenes" / "s01"
@@ -179,6 +196,7 @@ def test_next_steps_tracks_stale_audio_and_stale_approvals(tmp_path):
             "s01c01", ClipBuild(status="READY", key=fingerprints.clip_key(tmp_path, scene_plan, scene_plan.clips[0]))
         ),
     )
+    previewed(tmp_path, "s01")
     approve(tmp_path, "scenes", force=True)  # CP3: all scenes at once (preview, sync and critique: covered elsewhere)
     assert not any("CP3" in step for step in status.next_steps(tmp_path))
     change_requests.add_request(tmp_path, "s01c01", "visual", "bigger")  # clip stale → approval stale
@@ -207,6 +225,7 @@ def test_retiming_the_audio_keeps_the_clip_code_and_cp2_but_asks_cp3_again(tmp_p
     scene_plan = ScenePlan.model_validate(plan)
     key = fingerprints.clip_key(tmp_path, scene_plan, scene_plan.clips[0])
     ledger.update_state(tmp_path, lambda state: state.clips.__setitem__("s01c01", ClipBuild(status="READY", key=key)))
+    previewed(tmp_path, "s01")
     approve(tmp_path, "scenes", force=True)
     assert not any(step.startswith("CP3") for step in status.next_steps(tmp_path))
 

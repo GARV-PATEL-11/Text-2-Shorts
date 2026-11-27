@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from schemas.api import CheckpointView, ClipView, RunDetail, RunSummary, SceneView
 from schemas.session import ActionBatch
 
-from app.workflow.approvals import approval_problems, checkpoint_target
+from app.workflow.approvals import approval_fingerprint, approval_problems, checkpoint_target
 from app.workflow.artifacts import load_brief, load_final_report, load_scene_plans, load_sync_report
 from app.workflow.change_requests import load_requests
 from app.workflow.driver import next_actions
@@ -125,6 +125,7 @@ def awaiting_checkpoints(run: Path, statuses: dict, batch: ActionBatch) -> list[
             target=target,
             label=checkpoint_label(target),
             problems=approval_problems(run, checkpoint_target(target)),
+            fingerprint=approval_fingerprint(run, checkpoint_target(target)),
         )
         for target in targets
     ]
