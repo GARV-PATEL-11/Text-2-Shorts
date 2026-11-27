@@ -11,7 +11,7 @@ from schemas.session import Action
 
 from app.config import REFERENCES_DIRECTORY
 from app.utilities import now_text, read_jsonl
-from app.workflow.ledger import append_jsonl, record_decision
+from app.workflow.ledger import append_jsonl, record_decision, run_lock
 
 
 def load_requests(run: Path) -> list[TrackedRequest]:
@@ -42,17 +42,21 @@ def requests_text(requests: list[TrackedRequest]) -> str:
 
 
 def add_request(run: Path, target: str, kind: str, text: str, checkpoint: str | None = None) -> TrackedRequest:
-    event = RequestEvent.model_validate(
-        {
-            "id": f"r{len(load_requests(run)) + 1:03d}",
-            "target": target,
-            "kind": kind,
-            "text": text,
-            "checkpoint": checkpoint,
-            "created_at": now_text(),
-        }
-    )
-    append_jsonl(run, "requests.jsonl", event)
+    """A new request, its id taken and appended under one lock: two at the same moment never share an id."""
+    with run_lock(run):
+        number = max((int(request.id[1:]) for request in load_requests(run)), default=0) + 1
+        event = RequestEvent.model_validate(
+            {
+                "id": f"r{number:03d}",
+                "target": target,
+                "kind": kind,
+                "text": text,
+                "checkpoint": checkpoint,
+                "created_at": now_text(),
+            }
+        )
+        with (run / "requests.jsonl").open("a") as requests_file:  # not append_jsonl: it takes the lock again
+            requests_file.write(event.model_dump_json() + "\n")
     return TrackedRequest.model_validate(event.model_dump(exclude={"event"}))
 
 
@@ -73,13 +77,6 @@ def record_change_request(
     if checkpoint:
         record_decision(run, checkpoint, "changes_requested", text, [request.id])
     return request
-
-
-def resolve_clip_requests(run: Path, clip_id: str) -> None:
-    """A clip that was rebuilt and accepted has applied the open requests about how it looks."""
-    for request in open_requests(run):
-        if request.target == clip_id and request.kind != "audio-timing":
-            resolve_request(run, request.id, "applied", f"rebuilt and accepted at {now_text()}")
 
 
 REQUEST_ROUTES = {

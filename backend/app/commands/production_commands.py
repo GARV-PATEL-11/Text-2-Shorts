@@ -13,7 +13,7 @@ from schemas.reviews import MistakeIssue
 
 from app import narration
 from app.config import DRAFT_QUALITY, FINAL_FRAME_RATE, TOOLS_DIRECTORY
-from app.utilities import probe_duration_seconds, run_in_parallel
+from app.utilities import probe_duration_seconds, run_in_parallel, write_atomic
 from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
 from app.workflow.checkpoints import require_approval
@@ -127,7 +127,7 @@ def handle_final_command(arguments) -> None:
     partial.replace(run / "final.mp4")  # only a finished assembly replaces the last good video
     report.checks = check_final_media(run / "final.mp4") + check_delivery(run, plans, report)
     report.fingerprint = rendered_from
-    (run / "final_report.json").write_text(report.model_dump_json(indent=2))
+    write_atomic(run / "final_report.json", report.model_dump_json(indent=2))
     print(f"{run / 'final.mp4'}\nduration: {report.final_s}s · clips: {len(report.clips)}")
     for finding in report.checks:
         print(f"{finding.severity} {finding.code}: {finding.message}")
@@ -180,7 +180,7 @@ def handle_preview_command(arguments) -> None:
     sections = {section.name: section.duration for section in render.sections}
     report = sync_report(run, plan, {clip.clip_id: sections[f"clip_{clip.index:02d}"] for clip in plan.clips})
     report.scene_hash = scene_video_hash(run, scene_id)
-    (scene_directory / "sync.json").write_text(report.model_dump_json(indent=2))
+    write_atomic(scene_directory / "sync.json", report.model_dump_json(indent=2))
     attempt = count_attempt(run, f"sync:{scene_id}", failed=not report.in_sync)
     issues = [MistakeIssue(code=mistakes.sync_code(problem), severity="ERROR", target=problem.split(" ")[0].rstrip(":"),
                            problem=problem) for problem in report.problems]  # fmt: skip

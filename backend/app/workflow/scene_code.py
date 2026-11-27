@@ -40,7 +40,7 @@ from app.config import (
 from app.sandbox import render_jail_prefix
 from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_scene_plans
-from app.workflow.change_requests import requests_for, requests_text, resolve_clip_requests
+from app.workflow.change_requests import open_requests, requests_for, requests_text, resolve_request
 from app.workflow.checkpoints import require_approval
 from app.workflow.critiques import review_notes
 from app.workflow.fingerprints import clip_key
@@ -144,6 +144,12 @@ def prepare_scene(run: Path, scene_id: str) -> str:
         ],
         api_index=str(API_INDEX_PATH),
         look=drawing(run),
+        built_from=clip_key(run, plan, plan.clips[0]),
+        requests=[
+            request.id
+            for request in open_requests(run)
+            if request.target in {clip.clip_id for clip in plan.clips} and request.kind != "audio-timing"
+        ],
     )
     (work / "TASK.json").write_text(task.model_dump_json(indent=2))
     (work / "check").write_text(f'#!/bin/sh\nexec "{PYTHON_EXECUTABLE}" "{SCENE_GATES_PATH}" "$@"\n')
@@ -197,22 +203,28 @@ def accept_scene(run: Path, scene_id: str) -> ClipBuild:
     ]
     if passed:
         shutil.copy(work / CODE_FILE, scene_directory / CODE_FILE)
+    # the inputs the builder was given (TASK.json, at `task`): a plan or request that changed during the build
+    # leaves the clip stale, and only the requests it was given are marked applied
+    task_path = work / "TASK.json"
+    task = SceneTask.model_validate_json(task_path.read_text()) if task_path.exists() else None
+    built_from = (task.built_from if task else "") or clip_key(run, plan, plan.clips[0])
     at = datetime.now().isoformat(timespec="seconds")
     results = {
         clip.clip_id: ClipBuild(
             status="READY" if passed else "FAILED",
             open_findings=findings,
-            key=clip_key(run, plan, clip) if passed else None,
+            key=built_from if passed else None,
             at=at,
         )
         for clip in plan.clips
     }
     update_state(run, lambda state: state.clips.update(results))
-    built_from = clip_key(run, plan, plan.clips[0])[:12]
-    attempt = count_attempt(run, f"build:{scene_id}" + ("" if passed else f":{built_from}"), failed=not passed)
+    attempt = count_attempt(run, f"build:{scene_id}" + ("" if passed else f":{built_from[:12]}"), failed=not passed)
     issues = [MistakeIssue(code=finding, severity="ERROR", target=scene_id, problem=finding) for finding in findings]
     mistakes.record(run, "build", "scene-builder", scene_id, issues if not passed else [], attempt or None)
-    if passed:
-        for clip in plan.clips:
-            resolve_clip_requests(run, clip.clip_id)
+    if passed and task:
+        still_open = {request.id for request in open_requests(run)}
+        for request_id in task.requests:
+            if request_id in still_open:
+                resolve_request(run, request_id, "applied", f"rebuilt and accepted at {at}")
     return results[plan.clips[0].clip_id]

@@ -3,6 +3,7 @@ built from the run's files through their contracts. Nothing here writes to a run
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +34,14 @@ def created_text(run: Path) -> str:
 
 def updated_text(run: Path) -> str:
     """When any of the run's own files last changed (its state, logs, decisions, outputs at the top level)."""
-    times = [path.stat().st_mtime for path in run.iterdir() if path.is_file()] or [run.stat().st_mtime]
+    times = []
+    for entry in os.scandir(run):
+        try:
+            if entry.is_file():
+                times.append(entry.stat().st_mtime)
+        except FileNotFoundError:  # a temporary file that went away mid-poll
+            continue
+    times = times or [run.stat().st_mtime]
     return f"{datetime.fromtimestamp(max(times)):%Y-%m-%d %H:%M}"
 
 
@@ -62,7 +70,7 @@ def run_summary(run: Path) -> RunSummary:
             approved += bool(scenes) and all(status == "approved" for status in scenes)
             status = run_status(statuses, batch)
         except (ValidationError, ValueError, KeyError) as error:
-            readable, stage, status = False, f"cannot be read: {type(error).__name__}", "failed"
+            readable, stage, status = False, f"cannot be read: {type(error).__name__}: {str(error)[:200]}", "failed"
     topic = brief.requirement if brief else run.name.split("-", 2)[-1].replace("-", " ")
     try:
         name = load_state(run).name
@@ -136,7 +144,11 @@ def run_detail(run: Path) -> RunDetail:
     summary = run_summary(run)
     detail = RunDetail(summary=summary, final_video=media_url(run, run / "final.mp4"))
     if not summary.readable:
-        detail.problem = "Made by an older version of Faraday: only its final video can be shown."
+        detail.problem = (
+            f"This run {summary.stage}. Fix or remove that file and the page comes back."
+            if summary.stage.startswith("cannot be read")
+            else "Made by an older version of Faraday: only its final video can be shown."
+        )
         return detail
     brief = load_brief(run)
     assert brief is not None  # readable runs have a valid brief

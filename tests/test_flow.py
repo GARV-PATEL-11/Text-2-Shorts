@@ -166,8 +166,10 @@ def simulate(run, b: Behaviour, user=None):
                         else ClipBuild(status="FAILED", open_findings=["layout: OVERLAP"])
                     )
                     update_state(run, lambda state, c=clip, built=build: state.clips.__setitem__(c.clip_id, built))
-                    if passed:
-                        change_requests.resolve_clip_requests(run, clip.clip_id)
+                    if passed:  # what accept does with the requests the task gave the builder
+                        for request in change_requests.open_requests(run):
+                            if request.target == clip.clip_id and request.kind != "audio-timing":
+                                change_requests.resolve_request(run, request.id, "applied", "rebuilt")
                 built_from = clip_key(run, plan, plan.clips[0])[:12]
                 count_attempt(run, f"build:{a.target}" + ("" if passed else f":{built_from}"), failed=not passed)
             elif a.command and a.command.startswith("text-2-shorts preview"):  # what `preview` records

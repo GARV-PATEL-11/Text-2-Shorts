@@ -145,6 +145,19 @@
       "description": "the Claude Code session the website's console resumes",
       "title": "Console Session"
     },
+    "builder_prompt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "hash of the scene-builder prompt this run was made with: part of every clip key (D3)",
+      "title": "Builder Prompt"
+    },
     "name": {
       "anyOf": [
         {

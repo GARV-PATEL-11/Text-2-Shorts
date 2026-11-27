@@ -12,6 +12,7 @@ from app.config import SCENE_BUILDER_AGENT_PATH
 from app.utilities import content_hash, read_json
 from app.workflow.artifacts import load_scene_plans
 from app.workflow.change_requests import requests_for
+from app.workflow.ledger import load_state
 from app.workflow.templates import drawing, load_template, look
 
 
@@ -21,15 +22,15 @@ def requirements_fingerprint(run: Path) -> str | None:
 
 
 def template_fingerprint(run: Path) -> str | None:
-    return content_hash(read_json(run / "template.json")) if (run / "template.json").exists() else None
+    return content_hash(data) if (data := read_json(run / "template.json")) is not None else None
 
 
 def outline_fingerprint(run: Path) -> str | None:
-    return content_hash(read_json(run / "outline.json")) if (run / "outline.json").exists() else None
+    return content_hash(data) if (data := read_json(run / "outline.json")) is not None else None
 
 
 def script_fingerprint(run: Path) -> str | None:
-    return content_hash(read_json(run / "script.json")) if (run / "script.json").exists() else None
+    return content_hash(data) if (data := read_json(run / "script.json")) is not None else None
 
 
 def plans_fingerprint(run: Path) -> str:
@@ -82,7 +83,8 @@ def clip_key(run: Path, plan: ScenePlan, clip) -> str:
             if r.status != "declined" and r.kind != "audio-timing"
         ],
         look(run),  # the template's background, colour roles, font, sizes and safe area
-        SCENE_BUILDER_AGENT_PATH.read_text() if SCENE_BUILDER_AGENT_PATH.exists() else "",
+        load_state(run).builder_prompt  # pinned when the run was made (D3); older runs: the live prompt
+        or (SCENE_BUILDER_AGENT_PATH.read_text() if SCENE_BUILDER_AGENT_PATH.exists() else ""),
     )
 
 
@@ -94,7 +96,7 @@ def scene_fingerprint(run: Path, plan: ScenePlan) -> str:
     """A scene's video and audio as they are now: its clip keys, each clip's audio and sound effects (their files'
     content too), and what the renderer draws behind every clip (backdrop, grid, border, subtitles)."""
     audio_index_path = run / "scenes" / plan.scene_id / "audio" / "index.json"
-    audio_index = read_json(audio_index_path) if audio_index_path.exists() else {}
+    audio_index = read_json(audio_index_path) or {}
     return content_hash(
         [clip_key(run, plan, clip) for clip in plan.clips],
         [audio_index.get(clip.clip_id) for clip in plan.clips],

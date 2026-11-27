@@ -13,6 +13,8 @@ from schemas.plans import ScenePlan
 from schemas.requirements import Brief
 from schemas.script import Script
 
+from app.utilities import write_atomic
+
 
 def load_scene_plans(run: Path) -> list[ScenePlan]:
     """The valid plans of the script's scenes, in order: a scene dropped from the script keeps its folder but is
@@ -37,7 +39,7 @@ def save_versioned(path: Path, text: str) -> bool:
     if path.exists():
         version = len(list(path.parent.glob(f"{path.stem}.v*{path.suffix}"))) + 1
         shutil.copy(path, path.with_name(f"{path.stem}.v{version}{path.suffix}"))
-    path.write_text(text)
+    write_atomic(path, text)
     return True
 
 
@@ -93,7 +95,7 @@ def load_audio_index(run: Path, scene_id: str) -> dict[str, ClipAudio]:
 
 
 def save_audio_index(run: Path, scene_id: str, audio: dict[str, ClipAudio]) -> None:
-    audio_index_path(run, scene_id).write_text(AudioIndex(audio).model_dump_json(indent=2))
+    write_atomic(audio_index_path(run, scene_id), AudioIndex(audio).model_dump_json(indent=2))
 
 
 def load_gate_result(path: Path) -> GateResult | None:

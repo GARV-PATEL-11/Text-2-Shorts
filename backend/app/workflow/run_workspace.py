@@ -16,8 +16,11 @@ from app.config import (
     REPOSITORY_ROOT,
     RUN_ENVIRONMENT,
     RUNS_DIRECTORY,
+    SCENE_BUILDER_AGENT_PATH,
     TOOLS_DIRECTORY,
 )
+from app.utilities import content_hash
+from app.workflow.ledger import update_state
 
 
 def brief_from_arguments(arguments) -> Brief:
@@ -83,7 +86,11 @@ def create_run(brief: Brief, runs_directory: Path = RUNS_DIRECTORY) -> Path:
     while run.exists():  # the same topic twice in one second (a duplicate, a double click): never reuse a folder
         copy += 1
         run = runs_directory / f"{stem}-{copy}"
-    provision_run_workspace(run, brief, environment)
+    try:
+        provision_run_workspace(run, brief, environment)
+    except BaseException:
+        shutil.rmtree(run, ignore_errors=True)  # never a half-made run folder
+        raise
     logging.getLogger(__name__).info("run %s created", run.name)
     return run
 
@@ -97,6 +104,14 @@ def provision_run_workspace(run: Path, brief: Brief, environment: EnvironmentRep
     (run / "CLAUDE.md").write_text((RUN_ENVIRONMENT / "workspace" / "CLAUDE.md").read_text())
     if (REPOSITORY_ROOT / "preferences.json").exists():  # standing preferences carry into every new run
         shutil.copy(REPOSITORY_ROOT / "preferences.json", run / "preferences.json")
+    pin_builder_prompt(run)
+
+
+def pin_builder_prompt(run: Path) -> None:
+    """The scene-builder prompt this run is built with, as a hash in its clip keys: editing the prompt later does not
+    make this run's clips stale (and rebuild them at Opus cost). A run made before pinning uses the live prompt."""
+    prompt = content_hash(SCENE_BUILDER_AGENT_PATH.read_text()) if SCENE_BUILDER_AGENT_PATH.exists() else None
+    update_state(run, lambda state: setattr(state, "builder_prompt", prompt))
 
 
 def find_run_directory(*starts) -> Path | None:

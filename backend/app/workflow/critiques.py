@@ -35,10 +35,9 @@ def critique_subject_hash(run: Path, scene_id: str, kind: str) -> str | None:
     if kind == "script":
         return script_fingerprint(run)
     if kind == "plan":  # without SSML, like CP2's fingerprint: re-timed audio is not a new plan
-        path = run / "scenes" / scene_id / "plan.json"
-        if not path.exists():
+        plan = read_json(run / "scenes" / scene_id / "plan.json")
+        if plan is None:
             return None
-        plan = read_json(path)
         clips = plan.get("clips") if isinstance(plan, dict) else None
         if isinstance(clips, list):
             plan = {

@@ -200,6 +200,36 @@ def test_an_approval_from_the_page_is_for_the_version_the_page_showed(web):  # M
     assert client.post("/api/runs/20261124-120000-cp1/approve", json=seen, headers=ORIGIN).status_code == 200
 
 
+def test_a_half_written_file_keeps_the_run_page_readable(web):  # H3
+    runs, client = web
+    signed_in(client)
+    run = run_at_cp1(runs)
+    (run / "script.json").write_text('{"title": "cut off mid-wri')  # an agent mid-write, or a trailing comma
+    detail = client.get("/api/runs/20261124-120000-cp1").json()
+    assert detail["problem"] is None and detail["summary"]["readable"]
+    assert detail["stages"]["script"] != "approved"  # what cannot be read is simply not approved
+    assert any(run["id"] == "20261124-120000-cp1" for run in client.get("/api/runs").json())
+
+
+def test_one_run_that_cannot_be_summarised_does_not_hide_the_others(web, monkeypatch):  # M10
+    from app.web import app as web_app
+
+    runs, client = web
+    signed_in(client)
+    run_at_cp1(runs)
+    (runs / "20261124-130000-broken").mkdir()
+    summarise = web_app.run_summary
+
+    def breaks_on_one(run):
+        if run.name.endswith("broken"):
+            raise OSError("a file vanished mid-poll")
+        return summarise(run)
+
+    monkeypatch.setattr(web_app, "run_summary", breaks_on_one)
+    response = client.get("/api/runs")
+    assert response.status_code == 200 and [run["id"] for run in response.json()] == ["20261124-120000-cp1"]
+
+
 def test_the_frontend_records_change_requests_and_resolves_them(web):
     runs, client = web
     signed_in(client)
@@ -319,12 +349,33 @@ def test_a_run_is_started_from_the_website(web, monkeypatch):
     run_id = response.json()["id"]
     assert re.match(r"^\d{8}-\d{6}-why-is-the-sky-blue$", run_id)
     assert json.loads((runs / run_id / "brief.json").read_text())["objectives"] == ["explain scattering"]
+    assert json.loads((runs / run_id / "state.json").read_text())["builder_prompt"]  # pinned for this run (M7)
     for minutes in (0, 2.5, 21):  # a new video is 3–20 minutes of teaching
         assert client.post("/api/runs", json={**new, "minutes": minutes}, headers=ORIGIN).status_code == 400
     blocked = environment_report().model_copy(update={"problems": ["ffmpeg missing"]})
     monkeypatch.setattr(run_workspace, "environment_check", lambda: blocked)
     response = client.post("/api/runs", json=new, headers=ORIGIN)
     assert response.status_code == 409 and "ffmpeg missing" in response.json()["error"]
+
+
+def test_a_run_that_fails_while_being_set_up_is_not_left_behind(web, monkeypatch):  # M13
+    from app.web import app as web_app
+    from app.workflow import run_workspace
+    from conftest import environment_report
+
+    runs, client = web
+    signed_in(client)
+    monkeypatch.setattr(run_workspace, "environment_check", environment_report)
+    monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
+
+    def disk_full(*_):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(web_app, "update_state", disk_full)
+    new = {"requirement": "Why is the sky blue?", "objectives": ["x"], "approach": "step_by_step", "minutes": 4}
+    response = client.post("/api/runs", json={**new, "name": "Sky"}, headers=ORIGIN)
+    assert response.status_code == 500 and "disk full" in response.json()["error"]
+    assert [path.name for path in runs.iterdir() if not path.name.startswith(".")] == []
 
 
 def test_start_a_run_begins_with_the_template_which_is_saved_and_approved(web, monkeypatch):

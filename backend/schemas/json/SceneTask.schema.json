@@ -56,6 +56,20 @@
       "description": "the template's drawing (video_settings.drawing): backdrop, border, \u2026",
       "title": "Look",
       "type": "object"
+    },
+    "built_from": {
+      "default": "",
+      "description": "the scene's clip key when the task was made: what `accept` records",
+      "title": "Built From",
+      "type": "string"
+    },
+    "requests": {
+      "description": "the change requests the task gave the builder",
+      "items": {
+        "type": "string"
+      },
+      "title": "Requests",
+      "type": "array"
     }
   },
   "required": [

@@ -123,7 +123,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             {run.problem ? null : <ClaudePanel onAsking={setClaudeAsks} />}
             {run.problem ? (
               <>
-                <SystemMessage kind="unsupported" title="This Run Was Made by an Older Version"><WithCode text={run.problem} /></SystemMessage>
+                <SystemMessage kind="unsupported" title={run.problem.startsWith("This run cannot be read") ? "This Run Cannot Be Read Right Now" : "This Run Was Made by an Older Version"}><WithCode text={run.problem} /></SystemMessage>
                 <VideoPreview src={run.final_video} label={`Final Video: ${run.summary.name || runTitle(run.summary.topic)}`} empty="No Final Video" />
               </>
             ) : (

@@ -38,6 +38,8 @@ class SceneTask(Strict):
     look: dict = Field(
         default_factory=dict, description="the template's drawing (video_settings.drawing): backdrop, border, …"
     )
+    built_from: str = Field("", description="the scene's clip key when the task was made: what `accept` records")
+    requests: list[str] = Field(default_factory=list, description="the change requests the task gave the builder")
 
 
 class GateFinding(Strict):

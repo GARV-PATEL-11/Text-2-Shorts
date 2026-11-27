@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import os
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -14,13 +17,34 @@ from pydantic import ValidationError
 
 from app.config import MAX_PARALLEL_RENDERS
 
-
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text())
+log = logging.getLogger(__name__)
 
 
-def write_json(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+def read_json(path: Path):
+    """The file's JSON, or None when it is missing or cannot be parsed (an agent mid-write, a trailing comma): every
+    caller treats that as "not there yet", so one bad file never breaks a whole view."""
+    try:
+        return json.loads(path.read_text())
+    except (FileNotFoundError, ValueError):
+        return None
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Write through a temporary file beside it, then rename: a reader (the website polls) or a crash never sees a
+    half-written file, and a failed write leaves the old one whole."""
+    with tempfile.NamedTemporaryFile(
+        "w", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+    ) as file:
+        file.write(text)
+    try:
+        os.replace(file.name, path)
+    except BaseException:
+        Path(file.name).unlink(missing_ok=True)
+        raise
+
+
+def write_json(path: Path, data) -> None:
+    write_atomic(path, json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def probe_duration_seconds(path: Path) -> float:
@@ -43,7 +67,16 @@ def content_hash(*parts) -> str:
 
 
 def read_jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()] if path.exists() else []
+    """Every readable line; a torn line (an append cut off) is logged and skipped, never fatal."""
+    entries = []
+    for number, line in enumerate(path.read_text().splitlines() if path.exists() else [], 1):
+        if not line.strip():
+            continue
+        try:
+            entries.append(json.loads(line))
+        except ValueError:
+            log.warning("%s line %d is not JSON, skipped: %.120s", path, number, line)
+    return entries
 
 
 def now_text() -> str:

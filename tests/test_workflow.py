@@ -609,14 +609,6 @@ def test_checkpoint_decisions_record_how_the_user_decided(tmp_path):
     assert decisions[3].requests == ["r001"] and decisions[4].notes == "good pacing"
 
 
-def test_a_visual_request_for_a_clip_is_resolved_when_the_clip_is_rebuilt(tmp_path):
-    two_scenes_after_cp2(tmp_path)
-    feedback(tmp_path, "s01c02", "visual", "make the label larger")
-    change_requests.resolve_clip_requests(tmp_path, "s01c02")
-    request = change_requests.load_requests(tmp_path)[0]
-    assert request.status == "applied" and "rebuilt" in request.note
-
-
 def test_standing_preferences_and_the_template_shape_every_stage(tmp_path):
     from app import narration
     from schemas.plans import ScenePlan
@@ -913,6 +905,102 @@ def test_force_accepts_problems_the_user_saw_not_a_video_that_is_missing_or_stal
         approve(tmp_path, "final", force=True)
     built_and_previewed(tmp_path, plans)
     approve(tmp_path, "scenes", force=True)  # the previews exist; their open critique issues are accepted
+
+
+def test_a_write_that_fails_halfway_leaves_the_old_file_whole(tmp_path, monkeypatch):  # M12
+    import os
+
+    from app import utilities
+
+    path = tmp_path / "final_report.json"
+    utilities.write_json(path, {"version": 1})
+
+    def crash(*_):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", crash)
+    with pytest.raises(OSError):
+        utilities.write_json(path, {"version": 2})
+    assert utilities.read_json(path) == {"version": 1} and [p.name for p in tmp_path.iterdir()] == [path.name]
+
+
+def test_a_torn_line_in_a_log_is_skipped_not_fatal(tmp_path):  # A5
+    from app import utilities
+
+    (tmp_path / "requests.jsonl").write_text('{"id": "r001"}\n{"id": "r0\n')  # the last append was cut off
+    assert utilities.read_jsonl(tmp_path / "requests.jsonl") == [{"id": "r001"}]
+
+
+def test_change_requests_sent_at_the_same_moment_get_different_ids(tmp_path, monkeypatch):  # M4
+    import threading
+    import time
+
+    write_brief(tmp_path)
+    read = change_requests.load_requests
+
+    def slow_read(run):  # widen the window between reading the count and appending
+        requests = read(run)
+        time.sleep(0.05)
+        return requests
+
+    monkeypatch.setattr(change_requests, "load_requests", slow_read)
+    threads = [
+        threading.Thread(target=change_requests.add_request, args=(tmp_path, "s01", "wording", f"change {n}"))
+        for n in range(4)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    ids = [request.id for request in read(tmp_path)]
+    assert sorted(ids) == ["r001", "r002", "r003", "r004"]
+
+
+def test_a_run_workspace_that_cannot_be_provisioned_is_removed(tmp_path, monkeypatch):  # M13
+    from app.workflow import run_workspace
+    from conftest import environment_report
+    from schemas.requirements import Brief
+
+    monkeypatch.setattr(run_workspace, "environment_check", environment_report)
+    monkeypatch.setattr(run_workspace, "voice_credentials_problem", lambda tts: None)
+    monkeypatch.setattr(run_workspace, "RUN_ENVIRONMENT", tmp_path / "missing")  # its CLAUDE.md cannot be copied
+    brief = Brief.model_validate(json.loads(json.dumps({"requirement": "Why?", "objectives": ["x"]})))
+    with pytest.raises(FileNotFoundError):
+        run_workspace.create_run(brief, tmp_path / "runs")
+    assert list((tmp_path / "runs").iterdir()) == []
+
+
+def test_an_accepted_build_is_bound_to_what_the_builder_was_given(tmp_path, monkeypatch):  # M5
+    from types import SimpleNamespace
+
+    from schemas.plans import ScenePlan
+
+    two_scenes_after_cp2(tmp_path)
+    seen = change_requests.add_request(tmp_path, "s01c01", "visual", "a bigger arrow")
+    scene_code.prepare_scene(tmp_path, "s01")  # the builder's task includes r001
+    plan = ScenePlan.model_validate_json((tmp_path / "scenes" / "s01" / "plan.json").read_text())
+    given = fingerprints.clip_key(tmp_path, plan, plan.clips[0])
+    late = change_requests.add_request(tmp_path, "s01c01", "visual", "and make it red")  # arrives mid-build
+    (tmp_path / "scenes" / "s01" / "work" / "scene_code.py").write_text("# built\n")
+    monkeypatch.setattr(scene_code.subprocess, "run", lambda *_, **__: SimpleNamespace(returncode=0))
+    scene_code.accept_scene(tmp_path, "s01")
+    assert ledger.load_state(tmp_path).clips["s01c01"].key == given  # so the clip shows stale: r002 not built yet
+    status_of = {request.id: request.status for request in change_requests.load_requests(tmp_path)}
+    assert (status_of[seen.id], status_of[late.id]) == ("applied", "open")
+
+
+def test_editing_the_builder_prompt_leaves_a_run_that_pinned_it_alone(tmp_path, monkeypatch):  # M7
+    from app.workflow import run_workspace
+    from schemas.plans import ScenePlan
+
+    two_scenes_after_cp2(tmp_path)
+    run_workspace.pin_builder_prompt(tmp_path)  # what `new` does when it makes the run
+    plan = ScenePlan.model_validate_json((tmp_path / "scenes" / "s01" / "plan.json").read_text())
+    before = fingerprints.clip_key(tmp_path, plan, plan.clips[0])
+    edited = tmp_path / "scene-builder.md"
+    edited.write_text("an improved prompt")
+    monkeypatch.setattr(fingerprints, "SCENE_BUILDER_AGENT_PATH", edited)
+    assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) == before  # finished runs are not rebuilt at Opus cost
 
 
 def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):

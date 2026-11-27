@@ -40,8 +40,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 import subprocess
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import faraday_logging
@@ -87,7 +89,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.config import REPOSITORY_ROOT, RUNS_DIRECTORY
 from app.sandbox import KICKOFF_PROMPT
-from app.utilities import content_hash, format_validation_errors, now_text
+from app.utilities import content_hash, format_validation_errors, now_text, write_atomic
 from app.web import auth, console, usage
 from app.workflow import reshuffle, run_workspace, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
@@ -116,6 +118,18 @@ class ApiProblem(Exception):
 
 log = logging.getLogger("app.web")
 QUIET = ("/assets/", "/previews/", "/media/")  # static files: logged at DEBUG only
+
+
+@contextmanager
+def kept_only_if_set_up(folder: Path):
+    """The steps after a new run's folder is made: if any fails, the half-made run is removed (it holds nothing the
+    user made yet) and the error says why, instead of an orphan run and a bare 500."""
+    try:
+        yield
+    except (Exception, SystemExit) as error:
+        shutil.rmtree(folder, ignore_errors=True)
+        log.exception("run %s removed: setting it up failed", folder.name)
+        raise ApiProblem(500, f"the run could not be set up, so it was not kept: {error}") from error
 
 
 def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
@@ -241,11 +255,15 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     # ── runs ───────────────────────────────────────────────────────────────────────────────────────────────
     @app.get("/api/runs", response_model=list[RunSummary], dependencies=[Depends(signed_in_account)])
     def runs() -> list[RunSummary]:
-        return [
-            run_summary(run)
-            for run in sorted(runs_directory.iterdir(), reverse=True)
-            if run.is_dir() and not run.name.startswith(".")  # .drafts, .trash
-        ]
+        summaries = []
+        for run in sorted(runs_directory.iterdir(), reverse=True):
+            if not run.is_dir() or run.name.startswith("."):  # .drafts, .trash
+                continue
+            try:
+                summaries.append(run_summary(run))
+            except Exception:  # one run that cannot be read (or vanished mid-poll) never hides the others
+                log.exception("run list: skipped %s", run.name)
+        return summaries
 
     @app.post("/api/runs", response_model=RunSummary, status_code=201)
     def start_run(new: NewRunInput, account: ClaudeAccount = Depends(signed_in_account)) -> RunSummary:
@@ -268,12 +286,13 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
             folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
             raise ApiProblem(409, str(problem)) from problem
-        if new.name.strip():
-            update_state(folder, lambda state: setattr(state, "name", new.name.strip()))
-        if template:
-            templates.save_template(folder, template)
-            approve_checkpoint(folder, "template", "chosen in Start a Run", by=account.email)
-        return run_summary(folder)
+        with kept_only_if_set_up(folder):
+            if new.name.strip():
+                update_state(folder, lambda state: setattr(state, "name", new.name.strip()))
+            if template:
+                templates.save_template(folder, template)
+                approve_checkpoint(folder, "template", "chosen in Start a Run", by=account.email)
+            return run_summary(folder)
 
     @app.patch("/api/runs/{run}", response_model=RunSummary, dependencies=[Depends(signed_in_account)])
     def rename_run(run: str, rename: RenameInput) -> RunSummary:
@@ -292,14 +311,15 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
             folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
             raise ApiProblem(409, str(problem)) from problem
-        for name in ("preferences.json", "template.json"):
-            if (source / name).exists():
-                (folder / name).write_text((source / name).read_text())
-        name = f"Copy of {run_summary(source).name}"[:120]
-        update_state(folder, lambda state: setattr(state, "name", name))
-        if (folder / "template.json").exists() and not templates.validate_template(folder):
-            approve_checkpoint(folder, "template", f"copied from {source.name}", by=account.email)
-        return run_summary(folder)
+        with kept_only_if_set_up(folder):
+            for name in ("preferences.json", "template.json"):
+                if (source / name).exists():
+                    (folder / name).write_text((source / name).read_text())
+            name = f"Copy of {run_summary(source).name}"[:120]
+            update_state(folder, lambda state: setattr(state, "name", name))
+            if (folder / "template.json").exists() and not templates.validate_template(folder):
+                approve_checkpoint(folder, "template", f"copied from {source.name}", by=account.email)
+            return run_summary(folder)
 
     @app.delete("/api/runs/{run}", status_code=204, dependencies=[Depends(signed_in_account)])
     def delete_run(run: str) -> Response:
@@ -330,7 +350,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
 
     @app.put("/api/profile", response_model=ProfileView)
     def save_profile(change: ProfileInput, account: ClaudeAccount = Depends(signed_in_account)) -> ProfileView:
-        (runs_directory / ".profile.json").write_text(ProfileInput(name=change.name.strip()).model_dump_json())
+        write_atomic(runs_directory / ".profile.json", ProfileInput(name=change.name.strip()).model_dump_json())
         return profile_view(account)
 
     def draft_path(draft: str) -> Path:
@@ -348,7 +368,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
         path = draft_path(draft)
         path.parent.mkdir(exist_ok=True)
         saved = Draft(**data.model_dump(), id=draft, updated=now_text())
-        path.write_text(saved.model_dump_json(indent=2))
+        write_atomic(path, saved.model_dump_json(indent=2))
         return saved
 
     @app.delete("/api/drafts/{draft}", status_code=204, dependencies=[Depends(signed_in_account)])
