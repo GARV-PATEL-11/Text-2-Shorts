@@ -131,6 +131,20 @@ def test_jail_lets_a_session_write_only_its_own_run(tmp_path):
     assert not (Path.home() / "home_probe").exists()  # home writes land in the session's private tmpfs
 
 
+def test_a_session_cannot_plant_settings_hooks_or_skills_that_run_on_the_host_later():  # M15
+    from app.sandbox import build_jail_command
+
+    claude = Path.home() / ".claude"
+    turn = build_jail_command(Path("/tmp/run"), ["claude", "-p"])
+    writable = turn.index(str(claude))  # ~/.claude stays writable for transcripts, credentials, caches …
+    for name in ("settings.json", "skills", "agents", "commands", "plugins", "hooks", "CLAUDE.md"):
+        place = str(claude / name)
+        destination = len(turn) - 1 - turn[::-1].index(place)  # … but these are mounted read-only over it
+        assert destination > writable and turn[destination - 2] == "--ro-bind", name
+    assert "--new-session" in turn  # no terminal of the server's to type into (TIOCSTI)
+    assert "--new-session" not in build_jail_command(Path("/tmp/run"), ["claude"], interactive=True)
+
+
 def run_hook(payload: dict):
     import subprocess
     import sys
@@ -211,6 +225,23 @@ def test_report_sums_session_tokens_once_per_message(tmp_path):
     assert status.sum_session_tokens(tmp_path) == TokenUsage(
         input=7, output=2, cache_read=20, cache_write=10, messages=2
     )
+
+
+def test_a_subagent_cannot_approve_a_checkpoint(tmp_path):  # M31: approving is the user's, through the session
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "brief.json").write_text("{}")
+    asked = {"hook_event_name": "PreToolUse", "cwd": str(run), "tool_name": "Bash"}
+    by_subagent = run_hook(
+        {**asked, "agent_id": "a1", "tool_input": {"command": "cd . && text-2-shorts approve . plan --force"}}
+    )
+    assert by_subagent.returncode == 2 and "user" in by_subagent.stderr
+    by_session = run_hook({**asked, "tool_input": {"command": "text-2-shorts approve . plan"}})
+    assert by_session.returncode == 0  # the session approves after the user said so in the console
+    other = run_hook({**asked, "agent_id": "a1", "tool_input": {"command": "text-2-shorts validate . plan"}})
+    assert other.returncode == 0
+    hooks = json.loads((RUN_ENVIRONMENT / "hooks" / "hooks.json").read_text())["hooks"]
+    assert hooks["PreToolUse"][0]["matcher"] == "Bash"
 
 
 def test_hooks_config_only_calls_real_commands():

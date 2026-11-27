@@ -35,4 +35,4 @@ def handle_open_command(arguments) -> None:
         sys.exit(f"{run} is not a run workspace (no brief.json) — create one with text-2-shorts new")
     command = arguments.command[1:] if arguments.command[:1] == ["--"] else arguments.command
     command = command or session_command()
-    os.execvp("bwrap", build_jail_command(run.resolve(), command))
+    os.execvp("bwrap", build_jail_command(run.resolve(), command, interactive=True))

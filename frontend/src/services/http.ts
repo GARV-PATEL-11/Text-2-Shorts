@@ -44,16 +44,15 @@ export async function loadText(path: string, signal?: AbortSignal): Promise<stri
   return (await request(path, {}, signal)).text();
 }
 
-export async function send<T>(path: string, body: unknown, method = "POST"): Promise<T> {
+export async function send<T>(path: string, body: unknown, method = "POST", extra: Record<string, string> = {}): Promise<T> {
   const response = await request(path, {
     method,
-    headers: body === null ? { Accept: "application/json" } : { "Content-Type": "application/json", Accept: "application/json" },
+    headers: { ...(body === null ? { Accept: "application/json" } : { "Content-Type": "application/json", Accept: "application/json" }), ...extra },
     body: body === null ? undefined : JSON.stringify(body),
   });
   return response.json().catch(() => ({})) as Promise<T>;
 }
 
-/** One console turn: the user's message, then Claude's lines as they stream in (NDJSON, one entry per line). */
 /** One console turn, its entries as they stream. Aborting stops following it; the server finishes the turn. */
 export async function streamTurn(
   path: string, message: string, onEntry: (entry: ConsoleEntry) => void, signal?: AbortSignal,

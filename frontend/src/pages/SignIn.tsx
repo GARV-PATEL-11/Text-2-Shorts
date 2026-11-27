@@ -8,10 +8,28 @@ import { Page } from "../components/layout/Page";
 import { Said } from "../components/ui/Said";
 import { Button } from "../components/ui/Button";
 import { useAction } from "../hooks/useAction";
-import { load, send } from "../services/http";
+import { ApiError, load, send } from "../services/http";
 import type { SessionView } from "../types/api";
 
+const TOKEN = "faraday.sign-in-token";
+
+/** The token in the link `text-2-shorts serve` printed (#/signin?token=…), kept for this tab and taken off the
+ * address bar; only someone who can see that terminal can sign in. */
+function signInToken(): string {
+  const fromLink = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("token");
+  try {
+    if (fromLink) {
+      sessionStorage.setItem(TOKEN, fromLink);
+      window.history.replaceState(null, "", "#/signin");
+    }
+    return sessionStorage.getItem(TOKEN) ?? fromLink ?? "";
+  } catch {
+    return fromLink ?? "";
+  }
+}
+
 export function SignInPage() {
+  const [token] = useState(signInToken);
   const { signIn } = useSession();
   const [codeSignedIn, setCodeSignedIn] = useState(true);
   const { run, busy, note } = useAction();
@@ -29,7 +47,8 @@ export function SignInPage() {
 
   const proceed = () =>
     run("Checking Your Sign-In…", async () => {
-      const signed = await send<SessionView>("/api/session", null).catch((error) => {
+      const signed = await send<SessionView>("/api/session", null, "POST", { "X-Faraday-Token": token }).catch((error) => {
+        if (error instanceof ApiError && error.status === 403) throw error;  // no or wrong link: its message says so
         setCodeSignedIn(false);
         throw error;
       });

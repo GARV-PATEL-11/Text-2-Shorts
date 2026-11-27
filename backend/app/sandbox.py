@@ -45,7 +45,7 @@ def render_jail_prefix() -> list[str]:
     return list(RENDER_JAIL_PREFIX)
 
 
-def build_jail_command(run: Path, command: list[str]) -> list[str]:
+def build_jail_command(run: Path, command: list[str], interactive: bool = False) -> list[str]:
     """bwrap argv for one run session: system and repo read-only (the repo's .env blanked), only the run folder plus
     Claude Code's own state/caches writable, a private throwaway $HOME into which exactly the PATH folders, the
     install roots of claude and python, and the TTS credentials are mounted back read-only; own PID/IPC namespace;
@@ -95,6 +95,17 @@ def build_jail_command(run: Path, command: list[str]) -> list[str]:
     for directory in (home / ".claude", home / ".cache"):
         directory.mkdir(exist_ok=True)
         argv += ["--bind", str(directory), str(directory)]
+    # …except what Claude Code on the host would later run or obey: a session cannot plant settings, hooks, skills,
+    # agents, commands or plugins there (M15). Missing folders are made empty first, so they cannot be created.
+    for name in ("skills", "agents", "commands", "plugins", "hooks", "output-styles"):
+        (home / ".claude" / name).mkdir(exist_ok=True)
+        argv += ["--ro-bind", str(home / ".claude" / name), str(home / ".claude" / name)]
+    for name, missing in (
+        ("settings.json", RUN_ENVIRONMENT / "workspace" / "no-settings.json"),
+        ("CLAUDE.md", "/dev/null"),
+    ):
+        target = home / ".claude" / name
+        argv += ["--ro-bind", str(target if target.exists() else missing), str(target)]
     argv += [
         "--ro-bind-try",
         str(home / ".claude.json"),
@@ -105,6 +116,7 @@ def build_jail_command(run: Path, command: list[str]) -> list[str]:
         "--chdir",
         str(run),
         "--die-with-parent",
+        *([] if interactive else ["--new-session"]),  # a console turn gets no terminal to type into (TIOCSTI)
         "--",
         "sh",
         "-c",

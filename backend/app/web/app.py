@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 import shutil
 import subprocess
 import time
@@ -117,7 +118,8 @@ class ApiProblem(Exception):
 
 
 log = logging.getLogger("app.web")
-QUIET = ("/assets/", "/previews/", "/media/")  # static files: logged at DEBUG only
+QUIET = ("/assets/", "/previews/", "/media/")
+BROWSER_LOGS_PER_MINUTE = 200  # static files: logged at DEBUG only
 
 
 @contextmanager
@@ -132,7 +134,9 @@ def kept_only_if_set_up(folder: Path):
         raise ApiProblem(500, f"the run could not be set up, so it was not kept: {error}") from error
 
 
-def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
+def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None = None) -> FastAPI:
+    """The website and its API. With `sign_in_token` (what `serve` prints), signing in needs it: another user or
+    program on this machine cannot open a session on the owner's Claude account (H6)."""
     app = FastAPI(title="Text-2-Shorts", docs_url=None, redoc_url=None, openapi_url=None)
     sessions = auth.Sessions()
     browser = faraday_logging.channel("frontend")
@@ -198,26 +202,47 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
             raise ApiProblem(404, f"no run {run}")
         return folder
 
+    log_budget = {"minute": 0, "left": 0}
+
+    def one_line(text: str) -> str:  # a report is one log line: it can never forge another (L5)
+        return re.sub(r"[\x00-\x1f]+", " ⏎ ", text)
+
     @app.post("/api/logs", status_code=204)
     def browser_logs(batch: BrowserLogBatch) -> Response:
-        """What the browser reports, into frontend.log (no session needed: the sign-in page reports too)."""
+        """What the browser reports, into frontend.log (no session needed: the sign-in page reports too), at most
+        BROWSER_LOGS_PER_MINUTE lines a minute."""
         levels = {"debug": logging.DEBUG, "info": logging.INFO, "warn": logging.WARNING, "error": logging.ERROR}
-        for entry in batch.entries:
+        minute = int(time.time() // 60)
+        if log_budget["minute"] != minute:
+            log_budget.update(minute=minute, left=BROWSER_LOGS_PER_MINUTE)
+        for entry in batch.entries[: max(log_budget["left"], 0)]:
             browser.log(
-                levels[entry.level], "%s%s%s", f"[{entry.page}] " if entry.page else "", entry.message,
-                f" — {entry.details}" if entry.details else "",
+                levels[entry.level], "%s%s%s", f"[{one_line(entry.page)}] " if entry.page else "",
+                one_line(entry.message), f" — {one_line(entry.details)}" if entry.details else "",
             )  # fmt: skip
+        log_budget["left"] -= len(batch.entries)
         return Response(status_code=204)
+
+    claude_code = {"checked": 0.0, "signed_in": False}
+
+    def claude_code_signed_in() -> bool:
+        """`claude auth status` at most every 30 s: the sign-in page polls this (L5)."""
+        if time.monotonic() - claude_code["checked"] > 30:
+            claude_code.update(checked=time.monotonic(), signed_in=auth.claude_code_account() is not None)
+        return claude_code["signed_in"]
 
     @app.get("/api/session", response_model=SessionView)
     def session(request: Request) -> SessionView:
         account = sessions.account(request.cookies.get(auth.SESSION_COOKIE))
         if account:
             return SessionView(signed_in=True, account=account)
-        return SessionView(signed_in=False, claude_code_signed_in=auth.claude_code_account() is not None)
+        return SessionView(signed_in=False, claude_code_signed_in=claude_code_signed_in())
 
     @app.post("/api/session", response_model=SessionView)
-    def sign_in(response: Response) -> SessionView:
+    def sign_in(request: Request, response: Response) -> SessionView:
+        given = request.headers.get("X-Faraday-Token", "")
+        if sign_in_token is not None and not secrets.compare_digest(given, sign_in_token):
+            raise ApiProblem(403, "Open the sign-in link `text-2-shorts serve` printed in its terminal.")
         account = auth.claude_code_account()
         if account is None:
             raise ApiProblem(
@@ -325,11 +350,17 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     def delete_run(run: str) -> Response:
         """Not deleted for good: the folder moves to .trash/ in the runs folder, where it can be moved back."""
         folder = run_folder(run)
-        if console.is_busy(folder):
-            raise ApiProblem(409, "Claude is working on this run: wait for the turn to end")
-        (runs_directory / ".trash").mkdir(exist_ok=True)
-        folder.rename(runs_directory / ".trash" / folder.name)
-        log.info("run %s moved to .trash", folder.name)
+        with console.turn_lock(folder) as free:  # held during the move: no turn can start on a run being moved
+            if not free:
+                raise ApiProblem(409, "Claude is working on this run: wait for the turn to end")
+            trash = runs_directory / ".trash"
+            trash.mkdir(exist_ok=True)
+            target, copy = trash / folder.name, 1
+            while target.exists():  # deleted before under the same name: keep both
+                copy += 1
+                target = trash / f"{folder.name}-{copy}"
+            folder.rename(target)
+        log.info("run %s moved to %s", folder.name, target.relative_to(runs_directory))
         return Response(status_code=204)
 
     def profile_view(account: ClaudeAccount) -> ProfileView:

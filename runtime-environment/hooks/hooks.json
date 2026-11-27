@@ -1,6 +1,7 @@
 {
   "hooks": {
     "SessionStart": [{"hooks": [{"type": "command", "command": "text-2-shorts hook"}]}],
+    "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "text-2-shorts hook"}]}],
     "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "text-2-shorts hook"}]}]
   }
 }

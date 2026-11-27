@@ -100,6 +100,19 @@
     },
     "tool_input": {
       "$ref": "#/$defs/HookToolInput"
+    },
+    "agent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "set when the call comes from a subagent, absent in the session",
+      "title": "Agent Id"
     }
   },
   "required": [

@@ -15,7 +15,7 @@ from schemas.api import UsageView, UsageWindow
 
 from app.config import USER_CACHE_DIRECTORY
 from app.sandbox import usage_check_arguments
-from app.utilities import now_text
+from app.utilities import now_text, write_atomic
 
 USAGE_FILE = USER_CACHE_DIRECTORY / "text-2-shorts" / "usage.json"
 checking = threading.Lock()  # one probe at a time
@@ -29,10 +29,12 @@ def record(event: dict) -> bool:
     )
     if not windows:
         return False
-    USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    part = USAGE_FILE.with_suffix(".part")
-    part.write_text(json.dumps({"checked_at": now_text(), "windows": windows}))
-    part.replace(USAGE_FILE)
+    try:  # a unique temporary file per write (two turns at once), and a failure never stops the turn (L6)
+        USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic(USAGE_FILE, json.dumps({"checked_at": now_text(), "windows": windows}))
+    except OSError:
+        log.exception("usage limits not kept")
+        return False
     return True
 
 

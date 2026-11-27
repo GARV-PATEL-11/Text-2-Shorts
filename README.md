@@ -28,7 +28,8 @@ CP2 scene visual plans · CP3 all scene previews at once · CP4 final video), th
 **Faraday is used from its website only.** Build it once (`cd frontend && npm ci && npm run build`), then
 `uv run text-2-shorts serve` opens it at http://127.0.0.1:8765 (FastAPI; `npm run dev` in `frontend/` gives live reload on :5173):
 start a run there, talk to the run's Claude Code session in its console (each message is one turn of the same session,
-in the same jail), approve checkpoints and ask for changes. The website and the command line share the same code. Sign in with "Continue with Claude":
+in the same jail), approve checkpoints and ask for changes. The website and the command line share the same code. Open the sign-in link `serve` prints
+(it carries a token, so other users and programs on the machine cannot sign in), then "Continue with Claude":
 it uses the Claude account your Claude Code is signed in to (`claude auth login` if it is not). Then: every run, where it stands, what happens next,
 scene previews and the final video; approve checkpoints, ask for changes and mark them applied or declined there too
 (the same gates and decision records as `approve`, `feedback` and `resolve`).

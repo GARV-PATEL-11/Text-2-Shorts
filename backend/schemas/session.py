@@ -51,6 +51,7 @@ class HookEvent(BaseModel):
     transcript_path: str | None = None
     tool_name: str | None = None
     tool_input: HookToolInput = Field(default_factory=HookToolInput)
+    agent_id: str | None = Field(None, description="set when the call comes from a subagent, absent in the session")
 
 
 class SessionStartContext(Strict):

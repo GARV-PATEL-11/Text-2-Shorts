@@ -43,6 +43,8 @@ class Sessions:
         self.by_token: dict[str, tuple[ClaudeAccount, float]] = {}
 
     def open(self, account: ClaudeAccount) -> str:
+        now = time.time()
+        self.by_token = {token: entry for token, entry in self.by_token.items() if entry[1] >= now}  # sweep (L5)
         token = secrets.token_urlsafe(32)
         self.by_token[token] = (account, time.time() + SESSION_SECONDS)
         return token

@@ -69,6 +69,16 @@ def test_signing_in_uses_the_claude_account_claude_code_is_signed_in_to(web):
     assert client.get("/api/runs").status_code == 401
 
 
+def test_signing_in_needs_the_token_serve_printed(tmp_path, monkeypatch):  # H6
+    monkeypatch.setattr(auth, "claude_code_account", lambda: ACCOUNT)
+    with TestClient(create_app(tmp_path / "runs", sign_in_token="s3cret"), base_url=BASE) as client:
+        assert client.post("/api/session", headers=ORIGIN).status_code == 403  # any local process: refused
+        wrong = client.post("/api/session", headers={**ORIGIN, "X-Faraday-Token": "guess"})
+        assert wrong.status_code == 403
+        right = client.post("/api/session", headers={**ORIGIN, "X-Faraday-Token": "s3cret"})
+        assert right.status_code == 200 and client.get("/api/runs").status_code == 200
+
+
 def test_the_session_cookie_cannot_be_read_by_scripts_or_sent_from_other_sites(web):
     _, client = web
     header = client.post("/api/session", headers=ORIGIN).headers["set-cookie"].lower()
@@ -619,6 +629,34 @@ def test_the_browser_reports_into_frontend_log_and_requests_are_logged(web, logs
     assert client.post("/api/logs", json=too_many, headers=ORIGIN).status_code == 400
 
 
+def test_browser_reports_cannot_forge_log_lines_or_flood_the_log(web, logs_in_a_temporary_folder):  # L5
+    _, client = web
+    forged = {"entries": [{"level": "info", "message": "ok\n2026-11-27 ERROR app.web forged line"}]}
+    assert client.post("/api/logs", json=forged, headers=ORIGIN).status_code == 204
+    batch = {"entries": [{"level": "info", "message": "spam"}] * 50}
+    for _ in range(10):
+        client.post("/api/logs", json=batch, headers=ORIGIN)
+    written = (logs_in_a_temporary_folder / "frontend.log").read_text()
+    assert "\n2026-11-27 ERROR app.web forged line" not in written  # one entry is one line
+    assert written.count("spam") <= 200  # a budget per minute, then dropped
+
+
+def test_expired_sessions_are_swept_and_claude_auth_status_is_not_asked_on_every_poll(web, monkeypatch):  # L5
+    import time
+
+    sessions = auth.Sessions()
+    old = sessions.open(ACCOUNT)
+    sessions.by_token[old] = (ACCOUNT, time.time() - 1)
+    sessions.open(ACCOUNT)
+    assert old not in sessions.by_token
+    _, client = web
+    asked = []
+    monkeypatch.setattr(auth, "claude_code_account", lambda: asked.append(1) or ACCOUNT)
+    for _ in range(5):
+        client.get("/api/session")
+    assert len(asked) == 1
+
+
 def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
     import io
 
@@ -657,6 +695,15 @@ def test_every_borrowed_line_is_credited_and_linked_and_the_brand_line_is_untouc
     assert not any("Curiosity, Illustrated" in text for _, text, _, _ in lines)  # the brand line is never replaced
     home = (FRONTEND / "src" / "pages" / "Home.tsx").read_text()
     assert "Curiosity, Illustrated." in home
+
+
+def test_a_usage_file_that_cannot_be_written_never_stops_a_turn(monkeypatch, tmp_path):  # L6
+    from app.web import usage
+
+    monkeypatch.setattr(usage, "USAGE_FILE", tmp_path / "not-a-folder" / "usage.json")
+    (tmp_path / "not-a-folder").write_text("a file where the folder should be")
+    event = {"type": "rate_limit_event", "rate_limit_info": {"unifiedWindows": {"five_hour": {"utilization": 0.1}}}}
+    assert usage.record(event) is False  # logged and skipped: the console turn goes on
 
 
 def test_usage_limits_follow_claude_codes_rate_limit_events(web, monkeypatch, tmp_path):
@@ -745,6 +792,17 @@ def test_a_run_lives_on_this_machine_from_its_first_draft_to_its_trash(web, monk
     assert client.delete(f"/api/runs/{started['id']}", headers=ORIGIN).status_code == 204
     assert (runs / ".trash" / started["id"] / "brief.json").exists()  # recoverable, not gone
     assert started["id"] not in [run["id"] for run in client.get("/api/runs").json()]
+
+
+def test_a_run_deleted_twice_under_the_same_name_keeps_both_in_the_trash(web):  # L7
+    runs, client = web
+    signed_in(client)
+    for content in ("first", "second"):
+        run = run_at_cp1(runs)
+        (run / "note.txt").write_text(content)
+        assert client.delete(f"/api/runs/{run.name}", headers=ORIGIN).status_code == 204
+    kept = sorted((path / "note.txt").read_text() for path in (runs / ".trash").iterdir())
+    assert kept == ["first", "second"]
 
 
 def test_the_profile_keeps_your_name_and_adds_up_what_every_run_cost(web):

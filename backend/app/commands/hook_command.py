@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -41,6 +42,14 @@ def handle_hook_command(arguments) -> None:
     except ValidationError:
         return  # not a hook event this command understands
     tool_input = hook_event.tool_input
+    if hook_event.hook_event_name == "PreToolUse":  # approving is the user's decision, relayed by the session (M31)
+        if hook_event.agent_id and re.search(r"\btext-2-shorts\s+approve\b", tool_input.command or ""):
+            print(
+                "Only the user approves a checkpoint. Finish your task and report back; the session asks the user.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        return
     run = find_run_directory(hook_event.cwd, tool_input.file_path)
     if run is None:
         return  # not inside a run workspace
