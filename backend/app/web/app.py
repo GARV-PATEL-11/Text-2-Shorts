@@ -384,19 +384,11 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     @app.post("/api/runs/{run}/console", dependencies=[Depends(signed_in_account)])
     def console_turn(run: str, turn: ConsoleInput) -> StreamingResponse:
         folder = run_folder(run)
-        lock = console.turn_lock(folder)
-        if not lock.__enter__():
-            lock.__exit__(None, None, None)
+        running = console.start_turn(folder, turn.message)  # the server owns the turn; this response follows it
+        if running is None:
             raise ApiProblem(409, "Claude is still working on the previous message")
-
-        def stream():
-            try:
-                for entry in console.run_turn(folder, turn.message):
-                    yield entry.model_dump_json() + "\n"
-            finally:
-                lock.__exit__(None, None, None)  # held for the whole turn, released when the stream ends
-
-        return StreamingResponse(stream(), media_type="application/x-ndjson")
+        lines = (entry.model_dump_json() + "\n" for entry in console.follow(running))
+        return StreamingResponse(lines, media_type="application/x-ndjson")
 
     @app.get("/api/runs/{run}", response_model=RunDetail, dependencies=[Depends(signed_in_account)])
     def run(run: str) -> RunDetail:

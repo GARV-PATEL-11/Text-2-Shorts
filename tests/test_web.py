@@ -463,6 +463,33 @@ def test_a_run_has_one_console_turn_at_a_time(web, monkeypatch):
         assert response.status_code == 409 and client.get(f"/api/runs/{run.name}/console").json()["busy"] is True
 
 
+def test_a_console_turn_outlives_the_page_that_sent_it(web, monkeypatch, tmp_path):  # H7, M14
+    import sys
+
+    from app.web import console
+
+    runs, _ = web
+    run = run_at_cp1(runs)
+    slow = tmp_path / "slow_claude.py"
+    slow.write_text(
+        "import json, sys, time\n"
+        "sys.stderr.write('x' * 200_000)\n"  # more than a pipe holds: must not hang the turn (M14)
+        "print(json.dumps({'type': 'assistant', 'message': {'content': [{'type': 'text', 'text': 'one'}]}}), flush=True)\n"
+        "time.sleep(0.5)\n"
+        "print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False}), flush=True)\n"
+    )
+    monkeypatch.setattr(console, "claude_turn_command", lambda *_: [sys.executable, str(slow)])
+    turn = console.start_turn(run, "go")
+    assert turn is not None and console.start_turn(run, "again") is None  # one turn at a time
+    follower = console.follow(turn)
+    assert next(follower).role == "you"
+    follower.close()  # the page reloads mid-turn: the turn goes on, holding its lock
+    assert console.is_busy(run)
+    turn.finished.wait(10)
+    assert [entry.role for entry in console.history(run)] == ["you", "claude", "system"]
+    assert not console.is_busy(run)
+
+
 def test_a_console_turn_is_the_run_session_in_its_jail():  # Haiku: the user's conversation
     from app import sandbox
     from app.config import SESSION_MODEL

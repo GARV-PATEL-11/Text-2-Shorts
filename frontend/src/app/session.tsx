@@ -17,6 +17,27 @@ interface Session {
 
 const SessionContext = createContext<Session | null>(null);
 
+const NEXT = "faraday.after-sign-in";
+
+/** Sign in, then come back here: the address the user opened is kept across the sign-in (L8). */
+function toSignIn() {
+  try {
+    if (!window.location.hash.startsWith("#/signin")) sessionStorage.setItem(NEXT, window.location.hash || "#/");
+  } catch { /* storage blocked: sign-in still works, it lands on Home */ }
+  navigate("#/signin");
+}
+
+/** Where to go after signing in: the address kept by toSignIn, else Home. */
+export function afterSignIn(): string {
+  try {
+    const next = sessionStorage.getItem(NEXT);
+    sessionStorage.removeItem(NEXT);
+    return next && next.startsWith("#/") && !next.startsWith("#/signin") ? next : "#/";
+  } catch {
+    return "#/";
+  }
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [checked, setChecked] = useState(false);
@@ -25,16 +46,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     load<SessionView>("/api/session")
       .then((session) => {
         setAccount(session.signed_in ? session.account ?? null : null);
-        if (!session.signed_in) navigate("#/signin");
+        if (!session.signed_in) toSignIn();
       })
-      .catch(() => navigate("#/signin"))
+      .catch(toSignIn)
       .finally(() => setChecked(true));
   }, []);
 
   const fail = useCallback((error: unknown) => {
     if (error instanceof SignedOut) {
       setAccount(null);
-      navigate("#/signin");
+      toSignIn();
     }
   }, []);
   const signOut = useCallback(async () => {

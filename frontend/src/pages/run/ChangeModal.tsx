@@ -1,14 +1,14 @@
 // Asking for a change to any stage, scene or clip, in a modal.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "../../components/feedback/Overlay";
 import { Notice } from "../../components/feedback/Notice";
 import { Button } from "../../components/ui/Button";
 import { MarkdownField, SelectField } from "../../components/ui/fields";
 import { RequestChange } from "../../components/ui/icons";
 import { useAction } from "../../hooks/useAction";
-import { send } from "../../services/http";
+import { load, send, streamTurn } from "../../services/http";
 import { runPath } from "../../services/runs";
-import type { TrackedRequest } from "../../types/api";
+import type { ConsoleView, TrackedRequest } from "../../types/api";
 import { type Ask, useRun } from "./context";
 
 const KINDS = [
@@ -38,12 +38,14 @@ export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => 
   const action = useAction();
   const { setNote } = action;
 
-  useEffect(() => {
+  const latestTargets = useRef(targets);
+  latestTargets.current = targets;
+  useEffect(() => {  // only when the modal opens: a refresh while the user types never resets the form (M19)
     if (!ask) return;
-    setTarget(targets.some((candidate) => candidate.id === ask.target) ? ask.target : "outline");
+    setTarget(latestTargets.current.some((candidate) => candidate.id === ask.target) ? ask.target : "outline");
     setText("");
     setNote(null);
-  }, [ask, targets, setNote]);
+  }, [ask, setNote]);
 
   const submit = () =>
     action.run("Sending…", async () => {
@@ -51,7 +53,15 @@ export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => 
         target, kind, text: text.trim(), checkpoint: ask?.checkpoint && !ask.checkpoint.startsWith("start:") ? ask.checkpoint : null,
       });
       onClose();
-      refresh(`Change Request ${request.id} Recorded: The Run's Session Applies It at Its Next Step`);
+      // a recorded request starts nothing by itself: tell an idle session, or the running turn picks it up (M20)
+      const path = runPath(run.summary.id, "/console");
+      if ((await load<ConsoleView>(path)).busy) {
+        refresh(`Change Request ${request.id} Recorded: Claude Applies It After the Step It Is On`);
+        return;
+      }
+      const message = `I asked for a change: ${request.id} (${request.target}, ${request.kind}). Apply it, then carry on.`;
+      void streamTurn(path, message, () => undefined).catch(() => undefined);  // the server owns the turn; the page polls it
+      refresh(`Change Request ${request.id} Recorded: Claude Is Applying It`);
     });
   return (
     <Modal isOpen={ask !== null} onOpenChange={(open) => (open ? null : onClose())} icon={<RequestChange />}

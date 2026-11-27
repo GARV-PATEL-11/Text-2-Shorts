@@ -1,5 +1,6 @@
 // The run's console: talk to its Claude Code session, one turn per message; replies stream in.
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { usePolling } from "../../hooks/usePolling";
 import { Notice } from "../../components/feedback/Notice";
 import { SystemMessage } from "../../components/feedback/SystemMessage";
 import { Button } from "../../components/ui/Button";
@@ -21,6 +22,9 @@ export function Console() {
   const turn = useAction();
   const log = useRef<HTMLOListElement>(null);
   const form = useRef<HTMLFormElement>(null);
+  const following = useRef<AbortController | null>(null);
+  useEffect(() => () => following.current?.abort(), []);  // closing the drawer stops following; the turn goes on
+  usePolling(() => { if (view.data?.busy && !turn.busy) view.reload(); }, 3000);  // a turn this page is not following
 
   useEffect(() => {
     if (view.data) setLines(view.data.entries);
@@ -40,9 +44,15 @@ export function Console() {
     const message = text.trim() || (started ? "" : kickoff);
     if (!message) return;
     setText("");
+    const controller = new AbortController();
+    following.current = controller;
     void turn.run("Claude Is Working: Renders and Voice Can Take Minutes", async () => {
-      await streamTurn(runPath(id, "/console"), message, (entry) => setLines((current) => [...current, entry]));
+      await streamTurn(runPath(id, "/console"), message, (entry) => setLines((current) => [...current, entry]), controller.signal);
       refresh("Claude Finished");
+    }).then((sent) => {
+      if (sent || controller.signal.aborted) return;
+      setText((current) => current || message);  // a turn that could not start or broke off keeps what was typed
+      view.reload();
     });
   };
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -75,7 +85,7 @@ export function Console() {
       </form>
       <p className="term__keys" id="console-keys">Enter Sends · Shift+Enter for a New Line</p>
       <div className="term__status">
-        {view.data.busy && !turn.busy ? <p className="note">Claude Is Still Replying: Reopen to See More</p> : null}
+        {view.data.busy && !turn.busy ? <p className="note">Claude Is Still Replying: Its Messages Appear Here as It Works</p> : null}
         <Notice note={turn.note} />
       </div>
     </div>

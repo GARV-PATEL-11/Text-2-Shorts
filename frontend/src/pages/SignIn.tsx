@@ -1,7 +1,7 @@
 // Sign in with the Claude account Claude Code is signed in to on this computer.
 import { useEffect, useState } from "react";
 import { navigate } from "../app/routes";
-import { useSession } from "../app/session";
+import { afterSignIn, useSession } from "../app/session";
 import { Notice } from "../components/feedback/Notice";
 import { Logo } from "../components/layout/Logo";
 import { Page } from "../components/layout/Page";
@@ -21,7 +21,7 @@ export function SignInPage() {
       .then((session) => {
         if (session.signed_in && session.account) {
           signIn(session.account);
-          navigate("#/");
+          navigate(afterSignIn());
         } else setCodeSignedIn(Boolean(session.claude_code_signed_in));
       })
       .catch(() => setCodeSignedIn(false));
@@ -34,7 +34,7 @@ export function SignInPage() {
         throw error;
       });
       if (signed.account) signIn(signed.account);
-      navigate("#/");
+      navigate(afterSignIn());
     });
 
   return (

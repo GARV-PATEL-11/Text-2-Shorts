@@ -163,6 +163,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
         }
       />
       <Notice note={action.note} />
+      {drafts.error ? <SystemMessage kind="unavailable" title="Could Not Load Your Drafts" compact action={<Button variant="secondary" size="sm" onPress={drafts.reload}>Try Again</Button>}>{drafts.error.message}</SystemMessage> : null}
       {body}
       {dialog}
     </Page>

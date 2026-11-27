@@ -11,6 +11,8 @@ import fcntl
 import json
 import logging
 import subprocess
+import tempfile
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -94,8 +96,59 @@ def entries_from_event(event: dict) -> list[ConsoleEntry]:
     return []
 
 
+class Turn:
+    """A running turn's entries so far, for whoever follows it (the page that sent it, or none)."""
+
+    def __init__(self):
+        self.entries: list[ConsoleEntry] = []
+        self.changed = threading.Condition()
+        self.finished = threading.Event()
+
+
+def start_turn(run: Path, message: str) -> Turn | None:
+    """Start one turn in a background thread that owns the turn lock, the Claude Code process and console.jsonl;
+    None when a turn of this run is already running. The page only follows it: a reload or a closed drawer never
+    frees the lock while Claude Code is still working (H7)."""
+    lock = turn_lock(run)
+    if not lock.__enter__():
+        lock.__exit__(None, None, None)
+        return None
+    turn = Turn()
+
+    def work():
+        try:
+            for entry in run_turn(run, message):
+                with turn.changed:
+                    turn.entries.append(entry)
+                    turn.changed.notify_all()
+        except Exception:
+            log.exception("%s: console turn failed", run.name)
+        finally:
+            lock.__exit__(None, None, None)
+            with turn.changed:
+                turn.finished.set()
+                turn.changed.notify_all()
+
+    threading.Thread(target=work, name=f"console {run.name}", daemon=True).start()
+    return turn
+
+
+def follow(turn: Turn) -> Iterator[ConsoleEntry]:
+    """The turn's entries as they come, until it finishes. Stopping early leaves the turn running."""
+    shown = 0
+    while True:
+        with turn.changed:
+            turn.changed.wait_for(lambda seen=shown: len(turn.entries) > seen or turn.finished.is_set(), timeout=30)
+            new, finished = turn.entries[shown:], turn.finished.is_set()
+        shown += len(new)
+        yield from new
+        if finished and shown == len(turn.entries):
+            return
+
+
 def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
-    """One turn: the user's message, then Claude's text and tool calls as they happen. The caller holds turn_lock."""
+    """One turn: the user's message, then Claude's text and tool calls as they happen. The caller holds turn_lock;
+    the process is stopped if the turn ends early, and its stderr goes to a file (a full pipe would hang it)."""
 
     def keep(entry: ConsoleEntry) -> ConsoleEntry:
         append_jsonl(run, CONSOLE_FILE, entry)
@@ -104,26 +157,43 @@ def run_turn(run: Path, message: str) -> Iterator[ConsoleEntry]:
     yield keep(ConsoleEntry(at=now_text(), role="you", text=message))
     log.info("%s: console turn started (%d characters)", run.name, len(message))
     command = claude_turn_command(run, message, load_state(run).console_session)
-    process = subprocess.Popen(command, cwd=run, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    assert process.stdout is not None
-    for line in process.stdout:
+    with tempfile.TemporaryFile("w+") as stderr:
+        process = subprocess.Popen(command, cwd=run, stdout=subprocess.PIPE, stderr=stderr, text=True)
+        assert process.stdout is not None
         try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if event.get("session_id") and event.get("type") == "system":
-            session_id = event["session_id"]
-            update_state(run, lambda state, session_id=session_id: setattr(state, "console_session", session_id))
-        usage.record(event)  # the usage limits on Home follow every turn
-        if event.get("type") == "result" and (cost := event.get("total_cost_usd")):  # the profile's net spend
-            update_state(run, lambda state, cost=cost: setattr(state, "spend_usd", state.spend_usd + float(cost)))
-        for entry in entries_from_event(event):
-            yield keep(entry)
-    if process.wait() == 0:
-        log.info("%s: console turn finished", run.name)
-    else:
-        tail = (process.stderr.read() if process.stderr else "")[-600:].strip()
-        log.error("%s: Claude Code stopped (exit %s): %s", run.name, process.returncode, tail)
-        yield keep(
-            ConsoleEntry(at=now_text(), role="error", text=f"Claude Code stopped (exit {process.returncode}). {tail}")
-        )
+            for line in process.stdout:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("session_id") and event.get("type") == "system":
+                    session_id = event["session_id"]
+                    update_state(
+                        run, lambda state, session_id=session_id: setattr(state, "console_session", session_id)
+                    )
+                usage.record(event)  # the usage limits on Home follow every turn
+                if event.get("type") == "result" and (cost := event.get("total_cost_usd")):  # the profile's net spend
+                    update_state(
+                        run, lambda state, cost=cost: setattr(state, "spend_usd", state.spend_usd + float(cost))
+                    )
+                for entry in entries_from_event(event):
+                    yield keep(entry)
+            process.wait()
+        finally:
+            if process.poll() is None:  # the turn ended early: never leave Claude Code running unowned
+                process.terminate()
+                try:
+                    process.wait(10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+        if process.returncode == 0:
+            log.info("%s: console turn finished", run.name)
+        else:
+            stderr.seek(0)
+            tail = stderr.read()[-600:].strip()
+            log.error("%s: Claude Code stopped (exit %s): %s", run.name, process.returncode, tail)
+            yield keep(
+                ConsoleEntry(
+                    at=now_text(), role="error", text=f"Claude Code stopped (exit {process.returncode}). {tail}"
+                )
+            )

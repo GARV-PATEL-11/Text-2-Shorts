@@ -19,6 +19,7 @@ import { WithCode } from "../../components/ui/text";
 import { currentStage, isFinished, REQUIRED_STEPS, STAGE_STEPS, stageStatuses, stepState } from "../../config/stages";
 import type { Note } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
+import { usePolling } from "../../hooks/usePolling";
 import { runHash, runPath } from "../../services/runs";
 import type { RunDetail } from "../../types/api";
 import { ChangeModal, NO_REQUESTS } from "./ChangeModal";
@@ -56,6 +57,8 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   const [ask, setAsk] = useState<Ask | null>(null);
   const [claudeAsks, setClaudeAsks] = useState(false);  // while Claude asks, its panel leads and the approval bar steps back
   const { reload } = detail;
+  // Claude works between the user's clicks: statuses, scenes and new checkpoints appear without a reload (H4)
+  usePolling(() => { if (detail.data && !detail.data.problem && detail.data.summary.status !== "completed") reload(); });
   const refresh = useCallback((message: string) => {
     setNotice({ text: message });
     reload();
@@ -75,7 +78,10 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   if (detail.error && !run) {
     return (
       <Page title="Run">
-        <SystemMessage kind="unavailable" title="Could Not Load This Run" action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
+        <SystemMessage kind="unavailable" title="Could Not Load This Run" action={<>
+          <Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>
+          <Button variant="secondary" size="sm" onPress={() => navigate("#/ongoing")}>All Runs</Button>
+        </>}>
           {detail.error.message}
         </SystemMessage>
       </Page>

@@ -24,6 +24,7 @@ export function useAction() {
         setNote(done ? { text: done } : null);
         return true;
       } catch (error) {
+        if ((error as Error).name === "AbortError") return false;  // the page stopped following on purpose
         fail(error);
         if (!(error instanceof SignedOut)) log.error(`Failed: ${working}`, error);
         if (!(error instanceof SignedOut)) setNote({ text: errorText(error), error: true });

@@ -23,6 +23,7 @@ export function CheckpointPanel({ target }: { target: string }) {
   const problemsKey = checkpoint?.problems.join("\n") ?? "";
   const [acceptedFor, setAcceptedFor] = useState<string | null>(null);
   const accepted = acceptedFor === problemsKey;  // new or changed problems clear the tick: they were never seen
+  const [approvedVersion, setApprovedVersion] = useState<string | null>(null);  // sent: wait for the reload, never twice
   const action = useAction();
   const decisions = run.decisions.filter((decision) => decision.checkpoint === target);
   const approved = stageStatuses(run)[target] === "approved";
@@ -55,6 +56,7 @@ export function CheckpointPanel({ target }: { target: string }) {
   const approve = () =>
     action.run("Approving…", async () => {
       const decision = await send<Decision>(runPath(run.summary.id, "/approve"), { checkpoint: target, notes: notes.trim(), force: blocked, fingerprint: checkpoint.fingerprint ?? null });
+      setApprovedVersion(checkpoint.fingerprint ?? target);
       const index = REQUIRED_STEPS.findIndex((step) => step.id === target);  // -1 for a scene's checkpoint: stay on it
       const next = index >= 0 ? REQUIRED_STEPS[index + 1] : undefined;
       const after = target === "final" ? STAGE_STEPS.find((step) => step.optional) : next;  // stages follow one after the other
@@ -74,7 +76,7 @@ export function CheckpointPanel({ target }: { target: string }) {
         ) : <p className="note">Nothing Blocks This Checkpoint</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />
         <div className="row">
-          <Button onPress={approve} isDisabled={action.busy || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve & Continue</Button>
+          <Button onPress={approve} isDisabled={action.busy || approvedVersion === (checkpoint.fingerprint ?? target) || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve & Continue</Button>
           {NO_REQUESTS.includes(target) ? null : <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>}
         </div>
         {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick Approve with Open Problems to Approve Anyway, or {NO_REQUESTS.includes(target) ? "Ask Claude in the Console" : "Request a Change"}</p> : null}

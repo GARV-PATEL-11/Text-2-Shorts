@@ -19,7 +19,8 @@ import { Said } from "../components/ui/Said";
 import { useAction } from "../hooks/useAction";
 import { STAGE_STEPS } from "../config/stages";
 import { useApi } from "../hooks/useApi";
-import { load, send } from "../services/http";
+import { errorText, load, send } from "../services/http";
+import { useSession } from "../app/session";
 import { APPROACHES } from "../config/approaches";
 import { runHash } from "../services/runs";
 import type { Draft, LookCatalogue, LookChoice, RunSummary } from "../types/api";
@@ -29,6 +30,8 @@ const PROVIDERS = [
   { id: "polly", label: "AWS Polly", hint: "Uses Your ~/.aws Credentials" },
   { id: "google", label: "Google Cloud", hint: "Uses Your gcloud Application-Default Login" },
 ];
+const MAX_OBJECTIVES = 8;  // NewRunInput.objectives in backend/schemas/api.py
+
 /** The steps of Start a Run, in order: the template stage's, then the requirements stage's. */
 const STEPS = [
   { id: "starters", stage: "template", label: "Starter Templates" },
@@ -75,6 +78,9 @@ export function NewRunPage() {
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [savedAt, setSavedAt] = useState("");
   const baseline = useRef<string | null>(null);
+  const { fail } = useSession();
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreTry, setRestoreTry] = useState(0);
   useEffect(() => {
     if (restored) return;
     load<Draft[]>("/api/drafts").then((drafts) => {
@@ -84,8 +90,12 @@ export function NewRunPage() {
         setObjectives(draft.objectives); setApproach(draft.approach); setMinutes(draft.minutes); setAudience(draft.audience);
         setTts(draft.tts); setNotes(draft.notes); setSaving("saved"); setSavedAt(draft.updated.slice(11, 16));
       }
-    }).finally(() => setRestored(true));
-  }, [draftId, restored]);
+      setRestored(true);
+    }).catch((error: Error) => {  // not restored: saving stays off, so blank fields never overwrite the draft (M21)
+      fail(error);
+      setRestoreError(errorText(error));
+    });
+  }, [draftId, restored, restoreTry, fail]);
   useEffect(() => {
     if (restored && catalogue.data && !choice) setChoice(starterChoice(catalogue.data, "obsidian") ?? starterChoice(catalogue.data, catalogue.data.templates[0].name));
   }, [catalogue.data, choice, restored]);
@@ -103,15 +113,19 @@ export function NewRunPage() {
           setSaving("saved"); setSavedAt(saved.updated.slice(11, 16));
           if (!window.location.hash.includes("draft=")) window.history.replaceState(null, "", `#/new?draft=${draftId}`);
         })
-        .catch(() => setSaving("failed"));
+        .catch((error: Error) => {
+          fail(error);  // a session that expired: sign in now, not after more typing that cannot be saved (M22)
+          setSaving("failed");
+        });
     }, 600);
     return () => window.clearTimeout(timer);
-  }, [snapshot, restored, choice, draftId]);
+  }, [snapshot, restored, choice, draftId, fail]);
   const saveState = { idle: "", saving: "Saving…", saved: `All Changes Saved${savedAt ? ` · ${savedAt}` : ""}`, failed: "Not Saved: Trying Again on Your Next Change" }[saving];
 
   const goals = objectives.split("\n").map((line) => line.trim()).filter(Boolean);
   const ready: Record<string, boolean> = {
-    starters: choice !== null, sound: true, whole: true, question: topic.trim().length >= 3,
+    starters: choice !== null, sound: true, whole: true,
+    question: topic.trim().length >= 3 && goals.length <= MAX_OBJECTIVES && objectives.length <= 4000,  // checked here, not at Start (M23)
     audience: Number(minutes) >= 3 && Number(minutes) <= 20 && audience.trim().length > 0, review: true,
   };
   const at = STEPS[step];
@@ -154,7 +168,13 @@ export function NewRunPage() {
   );
 
   let body;
-  if (at.stage === "template") {
+  if (restoreError && !restored) {
+    body = (
+      <SystemMessage kind="unavailable" title="Could Not Load Your Draft">
+        {restoreError} <Button size="sm" variant="secondary" onPress={() => { setRestoreError(null); setRestoreTry((n) => n + 1); }}>Try Again</Button>
+      </SystemMessage>
+    );
+  } else if (at.stage === "template") {
     body = catalogue.error ? <SystemMessage kind="unavailable" title="Could Not Load Templates">{catalogue.error.message}</SystemMessage>
       : !catalogue.data || !choice ? <SystemMessage kind="loading" title="Loading Templates" />
       : <div className="stack"><TemplateStep catalogue={catalogue.data} choice={choice} setChoice={setChoice} step={at.id} next={next} />{step ? foot : null}</div>;
@@ -167,8 +187,9 @@ export function NewRunPage() {
               <p className="note"><Said moment="question" /></p>
               <MarkdownField label="What Should the Video Explain?" value={topic} onChange={setTopic} rows={5} isRequired maxLength={2000}
                 placeholder="Why is the sky blue, and why are sunsets red?" hint="A Question Works Best" />
-              <Field label="Objectives" value={objectives} onChange={setObjectives} multiline rows={4}
-                placeholder={"explain Rayleigh scattering\nsay why sunsets are red"} hint="One per Line: What the Viewer Can Do Afterwards (Optional)" />
+              <Field label="Objectives" value={objectives} onChange={setObjectives} multiline rows={4} maxLength={4000}
+                placeholder={"explain Rayleigh scattering\nsay why sunsets are red"}
+                hint={goals.length > MAX_OBJECTIVES ? `At Most ${MAX_OBJECTIVES} Objectives: ${goals.length} Now` : "One per Line: What the Viewer Can Do Afterwards (Optional)"} />
             </>
           ) : null}
           {at.id === "audience" ? (

@@ -54,12 +54,15 @@ export async function send<T>(path: string, body: unknown, method = "POST"): Pro
 }
 
 /** One console turn: the user's message, then Claude's lines as they stream in (NDJSON, one entry per line). */
-export async function streamTurn(path: string, message: string, onEntry: (entry: ConsoleEntry) => void): Promise<void> {
+/** One console turn, its entries as they stream. Aborting stops following it; the server finishes the turn. */
+export async function streamTurn(
+  path: string, message: string, onEntry: (entry: ConsoleEntry) => void, signal?: AbortSignal,
+): Promise<void> {
   const response = await request(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
     body: JSON.stringify({ message }),
-  });
+  }, signal);
   if (!response.body) throw new ApiError("The console sent no reply.");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
