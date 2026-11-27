@@ -43,10 +43,13 @@ def content_top(inset: float) -> float:
 
 # The elements a user may set to their own value, and what the value is: it becomes an override of the variant.
 CUSTOM = {
-    "background_color": "color or gradient",  # one color, or "base,shade": the gradient's top and bottom
-    "accent_color": "color",
-    "text_font": "font family",
+    "background_color": "A colour or a gradient",  # one color, or "base,shade": the gradient's top and bottom
+    "accent_color": "A colour, like #3B82F6",
+    "text_font": "A font name installed on this computer",
+    "voice": "An Amazon Polly voice and engine, like Danielle:generative",
 }
+POLLY_ENGINES = ("standard", "neural", "long-form", "generative")
+POLLY_VOICE = re.compile(r"^[A-Z][A-Za-z]{1,30}$")
 LEGACY_CUSTOM = ("voice", "speaking_speed")  # custom audio before 0.36: still read from saved runs, never offered
 
 # What the optional last stage may reshuffle, by group. Never typography or the frame: text sizes keep every clip's
@@ -86,8 +89,9 @@ def custom_override(element: str, value: str, mode: str) -> dict:
         return {mode: {"accent": value}}
     if element == "text_font":
         return {"family": value}
-    if element == "voice":
-        return {"polly": {"voice_id": value}, "google": {"neural2": value}}
+    if element == "voice":  # "Danielle:generative" (any Polly voice and engine); before 0.37 a voice id alone
+        voice_id, _, engine = value.partition(":")
+        return {"polly": {"voice_id": voice_id, **({"engine": engine} if engine else {})}, "label": voice_id}
     return {"rate": float(value)}  # speaking_speed
 
 
@@ -101,7 +105,8 @@ def custom_value(element: str, override: dict, mode: str) -> str:
     if element == "text_font":
         return override["family"]
     if element == "voice":
-        return override["polly"]["voice_id"]
+        polly = override["polly"]
+        return f"{polly['voice_id']}:{polly['engine']}" if polly.get("engine") else polly["voice_id"]
     return str(override["rate"])
 
 
@@ -127,10 +132,15 @@ def problems(template: dict) -> list[str]:
     for name, override in template.get("overrides", {}).items():
         if name not in CUSTOM and name not in LEGACY_CUSTOM:
             errors.append(f"{name}: no custom value allowed (custom: {', '.join(CUSTOM)})")
-        elif CUSTOM.get(name, "").startswith("color") and not all(
+        elif name in ("background_color", "accent_color") and not all(
             HEX.match(colour) for part in override.values() for colour in part.values()
         ):
             errors.append(f"{name}: a custom colour is #RRGGBB")
+        elif name == "voice" and not (
+            POLLY_VOICE.match(str(override.get("polly", {}).get("voice_id", "")))
+            and override.get("polly", {}).get("engine", "neural") in POLLY_ENGINES
+        ):
+            errors.append(f"voice: a custom voice is an Amazon Polly voice and engine ({', '.join(POLLY_ENGINES)})")
         elif name == "speaking_speed" and not 0.8 <= override.get("rate", 0) <= 1.2:
             errors.append("speaking_speed: a custom rate is 0.8–1.2")
     if errors:

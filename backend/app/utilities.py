@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import os
+import random
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -95,3 +96,33 @@ def now_text() -> str:
 
 def format_validation_errors(validation_error: ValidationError) -> list[str]:
     return [f"{'.'.join(map(str, error['loc']))}: {error['msg']}" for error in validation_error.errors()]
+
+
+# One line for a person at the end of the human-facing commands (serve, new, final, --help). Never on a command
+# whose output a test, script or Claude parses (approve, validate, hash, status, next).
+CLI_QUOTES = {
+    "serve": [
+        "Curiosity, Illustrated.",
+        '"I have arranged certain apparatus, the use of which you will see as I go on." — Michael Faraday',
+        '"But first let us see that our instrument is in order." — Michael Faraday',
+        '"Hello and, again, welcome to the Aperture Science computer-aided enrichment center." — Portal',
+    ],
+    "new": [
+        '"Make it so!" — Star Trek: The Next Generation',
+        '"let us make an experiment or two." — Michael Faraday',
+    ],
+    "final": [
+        '"Work, Finish, Publish." — Michael Faraday',
+        '"Yes! We have proved it by combustion" — Michael Faraday',
+        '"We\'re made of star-stuff. We are a way for the cosmos to know itself." — Carl Sagan',
+    ],
+    "help": [
+        "Curiosity, Illustrated.",
+        '"What I cannot create, I do not understand." — Richard Feynman',
+        '"I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your minds." — Michael Faraday',
+    ],
+}
+
+
+def cli_quote(moment: str) -> str:
+    return random.choice(CLI_QUOTES[moment])

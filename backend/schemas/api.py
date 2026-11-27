@@ -10,7 +10,7 @@ from schemas.base import Strict
 from schemas.interaction import CheckpointDecision, TrackedRequest
 from schemas.media import MediaFinding
 from schemas.outline_models.approaches import ApproachName
-from schemas.run_state import Status
+from schemas.run_state import ConsoleMode, ConsoleSettings, Status
 from schemas.session import ActionBatch
 
 RunStatus = Literal["configuring", "in_progress", "awaiting_approval", "failed", "completed"]
@@ -103,6 +103,7 @@ class CheckpointView(Strict):
     target: str = Field(..., description="what `approve` takes: a stage, sNN, start:sNN or final")
     label: str
     problems: list[str] = Field(default_factory=list, description="open problems (approving anyway records it)")
+    people: list[str] = Field(default_factory=list, description="`problems`, one plain sentence each, for the site")
     fingerprint: str | None = Field(None, description="the version shown; ApproveInput sends it back")
 
 
@@ -155,6 +156,7 @@ class ResolveInput(Strict):
 class ApiError(Strict):
     error: str
     problems: list[str] = Field(default_factory=list)
+    people_problems: list[str] = Field(default_factory=list, description="`problems` in plain words, same order")
 
 
 class NewRunInput(Strict):
@@ -195,19 +197,111 @@ class ConsoleInput(Strict):
     message: str = Field(..., min_length=1, max_length=8000)
 
 
+class TurnStats(Strict):
+    """What one console turn used, as Claude Code's result event reports it."""
+
+    model: str = ""
+    cost_usd: float = 0.0
+    duration_ms: int = 0
+    context_tokens: int = Field(0, description="input + cache tokens of the turn's last request: the context in use")
+    context_window: int = 0
+    output_tokens: int = 0
+    tools: int = 0
+
+
+ConsoleRole = Literal[
+    "you", "claude", "question", "tool", "result", "permission", "answer", "partial", "thinking", "system", "error"
+]
+
+
 class ConsoleEntry(Strict):
-    """One line of the console (console.jsonl): what the user said, what Claude said or did, or what happened."""
+    """One line of the console (console.jsonl): what the user said, what Claude said or did, or what happened.
+    Append-only: a tool's `result` and a prompt's `answer` carry the `id` of the entry they complete. `partial`
+    (streamed text) and `thinking` are sent while a turn runs and never stored."""
 
     at: str
-    role: Literal["you", "claude", "question", "tool", "system", "error"]
+    role: ConsoleRole
     text: str = Field(..., description="Markdown")
     options: list[str] = Field(default_factory=list, description="a question's choices, answered with one click")
+    id: str | None = Field(None, description="tool_use id (tool, result) or prompt id (permission, answer)")
+    tool: str | None = Field(None, description="the tool's name (tool, result, permission)")
+    input: dict | None = Field(None, description="the tool's input, long strings cut (tool, permission)")
+    is_error: bool = False
+    duration_ms: int | None = Field(None, description="result: time from the call to its result")
+    stats: TurnStats | None = Field(None, description="the end of a turn (system or error)")
+    rule: str | None = Field(None, description="permission: the allowance 'Allow for This Session' would add")
+
+
+class ConsoleSession(Strict):
+    """The run session as Claude Code's init event describes it (the last turn's)."""
+
+    session_id: str = ""
+    model: str = ""
+    cwd: str = ""
+    permission_mode: str = ""
+    slash_commands: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    agents: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
 
 
 class ConsoleView(Strict):
     busy: bool
     kickoff: str = Field("", description="the message that starts (or resumes) production")
     entries: list[ConsoleEntry] = Field(default_factory=list)
+    settings: ConsoleSettings = Field(default_factory=ConsoleSettings)
+    session: ConsoleSession | None = None
+    pending: list[ConsoleEntry] = Field(default_factory=list, description="permission prompts waiting for the user")
+    rules: dict[str, list[str]] = Field(default_factory=dict, description="the run's settings.json allow and deny")
+    default_model: str = ""
+    spend_usd: float = Field(0.0, description="what this run's console turns cost in all")
+
+
+class ConsoleSettingsInput(Strict):
+    """PUT /api/runs/<run>/console/settings: the model and permission mode of the next turns."""
+
+    model: Literal["haiku", "sonnet", "opus"] | None = None
+    mode: ConsoleMode | None = None
+
+
+class PollyVoice(Strict):
+    id: str
+    name: str
+    gender: str = ""
+    language_code: str
+    language: str
+    engines: list[str] = Field(
+        default_factory=list, description="standard, neural, long-form, generative: what Polly has"
+    )
+
+
+class VoiceList(Strict):
+    """GET /api/voices: the narrators to choose from, and the sentence every preview speaks."""
+
+    provider: str
+    template: str = Field(..., description="the preview sentence with {agent} {speed} {provider} {engine}")
+    voices: list[PollyVoice]
+    curated: dict[str, str] = Field(
+        default_factory=dict, description="the template's own voice options: 'Voice:engine' → option id"
+    )
+
+
+class VoicePreviewInput(Strict):
+    """POST /api/voices/preview: one voice, engine and speed → the preview's MP3 (speaking style is not offered for now)."""
+
+    voice: str = Field(..., pattern=r"^[A-Z][A-Za-z]{1,30}$")
+    engine: Literal["standard", "neural", "long-form", "generative"]
+    speed: str = Field(..., max_length=40, description="a speaking_speed option")
+    tone: str = Field(
+        "", max_length=40, description="unused for now (speaking style is hidden); kept so older pages still work"
+    )
+
+
+class PermissionAnswer(Strict):
+    """POST /api/runs/<run>/console/permissions/<id>: the user's decision on a permission prompt."""
+
+    decision: Literal["once", "session", "deny"]
+    note: str = Field("", max_length=2000, description="deny: what Claude should do instead")
 
 
 class LookOption(Strict):
@@ -279,6 +373,7 @@ class LookView(Strict):
     elements: dict[str, str]
     custom: dict[str, str] = Field(default_factory=dict)
     saved: bool = Field(False, description="template.json exists")
+    provider: Literal["polly", "google"] = Field("polly", description="the run's narration provider (its brief)")
 
 
 class VoiceSample(Strict):

@@ -69,14 +69,12 @@ def test_signing_in_uses_the_claude_account_claude_code_is_signed_in_to(web):
     assert client.get("/api/runs").status_code == 401
 
 
-def test_signing_in_needs_the_token_serve_printed(tmp_path, monkeypatch):  # H6
+def test_signing_in_needs_only_claude_codes_account(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "claude_code_account", lambda: ACCOUNT)
-    with TestClient(create_app(tmp_path / "runs", sign_in_token="s3cret"), base_url=BASE) as client:
-        assert client.post("/api/session", headers=ORIGIN).status_code == 403  # any local process: refused
-        wrong = client.post("/api/session", headers={**ORIGIN, "X-Faraday-Token": "guess"})
-        assert wrong.status_code == 403
-        right = client.post("/api/session", headers={**ORIGIN, "X-Faraday-Token": "s3cret"})
-        assert right.status_code == 200 and client.get("/api/runs").status_code == 200
+    with TestClient(create_app(tmp_path / "runs"), base_url=BASE) as client:
+        signed = client.post("/api/session", headers=ORIGIN)
+        assert signed.status_code == 200 and signed.json()["account"]["email"] == ACCOUNT.email
+        assert client.get("/api/runs").status_code == 200
 
 
 def test_the_session_cookie_cannot_be_read_by_scripts_or_sent_from_other_sites(web):
@@ -89,7 +87,7 @@ def test_signing_in_is_refused_until_claude_code_is_signed_in(web, monkeypatch):
     _, client = web
     monkeypatch.setattr(auth, "claude_code_account", lambda: None)
     response = client.post("/api/session", headers=ORIGIN)
-    assert response.status_code == 401 and "claude auth login" in response.json()["error"]
+    assert response.status_code == 401 and "Not Signed In" in response.json()["error"]
     assert client.get("/api/session").json()["claude_code_signed_in"] is False
 
 
@@ -252,7 +250,7 @@ def test_the_frontend_records_change_requests_and_resolves_them(web):
     assert detail["decisions"][-1]["decision"] == "changes_requested"
     bad = {"target": "s02", "kind": "colour", "text": "x"}
     response = client.post("/api/runs/20261124-120000-cp1/requests", json=bad, headers=ORIGIN)
-    assert response.status_code == 400 and "kind" in response.json()["error"]
+    assert response.status_code == 400 and "Kind is not valid" in response.json()["error"]
     response = client.post(
         "/api/runs/20261124-120000-cp1/requests/r001", json={"status": "declined", "note": "kept"}, headers=ORIGIN
     )
@@ -284,7 +282,7 @@ def test_the_frontend_is_served_and_loads_the_reference_fonts(web):
     page = client.get("/")
     assert page.status_code == 200 and page.headers["content-type"].startswith("text/html")
     assert "family=Geist" in page.text and "Fira+Code" in page.text  # Geist to read, Fira Code to interact
-    assert "<title>Faraday" in page.text and "Curiosity, Illustrated" in page.text  # the brand
+    assert "<title>Curiosity, Illustrated · Faraday" in page.text  # the brand
     assets = re.findall(r'(?:src|href)="(/assets/[^"]+)"', page.text)  # the React build's hashed bundles
     kinds = {client.get(asset).headers["content-type"].split(";")[0] for asset in assets}
     assert {"text/css", "text/javascript"} <= kinds, kinds
@@ -384,7 +382,7 @@ def test_a_run_that_fails_while_being_set_up_is_not_left_behind(web, monkeypatch
     monkeypatch.setattr(web_app, "update_state", disk_full)
     new = {"requirement": "Why is the sky blue?", "objectives": ["x"], "approach": "step_by_step", "minutes": 4}
     response = client.post("/api/runs", json={**new, "name": "Sky"}, headers=ORIGIN)
-    assert response.status_code == 500 and "disk full" in response.json()["error"]
+    assert response.status_code == 500 and "disk full" not in response.json()["error"]
     assert [path.name for path in runs.iterdir() if not path.name.startswith(".")] == []
 
 
@@ -435,7 +433,7 @@ def test_the_console_relays_messages_to_the_runs_claude_code_session(web, monkey
     fake.write_text(FAKE_CLAUDE)
     calls = []
 
-    def command(run, message, session):
+    def command(run, message, session, options):
         calls.append((message, session))
         return [sys.executable, str(fake)]
 
@@ -451,7 +449,8 @@ def test_the_console_relays_messages_to_the_runs_claude_code_session(web, monkey
         ("claude", "Reading the brief."),
         ("tool", "Write topics.md"),
         ("question", "**Length** — How long?"),  # shown on the stage page, answerable with one click
-        ("system", "Turn finished."),
+        ("result", "ok"),  # the tool's output, folded into its call by the page
+        ("system", "Turn Finished."),
     ]
     assert entries[3]["options"] == ["2 min", "3 min"]
     client.post(path, json={"message": "Go on."}, headers=ORIGIN)
@@ -527,7 +526,9 @@ def test_the_look_and_sound_tree_starts_on_defaults_saves_choices_and_custom_val
     catalogue = client.get("/api/look").json()
     elements = {element["id"]: element for element in catalogue["elements"]}
     assert len(catalogue["templates"]) == 12 and "frame" not in elements  # the delivery format is ours
-    assert elements["background_color"]["custom"] == "color or gradient" and elements["grid_type"]["custom"] is None
+    assert (
+        elements["background_color"]["custom"] == "A colour or a gradient" and elements["grid_type"]["custom"] is None
+    )
     assert elements["grid_type"]["previewed"] and not elements["voice"]["previewed"]
     assert {element["kind"] for element in elements.values()} == {"visual", "sound"}
     look = client.get(f"/api/runs/{run.name}/look").json()  # nothing chosen yet: the default starter
@@ -673,7 +674,11 @@ def test_an_unexpected_error_answers_with_its_cause_and_is_logged(tmp_path, monk
     with TestClient(application, base_url=BASE, raise_server_exceptions=False) as client, caplog.at_level(logging.INFO):
         signed_in(client)
         response = client.get("/api/runs/20261124-120000-x")
-    assert response.status_code == 500 and "state.json vanished" in response.json()["error"]
+    assert (
+        response.status_code == 500
+        and "state.json vanished" not in response.text
+        and "RuntimeError" not in response.text
+    )
     assert any(record.exc_info for record in caplog.records if "failed" in record.getMessage())
 
 
@@ -837,3 +842,20 @@ def test_the_profile_keeps_your_name_and_adds_up_what_every_run_cost(web):
     assert (view["runs"], view["spend_usd"], view["account"]["email"]) == (2, 1.75, ACCOUNT.email)
     assert client.put("/api/profile", json={"name": " Garv "}, headers=ORIGIN).json()["name"] == "Garv"
     assert client.get("/api/profile").json()["name"] == "Garv"  # kept on this machine
+
+
+def test_a_problem_has_plain_words_for_the_site_and_keeps_its_exact_text_for_claude():
+    from app.web import app as web_app
+    from app.workflow.people_wording import people_text
+
+    exact = "CP1 (the complete script) is not approved, or changed since it was approved: get CP1 first"
+    assert (
+        people_text(exact) == "The Script has not been approved, or it changed after you approved it. Approve it first."
+    )
+    assert people_text("s03: preview missing or out of date (text-2-shorts preview <run> s03)") == (
+        "Scene 3's preview is missing or out of date."
+    )
+    assert people_text("final.mp4 is missing or out of date") == "The Final Video is missing or out of date."
+    assert people_text("something no rule covers") == "something no rule covers"  # shown unchanged
+    body = web_app.problem_response(web_app.ApiProblem(409, "cannot approve", ["s03: no valid plan"])).body
+    assert b'"problems":["s03: no valid plan"]' in body and b"Scene 3 has no valid plan yet." in body

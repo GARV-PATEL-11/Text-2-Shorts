@@ -62,7 +62,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       await send("/api/session", null, "DELETE");
     } catch (error) {
-      return `Signing out failed: ${(error as Error).message}`;
+      return `Signing Out Failed: ${(error as Error).message}`;
     }
     setAccount(null);
     navigate("#/signin");

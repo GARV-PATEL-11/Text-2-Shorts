@@ -37,6 +37,20 @@ class ClipBuild(Strict):
     at: str = ""
 
 
+ConsoleMode = Literal["default", "acceptEdits", "plan"]
+
+
+class ConsoleSettings(Strict):
+    """How the website's console runs its turns (`/model`, Shift+Tab, "Allow for This Session")."""
+
+    model: str | None = Field(None, description="haiku, sonnet or opus; None: the run session's model")
+    mode: ConsoleMode = Field("acceptEdits", description="Claude Code's permission mode for console turns")
+    allowed: list[str] = Field(
+        default_factory=list,
+        description="this session's allowances (held by the server, never stored), e.g. Bash(make video *)",
+    )
+
+
 class RunState(Strict):
     """state.json — changed only by `approve`, `accept`, the hook and `status` (never by hand)."""
 

@@ -40,6 +40,22 @@ from app.workflow.validation import (
     validate_topics,
 )
 
+WINDOW_NAMES = {"five_hour": "5-hour limit", "seven_day": "weekly limit"}
+STEP_NAMES = {
+    "1 template": "Choose the Look & Sound", "1 requirements": "Write the Requirements", "2 outline": "Write the Outline",
+    "3 script": "Write the Script", "4 plans": "Plan the Scenes", "5 production": "Make the Scenes and the Final Video",
+    "change requests": "Apply your change requests",
+}  # fmt: skip
+CHECKPOINT_QUESTIONS = {
+    "template": "Review your Look and Sound, then approve it.",
+    "requirements": "Review the Requirements, the topic list and the research notes, then approve.",
+    "outline": "Review the Outline: the scenes, their lengths and the visual plans. Then approve.",
+    "script": "Review the Script: scenes, the full narration, and the accuracy findings. Then approve.",
+    "plan": "Review the Scene Plans: how each scene is composed and how it opens. Then approve.",
+    "scenes": "All scenes are built. Watch each preview, then approve.",
+    "final": "The Final Video is ready. Watch it, check the video checks, then approve.",
+}
+
 
 def next_actions(run: Path) -> ActionBatch:
     """The planned batch, unless a Claude usage window is USAGE_GATE_PERCENT full: then the user decides, one step at
@@ -63,6 +79,10 @@ def next_actions(run: Path) -> ActionBatch:
                 f"{datetime.fromtimestamp(window.resets_at):%a %H:%M}; read {read_at or 'at an unknown time'}). "
                 f"Next would be: {step}. Ask the user whether to go on; on yes run `text-2-shorts usage-ok .`, "
                 "then `text-2-shorts next .` again.",
+                user_text=f"Your Claude usage is at {window.used_percent:.0f}% of the "
+                f"{WINDOW_NAMES.get(window.id, 'usage limit')}. It resets "
+                f"{datetime.fromtimestamp(window.resets_at):%A at %H:%M}. The next step is: "
+                f"{STEP_NAMES.get(planned.stage, 'the next step')}. Continue now, or wait for the limit to reset?",
             )
         ],
     )
@@ -80,6 +100,9 @@ def planned_batch(run: Path) -> ActionBatch:
         for action in typed:  # a question the user answers by approving names its checkpoint
             if action.do == "ask_user" and (decided := re.search(r"approve \. ([\w:]+)`", action.what)):
                 action.checkpoint = decided[1]
+                action.user_text = CHECKPOINT_QUESTIONS.get(decided[1])
+                if decided[1].startswith("start:s"):
+                    action.user_text = f"You asked to confirm each scene. Start Scene {int(decided[1][7:])} now?"
         return ActionBatch(stage=stage, parallel=parallel, actions=typed)
 
     def reviewer(stage, mode, file, problems):
@@ -183,6 +206,7 @@ def planned_batch(run: Path) -> ActionBatch:
                     "what": "the user chooses the look and sound in the website's Look & sound tree (a starter "
                     "template; anything left alone keeps its default) — or, if they ask you, `text-2-shorts template "
                     ". <name> [--set element=variant | custom.element=value]` — " + errors[0],
+                    "user_text": "Choose a Look and Sound in the Look & Sound tab. Anything you leave alone keeps its default.",
                 }
             ],
         )
@@ -206,6 +230,7 @@ def planned_batch(run: Path) -> ActionBatch:
                     "file": "brief.json",
                     "read": references("requirements.md"),
                     "what": "complete and confirm the requirements: " + "; ".join(errors),
+                    "user_text": "Finish the Requirements.",
                 }
             ],
         )
@@ -387,6 +412,7 @@ def planned_batch(run: Path) -> ActionBatch:
                         "what": f"the user asked to confirm "
                         f"each scene: start {scene_id} now? on yes `text-2-shorts approve . "
                         f"start:{scene_id}`",
+                        "user_text": f"You asked to confirm each scene. Start Scene {int(scene_id[1:])} now?",
                     }
                 ],
             )
@@ -421,6 +447,8 @@ def planned_batch(run: Path) -> ActionBatch:
                         "what": f"{scene_id} failed accept {MAX_ATTEMPTS} times ({findings or 'no gate findings'}): "
                         f"show the user the findings and ask for a hint, then record it with `text-2-shorts feedback "
                         f". {unbuilt[0].clip_id} visual \"<hint>\"`, which lets the scene-builder try again",
+                        "user_text": f"Scene {int(scene_id[1:])} did not pass its checks after {MAX_ATTEMPTS} tries"
+                        f"{f': {findings}' if findings else ''}. Give a hint to help Claude try again.",
                     }
                 ],
             )

@@ -6,15 +6,19 @@ import { RunListPage } from "../pages/RunList";
 import { SignInPage } from "../pages/SignIn";
 import { Shell } from "../components/layout/Shell";
 import { SystemMessage } from "../components/feedback/SystemMessage";
+import { usePick } from "../components/ui/Said";
+import { TITLES } from "../config/titles";
 import { useHashRoute } from "./routes";
 import { SessionProvider, useSession } from "./session";
 
 function Routes() {
   const route = useHashRoute();
   const { account, checked } = useSession();
+  const opening = usePick(TITLES.opening);
+  const openingText = usePick(TITLES.openingText);
   let page;
   if (route.page === "signin") page = <SignInPage />;
-  else if (!checked || !account) page = <div className="page"><SystemMessage kind="loading" title="Opening Your Workspace…">Checking Which Claude Account This Computer Uses</SystemMessage></div>;
+  else if (!checked || !account) page = <div className="page"><SystemMessage kind="loading" title={opening}>{openingText}</SystemMessage></div>;
   else if (route.page === "run") page = <RunPage key={route.run} run={route.run} stage={route.stage} tab={route.tab} />;
   else if (route.page === "new") page = <NewRunPage />;
   else if (route.page === "ongoing" || route.page === "previous") page = <RunListPage key={route.page} which={route.page} />;

@@ -8,7 +8,7 @@ export type Route =
 export const NAV: { page: Route["page"]; href: string; label: string }[] = [
   { page: "home", href: "#/", label: "Home" },
   { page: "new", href: "#/new", label: "Start a Run" },
-  { page: "ongoing", href: "#/ongoing", label: "Ongoing" },
+  { page: "ongoing", href: "#/ongoing", label: "Ongoing Runs" },
   { page: "previous", href: "#/previous", label: "Previous Runs" },
 ];
 

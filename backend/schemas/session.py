@@ -22,6 +22,7 @@ class Action(Strict):
     after: str | None = Field(None, description="command to run after the subagent")
     command: str | None = None
     checkpoint: str | None = Field(None, description="ask_user: the checkpoint the user decides (`approve . <it>`)")
+    user_text: str | None = Field(None, description="ask_user: what the site shows the person; `what` is Claude's")
 
 
 class ActionBatch(Strict):

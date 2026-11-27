@@ -13,9 +13,10 @@ import { Button, LinkButton } from "../components/ui/Button";
 import { Field } from "../components/ui/fields";
 import { Delete, Duplicate, Plus, Rename, Search } from "../components/ui/icons";
 import { runTitle } from "../components/ui/Markdown";
-import { Said } from "../components/ui/Said";
+import { Said, useLine, usePick } from "../components/ui/Said";
 import { titleCase } from "../components/ui/text";
 import { REQUIRED_STEPS, stageName } from "../config/stages";
+import { TITLES } from "../config/titles";
 import { useAction } from "../hooks/useAction";
 import { useApi } from "../hooks/useApi";
 import { useRuns } from "../hooks/useRuns";
@@ -24,8 +25,11 @@ import { runHash, runPath } from "../services/runs";
 import type { Draft, RunSummary } from "../types/api";
 
 const STATUS: Record<RunSummary["status"], string> = {
-  configuring: "Configuring", in_progress: "In Progress", awaiting_approval: "Awaiting Approval", failed: "Failed", completed: "Completed",
+  configuring: "Not Started", in_progress: "In Progress", awaiting_approval: "Waiting for You", failed: "Failed", completed: "Done",  // the words of the status pill (config/status.tsx)
 };
+
+const runName = (run: RunSummary) => run.name || runTitle(run.topic);
+const draftTitle = (draft: Draft) => draft.name || (draft.requirement ? runTitle(draft.requirement) : "Untitled Run");
 
 type Pending = { kind: "rename" | "delete"; run: RunSummary } | { kind: "discard"; draft: Draft } | null;
 
@@ -36,6 +40,10 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
   const [pending, setPending] = useState<Pending>(null);
   const [name, setName] = useState("");
   const action = useAction();
+  const loadingRuns = usePick(TITLES.loadingRuns);
+  const copying = usePick(TITLES.copying);
+  const noMatches = usePick(TITLES.noMatches);
+  const draftLine = useLine("draft");
   const title = which === "ongoing" ? "Ongoing Runs" : "Previous Runs";
   const wanted = which === "ongoing" ? runs.ongoing : runs.finished;
   const matches = (text: string) => text.toLowerCase().includes(query.trim().toLowerCase());
@@ -47,7 +55,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
     await send(runPath(run.id, ""), { name: name.trim() }, "PATCH");
     return done(`Renamed to ${name.trim()}`);
   });
-  const duplicate = (run: RunSummary) => action.run("Checking This Computer, Then Copying the Run…", async () => {
+  const duplicate = (run: RunSummary) => action.run(copying, async () => {
     const copy = await send<RunSummary>(runPath(run.id, "/duplicate"), null);
     navigate(runHash(copy.id));
     return done(`${copy.name} Created`);
@@ -64,16 +72,16 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
   const draftRows = shownDrafts.map((draft) => (
     <tr key={draft.id}>
       <td>
-        <a className="table__link" href={`#/new?draft=${draft.id}`}>{draft.name || (draft.requirement ? runTitle(draft.requirement) : "Untitled Run")}</a>
-        <span className="table__sub">Not Started Yet</span>
+        <a className="table__link" href={`#/new?draft=${draft.id}`}>{draftTitle(draft)}</a>
+        <span className="table__sub" title={draftLine.source ? `${draftLine.text} — ${draftLine.source}` : undefined}>Draft</span>
       </td>
       <td className="table__muted">{draft.look ? titleCase(draft.look.template) : "—"}</td>
-      <td><span className="badge">Draft</span></td>
+      <td><span className="badge">Not Started</span></td>
       <td>Start a Run</td>
       <td className="table__progress"><span className="table__muted">—</span></td>
       <td className="table__muted table__nowrap">{draft.updated.replace("T", " ").slice(0, 16)}</td>
       <td className="table__actions">
-        <Button variant="tertiary" size="sm" icon={<Delete />} label="Discard Draft" onPress={() => setPending({ kind: "discard", draft })} />
+        <Button variant="tertiary" size="sm" icon={<Delete />} label={`Discard Draft: ${draftTitle(draft)}`} onPress={() => setPending({ kind: "discard", draft })} />
       </td>
     </tr>
   ));
@@ -85,7 +93,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
       </td>
       <td className="table__muted">{run.template ? titleCase(run.template) : "—"}</td>
       <td><span className={`badge${run.status === "awaiting_approval" ? " badge--solid" : ""}`}>{STATUS[run.status]}</span></td>
-      <td>{run.readable ? stageName(run.stage) : "Older Version: Final Video Only"}{run.readable && run.has_final ? <span className="badge">Final Video</span> : null}</td>
+      <td>{run.readable ? stageName(run.stage) : run.has_final ? "Older Version: Final Video Only" : "Cannot Be Read"}</td>
       <td className="table__progress">
         {run.readable ? (
           <div className="table__bar">
@@ -97,20 +105,20 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
       </td>
       <td className="table__muted table__nowrap">{run.updated}</td>
       <td className="table__actions">
-        <Button variant="tertiary" size="sm" icon={<Rename />} label={`Rename ${run.name}`} onPress={() => { setName(run.name); setPending({ kind: "rename", run }); }} />
-        <Button variant="tertiary" size="sm" icon={<Duplicate />} label={`Duplicate ${run.name}`} onPress={() => duplicate(run)} isDisabled={action.busy} />
-        <Button variant="tertiary" size="sm" icon={<Delete />} label={`Move ${run.name} to the Trash`} onPress={() => setPending({ kind: "delete", run })} />
+        <Button variant="tertiary" size="sm" icon={<Rename />} label={`Rename ${runName(run)}`} onPress={() => { setName(run.name); setPending({ kind: "rename", run }); }} />
+        <Button variant="tertiary" size="sm" icon={<Duplicate />} label={`Duplicate ${runName(run)}`} onPress={() => duplicate(run)} isDisabled={action.busy} />
+        <Button variant="tertiary" size="sm" icon={<Delete />} label={`Move ${runName(run)} to the Trash`} onPress={() => setPending({ kind: "delete", run })} />
       </td>
     </tr>
   ));
 
   let body;
   if (runs.error) body = <SystemMessage kind="unavailable" title="Could Not Load Runs" action={<Button variant="secondary" size="sm" onPress={runs.reload}>Try Again</Button>}>{runs.error.message}</SystemMessage>;
-  else if (!runs.data) body = <SystemMessage kind="loading" title="Loading Your Runs" />;
+  else if (!runs.data) body = <SystemMessage kind="loading" title={loadingRuns} />;
   else if (!shown.length && !shownDrafts.length) {
     body = query ? (
-      <SystemMessage kind="empty" title="No Matches" action={<Button variant="secondary" size="sm" onPress={() => setQuery("")}>Clear Search</Button>}>
-        Nothing in {title.toLowerCase()} mentions “{query}”.
+      <SystemMessage kind="empty" title={noMatches} said="noMatches" action={<Button variant="secondary" size="sm" onPress={() => setQuery("")}>Clear Search</Button>}>
+        Nothing in {title.toLowerCase()} mentions “{query}”
       </SystemMessage>
     ) : (
       <SystemMessage kind="empty" title={which === "ongoing" ? "Nothing in Progress" : "No Finished Run Yet"}
@@ -120,7 +128,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
     );
   } else {
     body = (
-      <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
+      <div className="table-wrap" tabIndex={0} role="region" aria-label={`${title} Table`}>
         <table className="table">
           <thead>
             <tr>
@@ -142,7 +150,7 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
     </Modal>
   ) : pending?.kind === "delete" ? (
     <Modal isOpen onOpenChange={close} title={`Move ${pending.run.name} to the Trash?`}
-      description="It Leaves Your Runs; Its Folder Moves to .trash in the Runs Folder, Where It Can Be Restored"
+      description="It Leaves Your Runs. Its Folder Moves to .trash in the Runs Folder; You Can Move It Back by Hand."
       footer={<><Button variant="secondary" onPress={close}>Keep It</Button><Button icon={<Delete />} onPress={() => remove(pending.run)} isDisabled={action.busy}>Move to the Trash</Button></>} />
   ) : pending?.kind === "discard" ? (
     <Modal isOpen onOpenChange={close} title="Discard This Draft?" description="The Choices Made So Far in Start a Run Are Deleted"
@@ -156,14 +164,15 @@ export function RunListPage({ which }: { which: "ongoing" | "previous" }) {
         title={title}
         lead={which === "ongoing" ? "Newest First; Drafts From Start a Run on Top" : "Newest First, With Their Final Videos"}
         actions={
-          <SearchField className="search" value={query} onChange={setQuery} aria-label={`Search ${title.toLowerCase()}`}>
+          <SearchField className="search" value={query} onChange={setQuery} aria-label={`Search ${title}`}>
             <Search />
             <Input className="search__input" placeholder="Search Runs" />
           </SearchField>
         }
       />
       <Notice note={action.note} />
-      {drafts.error ? <SystemMessage kind="unavailable" title="Could Not Load Your Drafts" compact action={<Button variant="secondary" size="sm" onPress={drafts.reload}>Try Again</Button>}>{drafts.error.message}</SystemMessage> : null}
+      {action.note?.text === copying ? <p className="note"><Said moment="checking" /></p> : null}
+      {drafts.error ? <SystemMessage kind="unavailable" title="Could Not Load Your Drafts" compact said="loadFailed" action={<Button variant="secondary" size="sm" onPress={drafts.reload}>Try Again</Button>}>{drafts.error.message}</SystemMessage> : null}
       {body}
       {dialog}
     </Page>

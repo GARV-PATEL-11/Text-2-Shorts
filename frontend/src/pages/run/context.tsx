@@ -1,5 +1,6 @@
 // What every part of a run page shares: the run, a way to re-read it after a write, and asking for a change.
 import { createContext, useContext } from "react";
+import type { Moment } from "../../config/voice";
 import type { RunDetail } from "../../types/api";
 
 export interface Ask {
@@ -10,7 +11,7 @@ export interface Ask {
 export interface RunPageContext {
   run: RunDetail;
   /** Re-read the run (keeping everything on screen) and announce what happened. */
-  refresh: (notice: string) => void;
+  refresh: (notice: string, said?: Moment) => void;
   ask: (ask: Ask) => void;
 }
 

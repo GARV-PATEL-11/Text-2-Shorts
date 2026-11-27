@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from app.config import REPOSITORY_ROOT
 from app.sandbox import build_jail_command, session_command
+from app.utilities import cli_quote
 from app.workflow.run_workspace import RunNotCreated, brief_from_arguments, create_run
 
 
@@ -25,6 +26,7 @@ def handle_new_command(arguments) -> None:
         f"next: text-2-shorts serve (the website), or text-2-shorts open {run.relative_to(REPOSITORY_ROOT)}   "
         "(Claude Code in this run's isolated workspace)"
     )
+    print(cli_quote("new"))
 
 
 def handle_open_command(arguments) -> None:

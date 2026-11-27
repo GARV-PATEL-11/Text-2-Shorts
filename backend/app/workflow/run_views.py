@@ -3,6 +3,7 @@ built from the run's files through their contracts. Nothing here writes to a run
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from datetime import datetime
@@ -17,8 +18,11 @@ from app.workflow.artifacts import load_brief, load_final_report, load_scene_pla
 from app.workflow.change_requests import load_requests
 from app.workflow.driver import next_actions
 from app.workflow.ledger import load_decisions, load_state
+from app.workflow.people_wording import people_text
 from app.workflow.status import compute_statuses
 from app.workflow.templates import load_template
+
+log = logging.getLogger(__name__)
 
 CHECKPOINT_ORDER = ("requirements", "template", "outline", "script", "plan", "final")
 
@@ -70,7 +74,8 @@ def run_summary(run: Path) -> RunSummary:
             approved += bool(scenes) and all(status == "approved" for status in scenes)
             status = run_status(statuses, batch)
         except (ValidationError, ValueError, KeyError) as error:
-            readable, stage, status = False, f"cannot be read: {type(error).__name__}: {str(error)[:200]}", "failed"
+            log.warning("%s cannot be read: %s: %s", run.name, type(error).__name__, str(error)[:200])
+            readable, stage, status = False, "cannot be read: one of its files is damaged", "failed"
     topic = brief.requirement if brief else run.name.split("-", 2)[-1].replace("-", " ")
     try:
         name = load_state(run).name
@@ -104,7 +109,7 @@ def default_name(topic: str, run: Path) -> str:
 
 LABELS = {
     "requirements": "Requirements",
-    "template": "Template",
+    "template": "Look & Sound",
     "outline": "Outline",
     "script": "Script",
     "plan": "Scene Plans",
@@ -132,7 +137,8 @@ def awaiting_checkpoints(run: Path, statuses: dict, batch: ActionBatch) -> list[
         CheckpointView(
             target=target,
             label=checkpoint_label(target),
-            problems=approval_problems(run, checkpoint_target(target)),
+            problems=(problems := approval_problems(run, checkpoint_target(target))),
+            people=[people_text(problem) for problem in problems],
             fingerprint=approval_fingerprint(run, checkpoint_target(target)),
         )
         for target in targets
@@ -145,7 +151,7 @@ def run_detail(run: Path) -> RunDetail:
     detail = RunDetail(summary=summary, final_video=media_url(run, run / "final.mp4"))
     if not summary.readable:
         detail.problem = (
-            f"This run {summary.stage}. Fix or remove that file and the page comes back."
+            "This run cannot be read because one of its files is damaged. Repair or delete that file, then reload."
             if summary.stage.startswith("cannot be read")
             else "Made by an older version of Faraday: only its final video can be shown."
         )

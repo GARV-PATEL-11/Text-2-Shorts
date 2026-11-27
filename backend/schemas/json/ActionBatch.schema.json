@@ -112,6 +112,19 @@
           "default": null,
           "description": "ask_user: the checkpoint the user decides (`approve . <it>`)",
           "title": "Checkpoint"
+        },
+        "user_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "ask_user: what the site shows the person; `what` is Claude's",
+          "title": "User Text"
         }
       },
       "required": [

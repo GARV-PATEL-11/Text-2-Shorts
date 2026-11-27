@@ -1,0 +1,2069 @@
+FARADAY — REFERENCE WORDINGS FOR EVERY USER-FACING TEXT (2026-11-27)
+====================================================================
+
+A proposal only: no text in the code was changed. It goes row by row through the text inventory in
+docs/history/text-audit-2026-11-27.md (rows A1–A229, B1–B259, C1–C300). For each text it gives a verdict
+and, where a reference fits, the candidate lines from games, films, series, great people, books, GitHub,
+Stack Overflow and developer folklore, each with the page it was checked against.
+
+
+HOW SHUFFLING ALREADY WORKS (nothing new to build)
+--------------------------------------------------
+- frontend/src/config/voice.ts holds the catalogue: LINES (text, source, url) and VOICE (each "moment" lists
+  the lines it may show). There are 25 moments today: welcome, homeLead, nothingInProgress, noRuns,
+  chooseLook, question, audience, review, readyToBegin, openingRun, loading, processing, pending,
+  rendering, asks, nothingToDecide, approved, complete, noChanges, failed, renderFailed, offline,
+  restricted, lost and closing.
+- frontend/src/components/ui/Said.tsx, useLine(moment): picks ONE line at random, once per visit
+  (useState initialiser), so the page never flickers on re-render. This is the random shuffle you asked for.
+- Adding alternatives = adding a line to LINES and its key to a moment's array. A new moment = one new key in
+  VOICE plus <Said moment="…" /> where the text is shown. No new mechanism is needed.
+- Plain-text VARIANTS (equal-meaning titles such as loading messages) can reuse the same mechanism: a Line
+  with no `source` renders as plain text (see splash() in voice.ts).
+
+
+RULES EVERY ENTRY BELOW FOLLOWS
+-------------------------------
+1. The instruction is never shuffled or replaced. A quote goes BESIDE the plain text ("Could Not Load the
+   Script" + a line), never instead of it. The plain text is what the user acts on, what the tests match,
+   what a screen reader announces and what someone quotes when they ask for help.
+2. Labels, buttons, field names, aria text, approvals, change requests, sign-in and anything destructive stay
+   plain (DESIGN_REFERENCE.md "Tone by moment"). Verdict KEEP PLAIN; a clearer plain rewording is given
+   where the audit found a problem.
+3. Machine-read text never gets references or shuffling: driver/ask_user messages, hook output, checkpoint
+   problems Claude acts on, CLI lines that tests or scripts parse, API error bodies.
+4. Failure moments stay sober. A joke on the fifth failed render grates; the lines proposed for failure are
+   calm or encouraging, not funny.
+5. Verified or not proposed. Each line was fetched word for word on the URL given (Wikiquote sourced
+   sections, Wikisource, the RFC or the product's own page). Misattributed or disputed lines are listed
+   at the end as rejected, together with DESIGN_REFERENCE.md's existing rejected list.
+6. Copyright: short, credited quotations (≤ 20 words); Faraday's words are public domain. NO song lyrics.
+   → The current catalogue breaks this once: "This was a triumph." (moment `complete`) is the first line
+     of the song "Still Alive" from Portal. Recommend removing it.
+7. No brand or character names inside the plain UI text; the credit line under a quote is the only place
+   a film, game or book is named.
+
+
+VERDICTS USED
+-------------
+KEEP PLAIN               label/button/aria/approval/exact error; optional clearer plain rewording
+PLAIN REWORD             developer text or a raw error shown to users; the plain wording to use instead
+PLAIN + QUOTE (moment)   the text stays; the moment shows one of the listed lines, shuffled per visit
+VARIANTS                 equal-meaning plain wordings that may be shuffled (titles of waits, empty states)
+
+RECONCILED DECISIONS (read this before the three parts; it overrides them where they disagree)
+---------------------------------------------------------------------------------------------
+Three researchers wrote the parts independently. Where they disagree, this section wins.
+
+Remove from the current catalogue (voice.ts):
+- triumph    "This was a triumph."  Song lyric (Portal, "Still Alive"). Part 2 (B180) and Part 3 (cliDone) still
+             list it as an option; ignore those mentions.
+- failure    "Failure is not an option!"  On a failure screen it reads as blame.
+- badFeeling "I have a very bad feeling about this."  Adds dread to a failure.
+- tears      "…like tears in rain."  About dying; the moment `lost` is just a missing run. Use github404/droids.
+- impossible (Portal) in renderFailed: tells the user the task is impossible when a retry usually works.
+- wizard (Gandalf) out of `pending` and `rendering`: says slowness is intended. It may stay in `usageHigh`
+             (Part 3), where waiting really is the advice.
+Part 2 keeps failure/badFeeling in `failed`; Part 1 removes them. Removing wins (rule 4, failures stay sober).
+
+One list per moment where parts overlap:
+- failed        houston, f_stillTry/fStillTry (same line, two keys: use one), picardImpossible, designed,
+                guessing, didntGive
+- notYet        Part 1 (f_presently, zeldaSecret) + Part 2 (fHalf = f_halfFinished, fCompose, fWonder)
+- notFound      Part 1 (github404, droids) + Part 3 (starWars = droids, houston, panic). Use github404, droids,
+                panic; houston is for real problems, not a missing page.
+- consoleIdle   NAME CLASH. Part 2 means the console is empty and waiting for a message (B99). Part 3 means
+                "Turn finished." (C140), which is Part 2's `claudeFinished`. Use consoleIdle for B99 and
+                claudeFinished for C140/B83/B108/B110.
+- complete      Part 1 + Part 2 additions, minus triumph.
+- Same line under two keys (merge when adding to voice.ts): f_halfFinished = fHalf, f_stillExamine =
+  fExamine, f_noPoet = fPoem, f_setToWork = fProper, picardMakeIt = makeItSo = picard, f_workFinish = fWork,
+  droids = starWars.
+
+Lines that need your call:
+- guessing  "Let's work the problem, people. Let's not make things any worse by guessing." (Apollo 13, Gene
+            Kranz). DESIGN_REFERENCE.md lists it as REJECTED ("doesn't match its page"). I re-checked:
+            Wikiquote has it word for word, with italics on "work" and "guessing" (the italics markup is
+            probably why it failed before). It is safe to un-reject it.
+- reject    "I reject your reality, and substitute my own!" (MythBusters), proposed for `stalePage` (B25).
+            Verified, but on the screen that says "this page is out of date" it reads as the app overruling
+            the user. Use fCannot/fExamine there instead.
+- itCrowd   "Have you tried turning it off and on again?" Fine on the server-down screen, where restarting
+            `serve` IS the fix; anywhere else it is a taunt.
+- Second-hand sources, credited as such: "Work, Finish, Publish" (Gladstone, 1874); Darwin's
+            "fools' experiments" (via Lankester).
+- Part 2 "factSphere" credit line carries a stray "(Faraday, public domain)": it is Portal 2 only.
+
+Spot-checked by me against the live pages: github404 (github.com/404), guessing (Apollo 13), makeItSo
+(Star Trek: TNG), factSphere (Portal 2). The researchers checked the rest; each line carries its URL.
+
+Not verified anywhere, so not proposed (all three parts agree):
+SimCity "Reticulating splines", Firefox "Well, this is embarrassing", Chrome "Aw, Snap!" and the dino,
+Slack/Discord loading lines, Twitter's Fail Whale text, "LGTM"/"ship it" folklore, Edison's "10,000 ways"
+(Disputed), Sagan's "Somewhere, something incredible…" (Misattributed), Asimov's "That's funny…"
+(Attributed only).
+
+Machine-read text (Part 3): KEEP PLAIN, no shuffling, ever. Three checkpoint-problem texts (C64, C68,
+C124) are matched by substring in approvals.py:112 to decide what --force cannot override; rewording
+them breaks that rule silently. CLI quotes are only for serve, new, final, --help and templates; never
+for approve, validate, hash, status or next.
+
+
+
+
+####################################################################################################
+PART 1 — App shell, Home, run lists, Start a Run, Sign In (A1–A229)
+####################################################################################################
+
+FARADAY TEXT AUDIT, PART 1 (A1-A229): REFERENCE WORDINGS
+Checked 2026-11-27. "existing" = already in frontend/src/config/voice.ts. "new" lines were each fetched
+word for word (URLs in the pool at the end). Key names in [brackets] are used in the pool.
+Candle lecture text was matched against the Wikisource API text of each lecture
+(https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I ... _VI).
+Rules applied: labels/buttons/aria stay plain; a quote is ADDED beside a state message, never replaces it;
+errors keep their exact plain sentence. KEEP = keep plain. Rewordings marked "Plain:" are my suggestions
+(fixes of the audit's flagged problems), not quotes.
+
+=====================================================================================================
+DOCUMENT SHELL, APP AND SESSION (A1-A16)
+=====================================================================================================
+[A1] "Faraday · Curiosity, Illustrated"  (index.html:6)
+   Verdict: KEEP PLAIN. Plain: "Faraday: Curiosity, Illustrated" or flip to match Page titles
+   ("Curiosity, Illustrated · Faraday"). Brand line untouched.
+[A2] meta description  (index.html:7)
+   Verdict: KEEP PLAIN. Plain: "Faraday turns a question into an illustrated explainer video. Follow each run,
+   choose its look and sound, approve each stage, and ask for changes. Signs in with the Claude account your
+   Claude Code uses." (uses "stage" and "run", the glossary terms; drops "checkpoints"/"look and sound").
+[A3] (no noscript)  (index.html)
+   Verdict: PLAIN + QUOTE (moment: needsScript, NEW). Plain: "Faraday Needs JavaScript". Beside it:
+   Lines: - [f_mayMake] "You may make these experiments yourselves." (Candle III)  (no; wrong meaning, DROP)
+          - [f_presently] "We shall presently examine that" ... (also wrong). Honest advice: NO quote here;
+            a noscript block should be one plain sentence. Verdict stays KEEP PLAIN (new text only).
+[A4] "${title} · Faraday"  (Page.tsx:8)       Verdict: KEEP PLAIN.
+[A5] "Opening Your Workspace…"  (App.tsx:17, loading title)
+   Verdict: VARIANTS + QUOTE (moment: loading)
+   Variants: "Opening Your Workspace…" | "Lighting the Candle…" | "Setting Up the Table…" |
+             "Preparing the Demonstration Table…" | "Arranging the Apparatus…"
+   Lines:  - [waiting] "This waiting is a curious and wonderful thing." (existing)
+           - [f_firstCheck] "But first let us see that our instrument is in order." — Faraday, Candle, Lecture IV (new)
+           - [f_setToWork] "We will light one or two, and set them at work in the performance of their proper
+             functions." — Faraday, Candle, Lecture I (new; 18 words, matches "Lighting the Candle")
+           - [mcLaptop] "Any computer is a laptop if you're brave enough!" — Minecraft splash text (new)
+[A6] "Checking Which Claude Account This Computer Uses"  (App.tsx:17, text)
+   Verdict: VARIANTS. Plain 1: "Checking Which Claude Account This Computer Uses" (keep). Plain 2 (covers the
+   server-down case the audit flagged): "Checking Your Sign-In" . Plain 3: "Looking for Your Claude Account".
+   If the lookup failed because the server is down, show A9's sentence instead of this one.
+   Lines: use the moment [loading] with A5 (one quote per screen, not per element).
+[A7] "Signing out failed: ${message}"  (session.tsx:65)
+   Verdict: KEEP PLAIN, Title Case per house style: "Signing Out Failed: ${message}". No quote (error in a dialog).
+[A8] "sign in first" (http.ts:29)  Verdict: KEEP PLAIN (internal). If ever shown: "Sign In First".
+[A9] "Faraday's server did not answer. Check that `text-2-shorts serve` is running."  (http.ts:27)
+   Verdict: PLAIN + QUOTE (moment: serverSilent, NEW). Plain: keep sentence exactly, render the command with
+   WithCode (no backticks). Quote is shown BESIDE it only on full-page/non-compact blocks, never inside a Notice.
+   Lines:  - [panic] "DON'T PANIC" — Hitchhiker's Guide (existing; also the `offline` moment)
+           - [itCrowd] "Hello, IT. Have you tried turning it off and on again?" — The IT Crowd, "Yesterday's Jam"
+             [1.1], Roy (new; tone risk: may read as a taunt at a user whose server is down; use only when the
+             message is for a person who can restart the server; I suggest ONLY on Sign In)
+           - [hlRise] — NOT here. (tone mismatch)
+[A10] "${answer.error} / ${path} answered ${status}"  (http.ts:34)
+   Verdict: KEEP PLAIN with plain rewording: "Faraday's server could not do that (error ${status}). The details
+   are in the log." No quote (technical error).
+[A11] "${error} — ${problems joined}"  Verdict: KEEP PLAIN (exact problems must be readable).
+[A12] "The console sent no reply."  Verdict: KEEP PLAIN. Plain: "The Console Sent No Reply" (Title Case).
+[A13] "A reply from Claude could not be read; the rest of the turn continues."  Verdict: KEEP PLAIN.
+[A14] ${working}/${done}/error notices  (useAction.ts)   Verdict: KEEP PLAIN (see action rows below).
+[A15] log strings  Verdict: KEEP PLAIN (developer log; not user-visible).
+[A16] Nav labels Home / Start a Run / Ongoing / Previous Runs  (routes.ts)
+   Verdict: KEEP PLAIN. Plain: "Ongoing" -> "Ongoing Runs" to match the page title (A127), or retitle the page
+   "Ongoing".
+
+=====================================================================================================
+HEADER, FOOTER, PROFILE (A17-A38)
+=====================================================================================================
+[A17] Skip to Content; [A18] "Faraday: home" -> Plain: "Faraday, Home"; [A19] "Faraday";
+[A20] "Main"; [A21] user button; [A23] "Your Profile"; [A24] email; [A25] "Close";
+[A26] "Your Name"; [A27] placeholder; [A28] hint; [A29] dt labels; [A30] em dash; [A31] values;
+[A33] "Sign Out"; [A34] "Save"; [A38] #app landmark.
+   Verdict: all KEEP PLAIN (labels, aria, buttons).
+   Optional plain rewordings from the audit: A29 "Runs Here" -> "Runs on This Computer";
+   "Net Spend" -> "Estimated Cost" (A32 explains it); A34 add a reason when disabled ("Change Your Name to Save").
+[A22] "Curiosity, Illustrated."  Verdict: KEEP PLAIN (brand line, never replaced). Suggest showing it once per
+   page (Home hero OR closing, not both), per audit finding 19.
+[A32] Net Spend note (Title Case, long)
+   Verdict: KEEP PLAIN (must be exact). Plain: "Net spend adds up the cost Claude Code reports for every Console
+   turn. On a subscription it is what the same use would cost at API prices." (two sentences, sentence case).
+[A35] "Saving…"  Verdict: VARIANTS (equal-meaning plain): "Saving…" | "Writing It Down…" (light; the first is clearer; use
+   the plain one in the notice and put the variant only if it stays equally clear).
+[A36] "Saved"
+   Verdict: PLAIN + QUOTE (moment: saved, NEW). Clear the note on dialog close (audit 15). Quote beside only
+   when the notice is not compact (a one-word toast stays plain).
+   Lines:  - [proved] "Yes! We have proved it by combustion" (existing)
+           - [portalExcellent] "Once again, excellent work." — Portal (2007), GLaDOS (new)
+           - [portalThanks] "Thank you for helping us help you help us all." — Portal (2007), GLaDOS (new)
+[A37] "Signing Out…"  Verdict: KEEP PLAIN.
+
+=====================================================================================================
+FEEDBACK COMPONENTS (A39-A48)
+=====================================================================================================
+[A39] sr-only kind labels Loading / Processing / Pending / Nothing Here / Not Made Yet / Unavailable /
+   Connection Lost / Not Supported / Access Restricted / Done / Error
+   Verdict: KEEP PLAIN. The audit says sighted users get only an icon; Plain suggestion: show the label
+   visibly as a small caption for "Nothing Here" / "Not Made Yet" / "Pending" so the two are distinguishable.
+[A40] slots; [A42] progressbar; [A43] ProgressBar label/value; [A47] dialog title/desc; [A48] Notice
+   Verdict: KEEP PLAIN.
+[A41] quote under every non-compact message  (SystemMessage.tsx:32-35)
+   Verdict: PLAIN + QUOTE: change the kind to moment mapping, so each kind gets a line whose TONE fits (audit
+   finding 10). Proposed map (existing moments kept, new in CAPS):
+      loading->loading; processing->processing; pending->pending; success->approved; empty->(per page moment);
+      offline->offline (panic + serverSilent); unavailable/error->LOADFAILED (new, gentle, below);
+      unsupported->LOST (reworded set below); restricted->restricted.
+   Moment: loadFailed (NEW), for every "Could Not Load X" with Try Again
+   Lines:  - [f_stillTry] "But still try, for who knows what is possible" — Faraday, Life and Letters (1870) II p.483 (new)
+           - [picardImpossible] "Data, things are only impossible until they're not." — Star Trek: TNG, "When the
+             Bough Breaks" [1.17], Picard (new)
+           - [mcNotGiveUp] "I like this player. It played well. It did not give up." — Minecraft, The End Poem,
+             Julian Gough (new; 11 words)
+           - [f_wellExamine] "Well, we will examine it." — Faraday, Candle, Lecture IV (new; calm, no joke)
+           - [f_stillExamine] "Still examine it by a few experiments." — Faraday, lab journal 19 Mar 1849 (new)
+   Keep as is (existing): [houston] (okay for a RUN failure, not a load failure). REMOVE from failed:
+   [failure] "Failure is not an option!" and [badFeeling]. They read as jokes under a real error.
+   Moment lost (existing, reword set):
+           - [github404] "This is not the web page you are looking for" — GitHub's own 404 page (new)
+           - [droids] "These aren't the droids you're looking for." — Star Wars (1977), Obi-Wan (new)
+     REMOVE [tears] from `lost` (melancholy and about death; audit A77).
+[A44] status pill words Approved / Done / In Progress / Being Revised / Waiting for You / Failed / Not Started
+   Verdict: KEEP PLAIN. This is the one vocabulary; make RunList use it (A137).
+[A45] raw status id fallback  Verdict: KEEP PLAIN. Plain: show "Unknown" instead of the snake_case id.
+[A46] chart legend  Verdict: KEEP PLAIN (derive from A44 to remove the duplicate).
+
+=====================================================================================================
+VOICE LINES (A49-A81)  (existing lines judged; no row text changes, only which moment they sit in)
+=====================================================================================================
+[A49] openDoor — KEEP (Faraday, Lecture I). [A50] aperture — KEEP in `welcome` (Portal; sourced).
+[A51] juvenile, [A52] cause, [A53] philosophers, [A54] whyNot, [A55] coloured, [A58] points, [A59] awake,
+[A60] waiting, [A61] wait, [A62] splash "Vectors included!", [A63] nextProblem, [A65] splash, [A66] splash,
+[A67] onlyHope, [A68] wakeMe, [A69] proved, [A70] doingWell, [A72] harmless, [A75] panic — all KEEP.
+[A56] experiment "let us make an experiment or two."
+   Verdict: KEEP with fix: capitalise and add a full stop when shown alone: "Let us make an experiment or two."
+   (the Wikisource sentence is "…let us make an experiment or two." so the case change is safe).
+[A57] decide (Gandalf)  KEEP in `review`.
+[A64] wizard "A wizard is never late..."
+   Verdict: MOVE out of `pending`/`rendering` (audit: reads as "slow is fine"). Keep only in `closing` or
+   `welcome`. Replacement lines for pending/rendering are in A41-style sets below (moment pending/rendering).
+   New lines for `pending`:  - [f_presently] "We shall presently examine that" — Faraday, Lecture I (new)
+                             - [f_why] "Now, why is this?" — Faraday, Lecture I (new)
+   New lines for `rendering`: - [lovelace] "We may say most aptly that the Analytical Engine weaves algebraical
+                                patterns just as the Jacquard-loom weaves flowers and leaves." — Ada Lovelace,
+                                Notes on the Analytical Engine (1843) (new; 20 words; fits "Manim draws it")
+                              - [f_lookAtThat] "Now, look at that. Is not that a very pretty experiment?" — Faraday,
+                                Lecture II (new, for the moment a frame lands)
+[A71] triumph — REMOVE. "This was a triumph." is a lyric of "Still Alive" (Portal's credits song). Keep
+   starStuff and smallest. Add for `complete`:
+           - [f_shine] "that you may, like it, shine as lights to those about you" — Faraday, Lecture VI (new)
+           - [f_workFinish] "The secret is comprised in three words — Work, Finish, Publish." — Faraday as quoted
+             by J. H. Gladstone, Michael Faraday (1874) p.123 (new)
+[A73] failed: remove [failure], [badFeeling] (see A41); keep [houston]; add [f_stillTry], [picardImpossible].
+[A74] renderFailed: replace [impossible] (Portal). New set: [f_stillExamine], [picardImpossible], [houston].
+   Reason: "impossible" overstates a recoverable fetch failure.
+[A76] restricted [dave], [notPass] — KEEP (unused until a caller uses kind="restricted").
+[A77] lost: see A41.
+[A78] noRuns zelda/beginning — KEEP. Add [zeldaSecret] "It's a secret to everybody." — The Legend of Zelda
+   (1986) (new; for "Nothing Here/No Runs Yet" only where a hint follows).
+[A79] nothingInProgress wonder/doItAll — KEEP. Add [hlRise] to the NEW `startingRun` moment, not here.
+[A80] unused moments — verify in other audit. (No change from me.)
+[A81] Said markup `<q>` + `<cite>`  Verdict: KEEP PLAIN. Plain: add visually-hidden "Quotation: " before and
+   "— " + source after; mark the cite aria-label "Source".
+
+=====================================================================================================
+SIGN IN (A82-A91)
+=====================================================================================================
+[A82] "Sign In"  KEEP.
+[A83] "Uses the Claude Account Already on This Computer"  KEEP (clear). Quote already on page via `welcome`.
+[A84] "Continue with Claude" (misleading, nothing opens claude.ai)
+   Verdict: KEEP PLAIN. Plain: "Continue" or "Sign In With This Computer's Claude Account".
+[A85] "No Password Needed: You Stay Signed In for 12 Hours"
+   Verdict: KEEP PLAIN, fix the fact: "...for 24 Hours" (backend SESSION_SECONDS = 24 * 3600; audit 3).
+[A86] "Checking Your Sign-In…"
+   Verdict: VARIANTS + QUOTE (moment: loading)
+   Variants: "Checking Your Sign-In…" | "Looking for Your Claude Account…" | "Checking This Computer…"
+   Lines:  - [f_firstCheck] "But first let us see that our instrument is in order." (new, Lecture IV)
+           - [waiting] (existing)
+[A87] backend error  KEEP PLAIN (exact). Beside only if the server was down: [panic] / [itCrowd] (see A9).
+[A88] "Claude Code Is Not Signed In"  KEEP PLAIN. Show ONLY when the server answered "not signed in"; when
+   the server is down show A9 instead (audit 2). No quote on the heading.
+[A89] "Open a Terminal on This Computer" KEEP.  [A90] "Run `claude auth login`. It Opens claude.ai So You Can
+   Sign In"  KEEP (use WithCode).  [A91] "Come Back Here and Continue" KEEP.
+   Optional step intro quote (moment: signInSteps, NEW, one line beside the list heading):
+   Lines:  - [picardMakeIt] "Make it so!" — Star Trek: TNG, Picard (new) (shown beside "Come Back Here and Continue" only)
+           - [mayMake] [f_mayMake] "You may make these experiments yourselves." — Faraday, Lecture III (new)
+
+=====================================================================================================
+HOME (A92-A126)
+=====================================================================================================
+[A92] "Home" KEEP.
+[A93] hero lead "A Question In, a Narrated Explainer Video Out: Claude Writes It, Manim Draws It, You Approve
+   Every Stage"  Verdict: KEEP PLAIN (it is the pitch). Beside it, moment homeLead (existing) with new lines:
+   Lines:  - [cause] "What is the cause? Why does it occur?" (existing)
+           - [f_noPoet] "I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in
+             your minds." — Faraday, 1858 lecture notes, Life and Letters (1870) II p.403 (new; 22 words, public domain)
+           - [curieBeauty] "I am among those who think that science has great beauty." — Marie Curie (new)
+           - [feynCreate] "What I cannot create, I do not understand." — Richard Feynman, blackboard, Feb 1988 (new)
+[A94] "Quick Actions" KEEP.
+[A95] Start a Run / Continue / Previous Runs  KEEP. Plain: "Continue" -> "Continue Your Run" (and drop one of
+   "Continue"/"Open Run" per audit 29).
+[A96] "Live Run" KEEP. (Glossary note: pick Ongoing or Live; the nav says Ongoing.)
+[A97] "{n} Ongoing · {m} Finished" KEEP. Plain: "{m} Previous" or use "Done" so the word matches the pill.
+[A98] "Could Not Load Runs + {error.message}"  Verdict: PLAIN + QUOTE (moment: loadFailed) + add a Try Again button
+   (as in A153). Lines: see A41.
+[A99] "Loading Your Runs"
+   Verdict: VARIANTS + QUOTE (moment: loading)
+   Variants: "Loading Your Runs" | "Gathering Your Runs" | "Laying Out Your Runs" | "Fetching Your Runs" |
+             "Opening the Ledger"   (the last is the lightest; use only if the page stays clear)
+   Lines: [waiting] [wait] (existing); [f_firstCheck] (new).
+[A100] "Nothing in Progress + {quote}"
+   Verdict: VARIANTS + QUOTE (moment: nothingInProgress), and add a hint "Start a Run" (audit 22)
+   Variants: "Nothing in Progress" | "No Run Under Way" | "The Table Is Clear"
+   Lines:  - [wonder] "Nothing is too wonderful to be true, if it be consistent with the laws of nature" (existing)
+           - [doItAll] (existing)
+           - [f_halfFinished] — no (that is for drafts, see A134)
+           - [feynCreate] "What I cannot create, I do not understand." (new; here it nudges "create")
+[A101] pill Claude Is Working / Waiting for You / Done / Ready to Continue  KEEP PLAIN (fix logic: show
+   nothing until the console loads; remove the dead "Done" branch).
+[A102] "Stages of this run" -> Plain: "Stages of This Run" (aria; match house style or sentence case consistently).
+[A103] "Loading This Run"  Verdict: VARIANTS (moment: loading)
+   Variants: "Loading This Run" | "Opening This Run" | "Bringing Up This Run"
+[A104] "Stages Approved / {percent}%"  KEEP. Plain: add "x of 7" beside the percent.
+[A105] Now / Since Start / "This Run Now"  KEEP. Plain: "Now" -> "Current Stage".
+[A106] elapsed text  KEEP.  Optional (moment: elapsed, NEW, one line in the chip tooltip):
+   Lines:  - [adamsTime] "Time is an illusion. Lunchtime doubly so." — The Hitchhiker's Guide to the Galaxy (1979) (new)
+[A107] "Problems", [A108] "None"  KEEP. A108 Plain: "No Problems".
+[A109] problem list (silently cut to 4)  KEEP PLAIN. Plain: add "+{n} More" linking to the run.
+[A110] "Updates" KEEP. [A111] role badges  KEEP; Plain: map ids to words (You, Claude, Question, Tool, System,
+   Error) and localise the time. [A112] "Open Run" KEEP. [A113] "{n} More in Progress" -> Plain: "{n} More Ongoing".
+[A114] "Usage Limits" KEEP. [A115] plan badge KEEP. [A116] "Updated {time}" -> "Updated {time}" fine (sentence case
+   okay for a timestamp). [A117] "Refresh / Checking" KEEP.
+[A118] "Could Not Load Usage + {message}"  PLAIN + QUOTE (moment: loadFailed) with a Try Again button.
+[A119] "Loading Usage"
+   Verdict: VARIANTS + QUOTE (moment: loading). Variants: "Loading Usage" | "Reading the Meters" | "Checking Your Limits".
+[A120] "Asking Claude Code / Not Checked Yet"
+   Verdict: VARIANTS + QUOTE
+   "Asking Claude Code" (moment: asking, NEW): Variants: "Asking Claude Code" | "Putting the Question to Claude Code"
+     Lines:  - [f_why] "Now, why is this?" — Faraday, Lecture I (new)
+             - [f_wellExamine] "Well, we will examine it." (new)
+             - [f_letUsSee] "Let us see whether that which goes out is steam or not." — Faraday, Lecture IV (new)
+   "Not Checked Yet" (moment: notYet, NEW): Variants: "Not Checked Yet" | "Not Measured Yet"
+     Lines:  - [f_presently] "We shall presently examine that" (new)
+             - [zeldaSecret] "It's a secret to everybody." (new)
+[A121] limit names Current Session / All Models / Opus / Sonnet / {titleCase(id)}  KEEP. Plain: "All Models" ->
+   "All Models, This Week" under Weekly Limits.
+[A122] "Weekly Limits" KEEP. [A123] "Resets at {time}" KEEP.
+[A124] "Limit Reached · Resets …"  KEEP PLAIN, fix the logic (audit 6): show "Limit Reached" only for rejected,
+   otherwise "Near the Limit".  No quote.
+[A125] aria/ "{n}% Used" KEEP.
+[A126] closing "Curiosity, Illustrated." + quote  Verdict: KEEP PLAIN + QUOTE (moment: closing, existing)
+   Lines:  - [openDoor] (existing)  - [starStuff] (existing)
+           - [f_shine] "that you may, like it, shine as lights to those about you" — Lecture VI (new)
+           - [newtonGiants] "If I have seen further it is by standing on ye sholders of Giants." — Isaac Newton,
+             letter to Robert Hooke, 15 Feb 1676 (new; original spelling "ye sholders"; Wikiquote notes the
+             modernised paraphrase is not word for word, so keep the original spelling)
+           - [lovelace] (new, listed at A64)
+
+=====================================================================================================
+ONGOING AND PREVIOUS RUNS (A127-A157)
+=====================================================================================================
+[A127] "Ongoing Runs / Previous Runs" KEEP.
+[A128] sort lead KEEP.   [A129] "Search Runs" KEEP.   [A130] "Search ongoing runs" -> Plain: "Search Ongoing Runs".
+[A131] table headers KEEP.
+[A132] "Table (scrolls sideways on small screens)" -> Plain: "Ongoing Runs Table" (aria-label; the scroll hint is
+   not a name).
+[A133] "Untitled Run" KEEP.
+[A134] "Not Started Yet / Draft / Start a Run"  Verdict: KEEP PLAIN. Trim to two cells (audit 23): sub text
+   "Draft" and action "Start a Run". Moment: draft (NEW), one line as a tooltip on the Draft badge:
+   Lines:  - [f_halfFinished] "Here is one only half-finished." — Faraday, Candle, Lecture I (new)
+[A135] em dash KEEP. [A136] "Started {created}" KEEP.
+[A137] In Progress / Configuring / Awaiting Approval / Failed / Completed
+   Verdict: KEEP PLAIN. Plain: use the StatusPill words: "In Progress" | "Not Started" | "Waiting for You" |
+   "Failed" | "Done".
+[A138] stage cell / "Older Version: Final Video Only" / "Final Video" badge  KEEP; drop the duplicate badge.
+[A139] "{n} of 7 / Not Tracked" KEEP. [A140] updated KEEP. [A141] draft updated -> Plain: format as the other rows.
+[A142] aria-labels Rename/Duplicate/Move to the Trash/Discard Draft  KEEP. Plain: use the displayed title:
+   "Discard Draft: {title}".
+[A143] "Rename the Run / Only the Name Changes: Its Files and Progress Stay" KEEP.
+[A144] Name (required)/Cancel/Rename KEEP.
+[A145] "Move {name} to the Trash? / ... Where It Can Be Restored"
+   Verdict: KEEP PLAIN, fix the claim: "It Leaves Your Runs. Its Folder Moves to .trash in the Runs Folder; You
+   Can Move It Back by Hand." (audit 14).
+[A146] Keep It / Move to the Trash KEEP. [A147] discard dialog KEEP. [A151] "Moving to the Trash…" KEEP.
+[A152] "Discarding the Draft… / Draft Discarded" KEEP.  (no quotes on destructive confirmations)
+[A148] "Renaming… / Renamed to {name}" KEEP.
+[A149] "Checking This Computer, Then Copying the Run…"
+   Verdict: PLAIN + QUOTE (moment: checking, NEW) + VARIANTS
+   Variants: "Checking This Computer, Then Copying the Run…" | "Copying the Run…" | "Making a Copy of the Run…"
+   Lines:  - [f_firstCheck] "But first let us see that our instrument is in order." (new)
+           - [f_setToWork] (new)
+[A150] "{copy.name} Created"  (never seen: the page navigates away)
+   Verdict: PLAIN + QUOTE (moment: saved, NEW): show it on the copy's page as "Copy Created". Lines as A36.
+[A153] "Could Not Load Runs + Try Again"  PLAIN + QUOTE (moment: loadFailed).
+[A154] "Loading Your Runs" VARIANTS as A99.
+[A155] "No Matches + Nothing in … mentions “{query}”. + Clear Search"
+   Verdict: VARIANTS + QUOTE (moment: noMatches, NEW)
+   Variants: "No Matches" | "Nothing Found" | "No Run Matches That"
+   Plain: body "Nothing in {ongoing runs|previous runs} mentions “{query}”" (drop the full stop).
+   Lines:  - [droids] "These aren't the droids you're looking for." — Star Wars (1977), Obi-Wan (new)
+           - [github404] "This is not the web page you are looking for" — GitHub 404 page (new)
+           - [zeldaSecret] "It's a secret to everybody." (new)
+[A156] "Nothing in Progress / No Finished Run Yet + {noRuns quote} / A Run Lands Here Once Its Final Video Is
+   Approved + Start a Run"  Verdict: KEEP PLAIN titles/bodies + QUOTE (moment: noRuns, existing)
+   Variants for the title only: "No Finished Run Yet" | "No Finished Runs Yet" (the first is better).
+   Lines:  - [alone] [beginning] (existing)  - [f_setToWork] "We will light one or two, and set them at work…" (new)
+[A157] "Could Not Load Your Drafts + Try Again"  PLAIN + QUOTE (moment: loadFailed).
+
+=====================================================================================================
+START A RUN (A158-A192)
+=====================================================================================================
+[A158] "Start a Run" KEEP. [A159] journey step names KEEP. [A160] stage labels KEEP (fix the "Template done" tick).
+[A161] "Steps of this stage" -> Plain: "Steps of This Stage".
+[A162] "All Changes Saved · {HH:MM} / Saving… / Not Saved: Trying Again on Your Next Change"
+   Verdict: KEEP PLAIN (status line). Plain: "Not Saved: Retrying on Your Next Change" and show the time in
+   local time; add a "Retry" link. No quote (it re-renders constantly).
+[A163] (empty status line)  Plain: "Nothing Saved Yet" before the first change.
+[A164] "Name Your Run / Optional: Skip It and the Run Is Named From Its Topic and Date"  KEEP.
+[A165] "Run Name" KEEP. [A166] placeholder -> Plain: "Optional name". [A167] "Skip / Enter" -> "Skip / Use This Name".
+[A168] "Loading Templates"
+   Verdict: VARIANTS + QUOTE (moment: loading)
+   Variants: "Loading Templates" | "Laying Out the Templates" | "Setting Out the Templates" | "Opening the Template Shelf"
+   Lines:  - [waiting] (existing)  - [f_setToWork] (new)
+[A169] "Could Not Load Templates + {message}"  PLAIN + QUOTE (moment: loadFailed) + add Try Again.
+[A170] "Could Not Load Your Draft + Try Again" PLAIN + QUOTE (moment: loadFailed). If the draft no longer
+   exists: "Draft Not Found: Starting a New One" with moment notFound (NEW): [github404], [droids].
+[A171] "Continue: {next step}" KEEP. Plain: show a reason when disabled ("Type at least 3 characters").
+[A172] "Back" KEEP. [A173] "Start the Run" KEEP (match: "Start a Run" is the nav, "Start the Run" the button; fine).
+[A174] "Checking Manim, LaTeX, ffmpeg and Voice Credentials, Then Creating the Run…"
+   Verdict: PLAIN + QUOTE (moment: startingRun, NEW) + VARIANTS
+   Variants: "Checking Manim, LaTeX, ffmpeg and Voice Credentials, Then Creating the Run…" |
+             "Checking the Tools, Then Creating the Run…" | "Checking Your Setup, Then Starting the Run…"
+   Lines:  - [f_firstCheck] "But first let us see that our instrument is in order." (new)
+           - [picardMakeIt] "Make it so!" — Star Trek: TNG, Picard (new)
+           - [hlRise] "Rise and shine, Mr. Freeman, rise and … shine." — Half-Life 2 (2004), the G-Man (new; keep the
+             ellipsis exactly; ok but it is a dream-sequence line, use rarely)
+           - [bttfRoads] "Roads? Where we're going, we don't need roads." — Back to the Future (1985), Doc Brown (new;
+             risk: Wikiquote lists a Part II link on it; credit to "Back to the Future" generally)
+[A175] start failure notice  KEEP PLAIN (exact). Beside only on non-compact surfaces: moment loadFailed.
+[A176] "A Question Works Best" KEEP. [A177] "What Should the Video Explain? (* required)" KEEP.
+[A178] placeholder KEEP.
+   Question step intro (existing moment question): [philosophers] [whyNot] plus new:
+   Lines:  - [feynCreate] "What I cannot create, I do not understand." (new)
+           - [f_why] "Now, why is this?" (new)
+[A179] Markdown/Write/Preview/"Nothing to Preview Yet" KEEP. [A180] KEEP.
+[A181] "Objectives / explain Rayleigh scattering…" KEEP. [A182] "One per Line… / At Most 8 Objectives: {n} Now" KEEP.
+[A183] "How Should It Be Told? / Approach" -> Plain: aria-label = visible label ("How Should It Be Told?").
+[A184] approaches ELI5…Custom  KEEP (fix "Analysed" -> "Analyzed", "Min" -> "Minutes" in hints).
+[A185] "How Should It Be Taught? …"  KEEP; Plain: add "(Optional)".
+[A186] "Length (Minutes) / 3–20 of Teaching; Intro and Closing Are Extra" KEEP; Plain: do not overwrite typed length.
+[A187] "Audience / For Example: Curious Beginners, Students" KEEP. Intro quote: moment audience (existing: [juvenile]).
+[A188] Voice Provider radios KEEP.
+[A189] "Starting Checks This Computer, Saves Your Template and Opens the Run" KEEP. Intro (moment review, existing):
+   Lines:  - [experiment] [decide] (existing)
+           - [feynFool] "The first principle is that you must not fool yourself — and you are the easiest person to
+             fool." — Richard Feynman, "Cargo Cult Science" (1974) (new; 17 words; best on the Review step, which is
+             where the user checks their own choices)
+           - [f_mayMake] "You may make these experiments yourselves." (new)
+[A190] "Your run so far" / "Your Run" -> Plain: one name: "Your Run So Far" (aria + h2).
+[A191] summary labels: Template / Explain / Objectives ...  KEEP. Plain: "Explain" -> "Question".
+[A192] summary values KEEP.
+
+=====================================================================================================
+NAVIGATION AND TABS (A193-A197)
+=====================================================================================================
+[A193] "Home" KEEP.  [A194] "Waiting for You / Optional" KEEP.  [A195] "(Optional)" sr-only -> Plain: show it visibly.
+[A196] "{n} waiting" -> Plain: "{n} Waiting for You" only where the count is checkpoints; else "{n}".
+[A197] tablist aria KEEP.
+
+=====================================================================================================
+MEDIA PLAYERS AND IMAGES (A198-A217)
+=====================================================================================================
+[A198] "No Image"  Verdict: KEEP PLAIN. Plain: "Image Did Not Load" + Try Again. Quote (moment: loadFailed)
+   only on large previews.
+[A199] "Full screen: {alt}" / "Full Screen" -> Plain: one casing: "Full Screen: {alt}".
+[A200] "Full Screen / Exit Full Screen" KEEP. [A201] KEEP.
+[A202] "2560 × 1440 / Preview Size / Sharpening…"
+   Verdict: VARIANTS (the badge text only; the quote goes beside it, see A203)
+   Variants: "Sharpening…" | "Rendering Full Size…" | "Bringing It Into Focus…"
+[A203] {rendering quote} (only visible text in the spinner area)  PLAIN + QUOTE (moment: rendering)
+   Plain: show "Rendering Full Size…" with the quote beneath it.
+   Lines: [lovelace] (new) | [f_lookAtThat] (new) | [waiting] (existing) | splash "Every frame is code!" (existing)
+[A204] "Full Size Did Not Render: Showing the Preview + {renderFailed quote}"  KEEP PLAIN + QUOTE (moment:
+   renderFailed; new set at A74).
+[A205] alt="" KEEP.
+[A206] "No Video Yet / {emptyHint}"  KEEP PLAIN. Moment: notYet (NEW) lines at A120 only where it is a short empty
+   state.
+[A207] "Loading the video" -> Plain: "Loading the Video" (visible text beside the spinner). VARIANTS: "Loading the
+   Video" | "Threading the Film" (lighter; use only if clear).
+[A208] Play / Play again KEEP.  [A209] duration KEEP.  [A210] casing as A199.  [A211] KEEP.
+[A212] "Could Not Play This Video / Try Again"  PLAIN + QUOTE (moment: loadFailed). Plain: add a reason when known
+   ("The File Is Missing" vs "The Browser Cannot Play It").
+[A213] Play/Pause KEEP.  [A214] Position/Volume KEEP.  [A215] time KEEP.
+[A216] "Waveform Unavailable"  KEEP PLAIN; add "Could Not Load This Audio" for real audio errors (audit 9).
+[A217] KEEP.
+
+=====================================================================================================
+FIELDS, PICKERS, HELPERS (A218-A229)
+=====================================================================================================
+[A218] "*" KEEP; add a one-line legend "* Required". [A219] FieldError KEEP (potentially unused; see audit).
+[A220] option label/detail KEEP.  [A221] ", {srLabel}" KEEP.  [A222] "Hex" KEEP; Plain: add "Not a Hex Color"
+   when invalid.  [A223] "From This Template / Template colors" -> one name: "From This Template".
+[A224] "Edit the top color" -> Plain: "Edit Top Color" (Title Case) and add aria-pressed.
+[A225] "Linear, Top to Bottom / Swap the Colors" KEEP. [A226] KEEP.
+[A227] titleCase helper — do not mangle user text: stop applying to topics/run names. No wording.
+[A228] "Markdown links open in a new tab" -> Plain: add visually-hidden " (Opens in a New Tab)".
+[A229] icon aria  KEEP.
+
+=====================================================================================================
+NEW LINES POOL — every new verified line once: key | text | source | url
+=====================================================================================================
+f_firstCheck    | But first let us see that our instrument is in order. | Faraday, The Chemical History of a
+   Candle, Lecture IV | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_IV
+f_setToWork     | We will light one or two, and set them at work in the performance of their proper functions. |
+   Faraday, Candle, Lecture I | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+f_halfFinished  | Here is one only half-finished. | Faraday, Candle, Lecture I | (Lecture I url above)
+f_why           | Now, why is this? | Faraday, Candle, Lecture I | (Lecture I url above)
+f_presently     | We shall presently examine that | Faraday, Candle, Lecture I | (Lecture I url above)
+                  (original continues "; but there is a much more wonderful thing...")
+f_lookAtThat    | Now, look at that. Is not that a very pretty experiment? | Faraday, Candle, Lecture II |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_II
+f_mayMake       | You may make these experiments yourselves. | Faraday, Candle, Lecture III |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_III
+f_wellExamine   | Well, we will examine it. | Faraday, Candle, Lecture IV | (Lecture IV url above)
+f_letUsSee      | Let us see whether that which goes out is steam or not. | Faraday, Candle, Lecture IV |
+   (Lecture IV url above)
+f_shine         | that you may, like it, shine as lights to those about you | Faraday, Candle, Lecture VI (closing) |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_VI
+f_noPoet        | I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your
+   minds. | Faraday, lecture notes 1858, in Bence Jones, Life and Letters of Faraday (1870) II p.403 |
+   https://en.wikiquote.org/wiki/Michael_Faraday
+f_stillTry      | But still try, for who knows what is possible | Faraday, Life and Letters (1870) II p.483 |
+   https://en.wikiquote.org/wiki/Michael_Faraday  (original ends with an ellipsis)
+f_stillExamine  | Still examine it by a few experiments. | Faraday, laboratory journal 19 Mar 1849 (Life and Letters II
+   p.248; same entry as the existing "wonder" line) | https://en.wikiquote.org/wiki/Michael_Faraday
+f_workFinish    | The secret is comprised in three words — Work, Finish, Publish. | Faraday, as quoted by J. H. Gladstone,
+   Michael Faraday (1874) p.123 | https://en.wikiquote.org/wiki/Michael_Faraday
+feynCreate      | What I cannot create, I do not understand. | Richard Feynman, his blackboard at the time of death
+   (Feb 1988), Caltech Archives | https://en.wikiquote.org/wiki/Richard_Feynman
+feynFool        | The first principle is that you must not fool yourself — and you are the easiest person to fool. |
+   Richard Feynman, "Cargo Cult Science" (1974) | https://en.wikiquote.org/wiki/Richard_Feynman
+curieBeauty     | I am among those who think that science has great beauty. | Marie Curie |
+   https://en.wikiquote.org/wiki/Marie_Curie
+lovelace        | We may say most aptly that the Analytical Engine weaves algebraical patterns just as the
+   Jacquard-loom weaves flowers and leaves. | Ada Lovelace, Notes on the Analytical Engine (1843) |
+   https://en.wikiquote.org/wiki/Ada_Lovelace
+newtonGiants    | If I have seen further it is by standing on ye sholders of Giants. | Isaac Newton, letter to Robert
+   Hooke, 15 Feb 1676 | https://en.wikiquote.org/wiki/Isaac_Newton
+picardMakeIt    | Make it so! | Star Trek: The Next Generation, Jean-Luc Picard |
+   https://en.wikiquote.org/wiki/Star_Trek:_The_Next_Generation
+picardImpossible| Data, things are only impossible until they're not. | Star Trek: TNG, "When the Bough Breaks"
+   [1.17], Picard | https://en.wikiquote.org/wiki/Star_Trek:_The_Next_Generation
+droids          | These aren't the droids you're looking for. | Star Wars (1977), Obi-Wan Kenobi |
+   https://en.wikiquote.org/wiki/Star_Wars_(film)
+github404       | This is not the web page you are looking for | GitHub's own 404 page (the page's illustration text:
+   alt="404 “This is not the web page you are looking for”", fetched 2026-11-27) | https://github.com/404
+zeldaSecret     | It's a secret to everybody. | The Legend of Zelda (1986) |
+   https://en.wikiquote.org/wiki/The_Legend_of_Zelda_(video_game)
+itCrowd         | Hello, IT. Have you tried turning it off and on again? | The IT Crowd, "Yesterday's Jam" [1.1], Roy |
+   https://en.wikiquote.org/wiki/The_IT_Crowd
+portalExcellent | Once again, excellent work. | Portal (2007), GLaDOS | https://en.wikiquote.org/wiki/Portal_(game)
+portalThanks    | Thank you for helping us help you help us all. | Portal (2007), GLaDOS |
+   https://en.wikiquote.org/wiki/Portal_(game)
+hlRise          | Rise and shine, Mr. Freeman, rise and … shine. | Half-Life 2 (2004), the G-Man |
+   https://en.wikiquote.org/wiki/Half-Life
+bttfRoads       | Roads? Where we're going, we don't need roads. | Back to the Future (1985), Doc Brown |
+   https://en.wikiquote.org/wiki/Back_to_the_Future
+mcLaptop        | Any computer is a laptop if you're brave enough! | Minecraft, splash text |
+   https://en.wikiquote.org/wiki/Minecraft_(game)
+mcNotGiveUp     | I like this player. It played well. It did not give up. | Minecraft, The End Poem (Julian Gough) |
+   https://en.wikiquote.org/wiki/Minecraft_(game)
+adamsTime       | Time is an illusion. Lunchtime doubly so. | Douglas Adams, The Hitchhiker's Guide to the Galaxy (1979),
+   ch. 2 | https://en.wikiquote.org/wiki/The_Hitchhiker%27s_Guide_to_the_Galaxy
+
+=====================================================================================================
+NEW MOMENTS — name | which rows use it | lines (keys)
+=====================================================================================================
+loadFailed   | A41, A98, A118, A153, A157, A169, A170, A175, A198, A212 | f_stillTry, picardImpossible, mcNotGiveUp,
+                f_wellExamine, f_stillExamine (and replaces [failure]/[badFeeling]; [houston] stays in `failed`)
+saved        | A36, A150 | proved (existing), portalExcellent, portalThanks
+noMatches    | A155 | droids, github404, zeldaSecret
+notFound     | A170 (draft gone), A41 (lost/unsupported, replaces tears) | github404, droids
+startingRun  | A174 | f_firstCheck, picardMakeIt, hlRise, bttfRoads
+checking     | A6, A86, A149 | f_firstCheck, f_setToWork, waiting (existing)
+asking       | A120 (Asking Claude Code) | f_why, f_wellExamine, f_letUsSee
+notYet       | A120 (Not Checked Yet), A206 | f_presently, zeldaSecret
+draft        | A134 | f_halfFinished
+serverSilent | A9, A87 | panic (existing), itCrowd (use with care)
+signInSteps  | A89-A91 | picardMakeIt, f_mayMake
+elapsed      | A106 | adamsTime
+Existing moments with new lines added:
+ homeLead    + f_noPoet, curieBeauty, feynCreate
+ question    + feynCreate, f_why
+ review      + feynFool, f_mayMake
+ closing     + f_shine, newtonGiants, lovelace
+ complete    + f_shine, f_workFinish   (remove triumph)
+ pending     + f_presently, f_why      (remove wizard)
+ rendering   + lovelace, f_lookAtThat  (remove wizard)
+ renderFailed= f_stillExamine, picardImpossible, houston   (remove impossible)
+ failed      = houston, f_stillTry, picardImpossible        (remove failure, badFeeling)
+ lost        = github404, droids       (remove tears)
+ loading     + f_firstCheck, f_setToWork, mcLaptop
+ noRuns      + zeldaSecret, f_setToWork
+ nothingInProgress + feynCreate
+
+=====================================================================================================
+UNVERIFIED, NOT PROPOSED — text | why
+=====================================================================================================
+"Somewhere, something incredible is waiting to be known." (Sagan) | Wikiquote lists it as Misattributed.
+"I have not failed. I've just found 10,000 ways that won't work." (Edison) | Wikiquote: Disputed.
+"The most exciting phrase in science is 'That's funny...'" (Asimov) | Wikiquote: only "attributed" via a Fortune
+   source-code quote; no first-hand source.
+"The important thing is to know how to take all things quietly." (Faraday) | already rejected; Wikiquote source is
+   a 1949 anthology.
+"Why, sir, there is every probability that you will soon be able to tax it!" | Disputed (Snopes: probably invented).
+"Reticulating splines" (SimCity 2000 / The Sims loading message) | only fetched secondary summaries (Sims Wiki etc.);
+   no fetched page quoting the on-screen text word for word in this run.
+Firefox "Well, this is embarrassing" | Mozilla's bug 973510 and forum threads quote it WITHOUT the comma ("Well
+   this is embarrassing"), and it is a crash-recovery notice with a self-mocking tone that clashes with the
+   "no sorry/oops" rule.
+Chrome "Aw, Snap!", Twitter Fail Whale, Slack/Discord loading messages | no page fetched with the exact text (a
+   web search found no list of Slack loading messages).
+Doctor Who ("Allons-y", "Geronimo", "Fantastic!"), Mass Effect, Outer Wilds, Factorio, KSP, Civilization tech quotes,
+   Cosmos 1980 beyond Sagan, Breaking Bad, Mr. Robot, Silicon Valley | not found as exact lines on the fetched
+   Wikiquote pages (Doctor Who page had none) or not researched in this pass.
+GitHub README/commit folklore ("works on my machine") | no fetched sourced page.
+
+=====================================================================================================
+NOTES — risks (lyrics, misattribution, tone)
+=====================================================================================================
+1. LYRIC: existing [triumph] "This was a triumph." is the first line of Portal's song "Still Alive". REMOVE it from
+   `complete` and LINES. The other Portal lines (GLaDOS announcements) are game dialogue, not lyrics.
+2. "Thank you for helping us help you help us all." comes from GLaDOS's spoken announcements in Portal Test
+   Chamber 15 (dialogue, not the song). Keep it under 20 words and credited.
+3. Faraday lines marked "original ends with an ellipsis/semicolon" are shortened at a clause boundary; keep the
+   punctuation exactly as written in the pool or add the full stop only to the existing "experiment" line.
+4. [newtonGiants] keeps Newton's 1676 spelling "ye sholders"; the modernised form "shoulders of giants" is a
+   paraphrase on Wikiquote and not word for word.
+5. Tone: [houston] is acceptable for a RUN failure only. [failure] "Failure is not an option!" and [badFeeling]
+   should leave `failed` (audit finding 10). [itCrowd] can read as a taunt at the user; use only where the user
+   can plausibly restart the server (Sign In). [hlRise] is an unsettling dream-sequence line; low use.
+6. [mcNotGiveUp] is The End Poem (Julian Gough, CC0 text): safe, but the Minecraft game credit is enough. [mcLaptop]
+   is a rotating splash; credit "Minecraft, splash text" as existing [doItAll] does.
+7. Wikiquote page checks: Feynman, Curie, Ada Lovelace, Newton, Star Trek TNG, Star Wars, Portal, Half-Life,
+   Hitchhiker's Guide, IT Crowd, Zelda, Minecraft, Back to the Future were pulled as raw wikitext and the exact
+   string matched. The Faraday Wikiquote lines (f_noPoet, f_stillTry, f_stillExamine, f_workFinish) were read from
+   the rendered page's sourced sections (not Misattributed/Disputed).
+8. Voice.ts says the `wizard` moment line is "Faraday's brand voice"; I recommend moving it to `closing` only.
+9. A3 (noscript): no quote is proposed; one plain sentence is best.
+10. Plain rewordings (A2, A85, A137, etc.) are suggestions to fix audit findings; they are not quotes and need
+    the owner's approval.
+
+
+####################################################################################################
+PART 2 — Run pages (B1–B259)
+####################################################################################################
+
+REFERENCE WORDINGS FOR PART 2 (rows B1-B259), Faraday user-facing text
+=====================================================================
+How to read this file. Each row gets a verdict. "Lines:" names a moment (existing = already in
+frontend/src/config/voice.ts; NEW = proposed) and the line keys; the full text, credit and verified URL of
+every NEW key is in NEW LINES POOL and per moment in NEW MOMENTS at the end. Existing keys (openDoor,
+juvenile, cause, philosophers, coloured, experiment, points, waiting, wait, proved, wonder, houston, failure,
+dave, panic, harmless, tears, beginning, nextProblem, aperture, triumph, doingWell, impossible, whyNot, alone,
+wakeMe, awake, doItAll, decide, smallest, wizard, notPass, onlyHope, badFeeling, starStuff) are unchanged and
+are reused by name. Plain instruction text is never replaced: a quote sits beside it (Said). All checkpoint,
+approval and change-request commit text stays plain; quotes there are quiet, on the success/empty side only.
+Plain rewordings follow the house rules (Title Case, one term per concept: run, scene, clip, Approve,
+Request a Change, Console, Nothing Here / Not Made Yet, Unavailable / Connection Lost, Done).
+
+-----------------------------------------------------------------------------------------------------
+RunPage.tsx
+-----------------------------------------------------------------------------------------------------
+[B1] "Run"  (RunPage.tsx:80,90, document title)
+   Verdict: KEEP PLAIN
+[B2] "Could Not Load This Run"  (RunPage.tsx:81, SystemMessage unavailable)
+   Verdict: PLAIN + QUOTE (moment: failed, existing; add keys fStillTry, designed, guessing)
+   Lines: existing houston | failure | badFeeling; NEW fStillTry | designed | guessing
+   Note: for a load error that is retryable, fStillTry ("But still try...") fits best beside Try Again.
+[B3] "Try Again"  (button)   Verdict: KEEP PLAIN
+[B4] "All Runs"  (button)    Verdict: KEEP PLAIN, reword for clarity: "Ongoing Runs" (it goes to #/ongoing),
+     or "Back to Runs". Do not use "All Runs" for a finished run.
+[B5] "{detail.error.message}"  Verdict: KEEP PLAIN (must be exact)
+[B6] "Opening the Run" + openingRun quote  (RunPage.tsx:90)
+   Verdict: VARIANTS (+ QUOTE existing openingRun)
+   Variants: "Opening the Run" | "Loading This Run" | "Opening Your Run" | "Setting Out the Run"
+   Lines: existing points | awake; NEW (add) fCompose, fUnderstand
+[B7] "Previous Runs / Ongoing Runs"  (breadcrumb)  Verdict: KEEP PLAIN
+[B8] "{step label} . {run name or topic}"  Verdict: KEEP PLAIN
+[B9] "Run"  (aria-label on rail aside)  Verdict: KEEP PLAIN, clearer: "Run Progress and Stages"
+[B10-B12] "Stages Approved", "{n} of 8", "Stages of This Run"  Verdict: KEEP PLAIN
+[B13] stage labels Template ... Reshuffle  Verdict: KEEP PLAIN
+[B14] "Open Console"  Verdict: KEEP PLAIN
+[B15] "Request a Change"  Verdict: KEEP PLAIN (house term)
+[B16] "Optional"  Verdict: KEEP PLAIN
+[B17] status pills (Approved, Done, In Progress, Being Revised, Waiting for You, Failed, Not Started)
+   Verdict: KEEP PLAIN
+[B18] "<Step> Is Waiting for Your Decision"  (RunPage.tsx:143, approval bar)
+   Verdict: VARIANTS (fixes "Scenes Is Waiting" / "Scene Plans Is Waiting"; sober, no quote)
+   Variants: "Decision Needed: Scene Plans" | "Scene Plans: Waiting for Your Decision" |
+             "Your Decision Is Needed on Scene Plans" | "Waiting for You: Scene Plans"
+[B19] "Decide"  (button)  Verdict: KEEP PLAIN
+[B20] "This Run Cannot Be Read Right Now"  Verdict: KEEP PLAIN (critical, sober, cause first)
+[B21] "This Run Was Made by an Older Version"  Verdict: KEEP PLAIN; use only when the backend says so
+      (finding 8); neutral fallback title: "This Run Cannot Be Opened"
+[B22] "{run.problem}"  Verdict: KEEP PLAIN
+[B23] "Final Video: {name}"  (VideoPreview label)  Verdict: KEEP PLAIN
+[B24] "No Final Video"  (empty)
+   Verdict: VARIANTS (unify with B182)
+   Variants: "No Final Video Yet" | "Final Video Not Made Yet" | "Final Video: Not Made Yet"
+[B25] "Not Up to Date"  (RunPage.tsx:124, SystemMessage offline/stale)
+   Verdict: VARIANTS + QUOTE (moment: stalePage, NEW)
+   Variants: "Not Up to Date" | "This Page May Be Out of Date" | "Showing the Last Version Received"
+   Lines: NEW reject | fCannot | fExamine
+   Note: pairs with Try Again; keep the refresh button plain. Existing "offline" (panic) is the
+   alternative if the cause is Connection Lost.
+[B26] "Console"  (Drawer title)  Verdict: KEEP PLAIN
+[B27] notice text passed to refresh(message)  Verdict: KEEP PLAIN. Audit finding 1: notices raised after the
+      modal has closed are never seen; show them on the page, not inside the closed modal.
+[B28] "useRun outside a run page"  Verdict: KEEP PLAIN (developer-only)
+
+-----------------------------------------------------------------------------------------------------
+Overview.tsx
+-----------------------------------------------------------------------------------------------------
+[B29-B34] "At a Glance", chips Approach / Length / Scenes / Open Requests / Started
+   Verdict: KEEP PLAIN. Clearer: "Open Requests" -> "Open Change Requests" (matches B114); "Started" value:
+   format the date as "27 Nov 2026, 10:15" instead of raw `created` (B34).
+[B35] "Clips per Scene"  Verdict: KEEP PLAIN
+[B36] legend Done / In Progress / Waiting for You / Failed / Not Started  Verdict: KEEP PLAIN
+[B37] "Scene N"  Verdict: KEEP PLAIN (house term)
+[B38,B41] "...: no clips planned"  Verdict: KEEP PLAIN, Title Case: "No Clips Planned"
+[B39,B40,B42] tooltips and "done/total"  Verdict: KEEP PLAIN
+
+-----------------------------------------------------------------------------------------------------
+CheckpointPanel.tsx
+-----------------------------------------------------------------------------------------------------
+[B43] "Decisions"  Verdict: KEEP PLAIN
+[B44] "{Decision} (Accepted With Open Problems)"  Verdict: KEEP PLAIN (record of a commit, exact)
+[B45] timestamp "2026-11-27 10:15 . by"  Verdict: KEEP PLAIN, format as "27 Nov 2026, 10:15"
+[B46] "{decision.notes}"  Verdict: KEEP PLAIN
+[B47] "You Approved This Checkpoint" / "Changing What It Covers Asks You Again"
+   Verdict: KEEP PLAIN (approval text), optional quiet quote (moment: approved, existing; add fWorkFinish,
+   peak). Keep the plain two lines exactly as they are.
+   Lines: existing proved | doingWell; NEW fWorkFinish | peak
+[B48] "Nothing to Decide Yet" / "Claude Asks When This Stage Is Ready" + nothingToDecide quote
+   Verdict: VARIANTS (+ QUOTE existing nothingToDecide)
+   Variants (title): "Nothing to Decide Yet" | "No Decision Due Yet" | "Not Ready for a Decision"
+   Variants (body): "Claude Asks When This Stage Is Ready" | "Claude Will Ask You When This Stage Is Ready" |
+                    "Your Decision Is Asked For When This Stage Is Ready"
+   Lines: existing wakeMe; NEW (add) fAnother ("I have another experiment here...") is for the next-step note
+          B110 instead, not here. Keep wakeMe alone.
+[B49] "{checkpoint.label}"  Verdict: KEEP PLAIN
+[B50] "Open Problems"  Verdict: KEEP PLAIN
+[B51] "{problem}" list  Verdict: KEEP PLAIN (must be exact)
+[B52,B53] "Approve with Open Problems" / "Approving Records These as Open"  Verdict: KEEP PLAIN
+[B54] "Nothing Blocks This Checkpoint"  Verdict: KEEP PLAIN, quiet quote allowed (moment: approved):
+      nothing blocks = ready, but do not stack a quote on a decision box; recommend NO quote.
+[B55] "Notes (Optional)"  Verdict: KEEP PLAIN
+[B56] "Approve & Continue"  (button)  Verdict: KEEP PLAIN. For scene start checkpoints (finding 6) use
+      "Approve" or "Start This Scene"; keep "&" out: "Approve and Continue".
+[B57] "Request a Change"  Verdict: KEEP PLAIN
+[B58] "Tick Approve with Open Problems to Approve Anyway, or Ask Claude in the Console" / "... or Request a Change"
+   Verdict: KEEP PLAIN (it explains a disabled button). Clearer: "To Approve Anyway, Tick Approve with Open
+   Problems. Otherwise Ask Claude in the Console or Request a Change"
+[B59] "Approving..."  Verdict: KEEP PLAIN
+[B60] "{Label} Approved[ With Its Open Problems][: Next, {Stage}]"
+   Verdict: KEEP PLAIN (commit confirmation). Clearer for the optional stage: "Final Video Approved:
+   Optional Next Step, Reshuffle". Quote may sit beside, moment approved (existing) with fWorkFinish.
+[B61] error text from failed approve  Verdict: KEEP PLAIN (assertive, exact)
+
+-----------------------------------------------------------------------------------------------------
+ChangeModal.tsx
+-----------------------------------------------------------------------------------------------------
+[B62] "Request a Change"  Verdict: KEEP PLAIN
+[B63] "Any Stage, Scene or Clip: Claude Applies It and Marks It Done"  Verdict: KEEP PLAIN
+[B64] "What Should Change"  Verdict: KEEP PLAIN
+[B65] target options "The Outline", ... "Scene s03: {title}", "Clip c0301: {objective}"
+   Verdict: KEEP PLAIN, fix raw ids: "Scene 3: {Title}", "Clip 3.1: {Objective}" (finding 10)
+[B66,B67] "Kind of Change" + kind options  Verdict: KEEP PLAIN
+[B68] "Describe the Change"  Verdict: KEEP PLAIN
+[B69] "Cancel"  Verdict: KEEP PLAIN
+[B70] "Send Request"  Verdict: KEEP PLAIN. Add a hint when disabled: "Describe the Change in at Least
+      3 Characters" (finding 5).
+[B71] "Sending..."  Verdict: KEEP PLAIN
+[B72] "Change Request r01 Recorded: Claude Applies It After the Step It Is On"
+   Verdict: PLAIN + QUOTE (moment: changeRecorded, NEW)
+   Lines: NEW makeItSo | engage | fProper
+   Note: show the quote only once the request is recorded, never before it succeeds.
+[B73] "Change Request r01 Recorded: Claude Is Applying It"
+   Verdict: PLAIN + QUOTE (moment: changeRecorded). Reword so it cannot be false (finding 3):
+   "Change Request r01 Recorded: Claude Is Being Asked to Apply It"
+[B74] "I asked for a change: r01 (target, kind). Apply it, then carry on."  Verdict: KEEP PLAIN (sent text)
+[B75] errors from send()/load()  Verdict: KEEP PLAIN (finding 1: make them visible)
+
+-----------------------------------------------------------------------------------------------------
+ClaudePanel.tsx
+-----------------------------------------------------------------------------------------------------
+[B76] "Could Not Load Claude's Messages" + message  Verdict: PLAIN + QUOTE (moment: failed, existing)
+      Add a retry button.  Lines: existing houston | badFeeling; NEW fStillTry
+[B77] (nothing while loading)  Verdict: add a loading state: VARIANTS
+   Variants: "Loading Claude's Messages" | "Opening the Conversation" | "Connecting"
+   Lines: moment loading (existing): waiting | wait
+[B78] "Claude Is Working" / "Its Reply Appears Here When It Ends"
+   Verdict: PLAIN + QUOTE (moment: processing, existing; add curProgress, fProper, heavy)
+   Lines: existing nextProblem; NEW curProgress | fProper | heavy
+[B79] "Ready to Begin" + readyToBegin quote
+   Verdict: KEEP PLAIN (+ QUOTE existing readyToBegin; add engage, makeItSo)
+   Lines: existing beginning | experiment; NEW engage | makeItSo
+[B80] "Claude"  (aria-label)  Verdict: KEEP PLAIN
+[B81] "Start Production"  Verdict: KEEP PLAIN
+[B82] "Claude Is Working: Renders and Voice Can Take Minutes"
+   Verdict: VARIANTS + QUOTE (moment: processing)
+   Variants: "Claude Is Working: Renders and Voice Can Take Minutes" |
+             "Claude Is Working: Renders and Voice Take Minutes" |
+             "Claude Is at Work: Expect Minutes for Renders and Voice" |
+             "Claude Is Working: Long Renders and Voice Take a While"
+   Lines: processing (see B78)
+[B83] "Claude Finished"
+   Verdict: PLAIN + QUOTE (moment: claudeFinished, NEW). Only after a real completion (finding 2).
+   Lines: NEW fAnother | fSimple; existing doingWell | proved
+[B84] h2 "Claude Is Working" / "Claude Asks" / "Claude Says"  Verdict: KEEP PLAIN
+[B85] asks quote  Verdict: KEEP (existing asks: onlyHope); optional NEW addition fAsked
+[B86,B87] entry text, option buttons  Verdict: KEEP PLAIN
+[B88] "Waiting for Claude" / "No Reply"  Verdict: VARIANTS
+   Variants: "Waiting for Claude" | "Claude Has Not Replied Yet" | "No Reply Yet"
+[B89,B90] "Your Answer", "Reply to Claude", "Message Claude"  Verdict: KEEP PLAIN
+[B91] "Send"  Verdict: KEEP PLAIN
+[B92] error text  Verdict: KEEP PLAIN
+[B93] aria-live on whole section  Verdict: KEEP PLAIN (a11y; finding 12)
+
+-----------------------------------------------------------------------------------------------------
+Console.tsx
+-----------------------------------------------------------------------------------------------------
+[B94] "Could Not Load the Console" + message  Verdict: PLAIN + QUOTE (moment: failed, existing). Add retry.
+[B95] "Connecting"
+   Verdict: VARIANTS (+ QUOTE existing loading)
+   Variants: "Connecting" | "Connecting to Claude" | "Opening the Console"
+[B96] "claude code"  Verdict: KEEP PLAIN, "Claude Code"
+[B97] "{id}"  Verdict: KEEP PLAIN
+[B98] "Conversation with Claude"  Verdict: KEEP PLAIN
+[B99] "No Messages Yet"
+   Verdict: VARIANTS + QUOTE (moment: consoleIdle, NEW)
+   Variants: "No Messages Yet" | "Nothing Said Yet" | "No Messages in This Run Yet"
+   Lines: NEW fAsked | fWorks | engage ; existing alone | beginning
+[B100] entry text per role  Verdict: KEEP PLAIN. Add a visible or screen-reader speaker label (finding 12).
+[B101] "Choices: a . b"  Verdict: KEEP PLAIN
+[B102] "Message to Claude"  Verdict: KEEP PLAIN
+[B103] "Message Claude" / "{kickoff}"  Verdict: KEEP PLAIN
+[B104] "Send" / "Start"  Verdict: KEEP PLAIN. If the kickoff begins production, say "Start Production" (B81).
+[B105] "Enter Sends . Shift+Enter for a New Line"  Verdict: KEEP PLAIN
+[B106] "Claude Is Still Replying: Its Messages Appear Here as It Works"
+   Verdict: VARIANTS + QUOTE (moment: processing)
+   Variants: "Claude Is Still Replying: Its Messages Appear Here as It Works" |
+             "Claude Is Still Replying: Watch Its Messages Appear Here" |
+             "Claude Is Mid-Reply: Its Messages Arrive Here as It Works"
+[B107] = B82 (use the same constant and variants)
+[B108] = B83 (claudeFinished)
+[B109] error text  Verdict: KEEP PLAIN
+
+-----------------------------------------------------------------------------------------------------
+review.tsx
+-----------------------------------------------------------------------------------------------------
+[B110] "Claude's Next Step" + count  Verdict: KEEP PLAIN. A quote beside the disclosure is optional:
+   moment claudeFinished keys fAnother ("I have another experiment here...") fits this label best.
+[B111-B113] agent badge, "{target}: ", "{action.what}"  Verdict: KEEP PLAIN
+[B114] "Change Requests"  Verdict: KEEP PLAIN
+[B115] "Request a Change"  Verdict: KEEP PLAIN
+[B116] "r01 . wording on outline . open (note)"
+   Verdict: KEEP PLAIN, reword to the house terms: "Request r01: Wording on the Outline (Open)"
+[B117] "{request.text}"  Verdict: KEEP PLAIN
+[B118] "No Changes Requested" + noChanges quote  Verdict: KEEP (existing noChanges: harmless)
+   Lines: existing harmless; NEW (add) fSimple ("I will shew you; it is very simple, and easily done.")
+[B119] "Round 1"  Verdict: KEEP PLAIN
+[B120,B121] verdict badge, "{score}/100"  Verdict: KEEP PLAIN
+[B122] "{round.summary}"  Verdict: KEEP PLAIN
+[B123] "Keeps: ..."  Verdict: KEEP PLAIN
+[B124] "Table (scrolls sideways on small screens)"  Verdict: KEEP PLAIN, name each table (finding 12):
+       "Accuracy Findings Table (scrolls sideways on small screens)"
+[B125] headers Rule / Where / Problem / Fix  Verdict: KEEP PLAIN
+[B126] cells  Verdict: KEEP PLAIN
+[B127] "No Accuracy Problems"
+   Verdict: PLAIN + QUOTE (moment: checksPassed, NEW)
+   Lines: NEW fPure | veryGood | factSphere | fSpark
+[B128-B130] headers, severity badge, cells  Verdict: KEEP PLAIN
+[B131] "No {What} Yet" (NotYet title)
+   Verdict: VARIANTS (house term: Not Made Yet, since it will be made later in the run)
+   Variants: "No Script Yet" | "Script Not Made Yet" | "Script: Not Made Yet"
+[B132] "Claude Writes It When the Run Gets Here"
+   Verdict: VARIANTS + QUOTE (moment: notYet, NEW)
+   Variants: "Claude Writes It When the Run Gets Here" | "Claude Writes It When the Run Reaches This Stage" |
+             "Written When the Run Reaches This Stage" | "Claude Makes It Once the Run Gets Here"
+   Lines: NEW fHalf | fCompose | fWonder
+
+-----------------------------------------------------------------------------------------------------
+stages/StageTabs.tsx
+-----------------------------------------------------------------------------------------------------
+[B133,B134] tab label prop, count badges  Verdict: KEEP PLAIN
+
+-----------------------------------------------------------------------------------------------------
+stages/Requirements.tsx
+-----------------------------------------------------------------------------------------------------
+[B135,B136] "Requirements", tabs Brief / Topics / Content / Checkpoint  Verdict: KEEP PLAIN
+[B137] facts Explain / Objectives / Approach / Length  Verdict: KEEP PLAIN, "Explain" -> "Topic"
+[B138] topic, objectives, approach  Verdict: KEEP PLAIN
+[B139] "Not Set Yet: Claude Proposes Them With You"  Verdict: VARIANTS
+   Variants: "Not Set Yet: Claude Proposes Them With You" | "Not Set Yet: You and Claude Settle Them Together" |
+             "Not Made Yet: Claude Proposes Them With You"
+[B140] "{n} min"  Verdict: KEEP PLAIN (match B31 "Min")
+[B141] "No Topic List Yet" + body  Verdict: VARIANTS + QUOTE (notYet; see B131/B132)
+   Variants: "No Topic List Yet" | "Topic List Not Made Yet"
+[B142] "No Content Yet" + body  Verdict: VARIANTS + QUOTE (notYet)
+   Variants: "No Content Yet" | "Content Not Made Yet"
+[B143] topics.md / content.md body  Verdict: KEEP PLAIN
+
+-----------------------------------------------------------------------------------------------------
+stages/Writing.tsx (Outline and Script)
+-----------------------------------------------------------------------------------------------------
+[B144,B145] "Outline", "Changes", "Checkpoint"  Verdict: KEEP PLAIN. "Changes" -> "Change Requests" (B114).
+[B146] scene id, title, type, "{n} s", talking points  Verdict: KEEP PLAIN
+[B147] "Picture: {visual_plan}"  Verdict: KEEP PLAIN, "Visuals:" (B67)
+[B148] "No Outline Yet"
+   Verdict: VARIANTS + QUOTE (moment: writingScript, NEW)
+   Variants: "No Outline Yet" | "Outline Not Made Yet" | "Nothing to Outline Yet"
+   Lines: NEW hitchDrama | styleOmit | newtonSimple | fPoem
+[B149] "Script"  Verdict: KEEP PLAIN
+[B150] "{n} s . 1 words"  Verdict: KEEP PLAIN, fix plural: "1 word" / "{n} words"
+[B151] scene role, title, objective, bridge_in, narration  Verdict: KEEP PLAIN
+[B152] "No Script Yet"
+   Verdict: VARIANTS + QUOTE (moment: writingScript)
+   Variants: "No Script Yet" | "Script Not Made Yet" | "Nothing Written Yet"
+   Lines: writingScript (as B148)
+[B153] tabs "Accuracy" (+ error count), "Critique"  Verdict: KEEP PLAIN
+[B154] "No Accuracy Review Yet"  Verdict: VARIANTS + QUOTE (moment: critiquing, NEW)
+   Variants: "No Accuracy Review Yet" | "Accuracy Review Not Made Yet" | "Not Reviewed for Accuracy Yet"
+   Lines: NEW feyFool | fKindest | factSphere | fExamine
+[B155] "No Script Critique Yet" / "Critiqued When You Request a Change at Its Checkpoint"
+   Verdict: VARIANTS + QUOTE (critiquing). Body may be inaccurate (finding 14): verify before rewording.
+   Variants (title): "No Script Critique Yet" | "Script Critique Not Made Yet"
+   Variants (body): "Critiqued When You Request a Change at Its Checkpoint" |
+                    "Critique Runs When You Request a Change at Its Checkpoint"
+   Lines: critiquing (as B154)
+
+-----------------------------------------------------------------------------------------------------
+stages/Production.tsx
+-----------------------------------------------------------------------------------------------------
+[B156] "Loading the Execution Plan of Scene 3"
+   Verdict: VARIANTS (+ QUOTE existing loading)
+   Variants: "Loading the Execution Plan for Scene 3" | "Opening the Execution Plan of Scene 3" |
+             "Loading Scene 3's Execution Plan"
+   Lines: existing waiting | wait
+[B157] "No Execution Plan for Scene 3"  Verdict: KEEP PLAIN. Distinguish a failed fetch (finding 7):
+       "Could Not Load the Execution Plan for Scene 3" (failed) vs "No Execution Plan for Scene 3 Yet".
+[B158] "Execution Plan" + scene badge  Verdict: KEEP PLAIN
+[B159] section headings from tags  Verdict: KEEP PLAIN
+[B160] "Scene Code", "Manim code of Scene 3"
+   Verdict: KEEP PLAIN. Optional quote beside the heading (moment: sceneCode, NEW): lovePatterns | fMath
+[B161] CHANGES.md body  Verdict: KEEP PLAIN
+[B162] "Loading the Plan of Scene 3"  Verdict: VARIANTS (as B156)
+   Variants: "Loading the Plan for Scene 3" | "Opening the Plan of Scene 3" | "Loading Scene 3's Plan"
+[B163] "Opens With: {transition_in}"  Verdict: KEEP PLAIN
+[B164] headers Clip / What It Shows / Beats / Seconds  Verdict: KEEP PLAIN
+[B165] "No Scene 3 Critique Yet"  Verdict: PLAIN + QUOTE (critiquing)
+   Lines: critiquing keys; or existing wait.
+[B166] "Scene 3 . {Kind} Critique"  Verdict: KEEP PLAIN
+[B167] "No Scene Plans Yet" / "Written After You Approve the Script"
+   Verdict: VARIANTS + QUOTE (moment: planningScenes, NEW)
+   Variants: "No Scene Plans Yet" | "Scene Plans Not Made Yet" | "Nothing Planned Yet"
+   Lines: NEW fCompose | fPrettyExp | fUnderstand | hitchDrama
+[B168] "Scene Plans", tabs Plans / Execution Plans / Critiques / Accuracy / Checkpoint  Verdict: KEEP PLAIN
+[B169] "No Accuracy Review Yet"  Verdict: as B154 (critiquing)
+[B170] "No Scenes Yet" / "Built After the Scene Plans Are Approved"
+   Verdict: VARIANTS + QUOTE (moment: buildingClips, NEW)
+   Variants: "No Scenes Yet" | "Scenes Not Made Yet" | "Nothing Built Yet"
+   Lines: NEW fHalf | fLarger | heavy | curProgress
+[B171] "Approve All Scenes"  Verdict: KEEP PLAIN (a commit)
+[B172] facts Scenes / Ready / Still Building / Failed  Verdict: KEEP PLAIN
+[B173] "Scenes", scene tab labels  Verdict: KEEP PLAIN
+[B174] "Preview of {scene title}"  Verdict: KEEP PLAIN
+[B175] "No Preview Yet" / "Appears Once the Scene's Code Is Built"
+   Verdict: VARIANTS (+ QUOTE moment buildingClips)
+   Variants: "No Preview Yet" | "Preview Not Made Yet" | "Nothing to Preview Yet"
+[B176] "Clips Built" / "{n} of {m}"
+   Verdict: KEEP PLAIN, quote beside while running (moment: buildingClips)
+[B177] headers Clip / What It Shows / Status  Verdict: KEEP PLAIN
+[B178] sync problems list  Verdict: KEEP PLAIN; give it a heading "Sync Problems", with a quiet quote
+      (moment: syncing, NEW): lunch | fSpark
+[B179] "Final Video", tabs Video / Media Checks / Checkpoint  Verdict: KEEP PLAIN
+[B180] complete quote (triumph | starStuff | smallest)
+   Verdict: KEEP (existing complete); add NEW peak | sagaQuestions | curRejoice | godardTruth | fWorkFinish
+[B181] "Final Video: {topic title}"  Verdict: KEEP PLAIN
+[B182] "No Final Video Yet" / "Rendered at 2560 x 1440 Once Every Scene Is Approved"
+   Verdict: VARIANTS (+ QUOTE existing rendering; add fCurious)
+   Variants: "No Final Video Yet" | "Final Video Not Made Yet" | "Final Video: Not Rendered Yet"
+   Lines: existing waiting | wizard; NEW fCurious | heavy
+[B183] "No Media Checks Yet"  Verdict: VARIANTS (as B131)
+   Variants: "No Media Checks Yet" | "Media Checks Not Run Yet"
+[B184] headers Severity / Check, badges Error / Warning  Verdict: KEEP PLAIN
+[B185] "{code lowercased}: {message}"  Verdict: KEEP PLAIN, show the code in Title Case (finding 10)
+[B186] "Every Check Passed" / "No Media Checks Recorded"
+   Verdict: PLAIN + QUOTE (checksPassed). "No Media Checks Recorded" is a Nothing Here: keep plain.
+   Lines: NEW fPure | veryGood | fSpark
+
+-----------------------------------------------------------------------------------------------------
+stages/Reshuffle.tsx
+-----------------------------------------------------------------------------------------------------
+[B187] "Choose a Template First" / "A Reshuffle Starts From the Run's Approved Template" / "Open Template"
+   Verdict: KEEP PLAIN, fix the title (finding 4): "Approve the Template First" | "The Template Needs Approval First"
+[B188] "Reshuffle the Look" / "Colors, Fonts and Backgrounds Change; Layouts Never Do"
+   Verdict: KEEP PLAIN. Optional quote beside the section: moment reshuffling (NEW): fColoured | fBeautColour
+[B189] "What to Reshuffle"  Verdict: KEEP PLAIN
+[B190] checkbox groups + hints  Verdict: KEEP PLAIN
+[B191] "Seed" / "The Same Seed Always Gives the Same Look"  Verdict: KEEP PLAIN. Add: "Whole Number up to 999999".
+[B192] "New Seed"  Verdict: KEEP PLAIN
+[B193] "Preview"  Verdict: KEEP PLAIN. Add a hint when disabled: "Pick at Least One Group" (finding 5).
+[B194] "Apply Reshuffle"  Verdict: KEEP PLAIN. Hint when disabled: "Preview First, Then Apply".
+[B195] "Reshuffling, Then Rendering One Frame..."
+   Verdict: VARIANTS + QUOTE (moment: reshuffling, NEW)
+   Variants: "Reshuffling, Then Rendering One Frame..." | "Reshuffling the Look, Then Rendering One Frame..." |
+             "Drawing One Frame of the New Look..."
+   Lines: NEW fColoured | fBeautColour | darwinFools | innov
+[B196] "Nothing Changes With This Seed: Try Another"  Verdict: KEEP PLAIN (done notice, exact)
+[B197] "{n} Elements Change"  Verdict: KEEP PLAIN, fix plural: "1 Element Changes" / "{n} Elements Change"
+[B198] "Recoloring Every Built Clip..."
+   Verdict: VARIANTS + QUOTE (reshuffling)
+   Variants: "Recoloring Every Built Clip..." | "Recoloring the Built Clips..." | "Recoloring Clip by Clip..."
+[B199] "Reshuffle Applied (Seed N): Send Any Message in the Console and Claude Renders the Previews and Final Video Again"
+   Verdict: KEEP PLAIN, make it agree with B202 (finding 4): "Reshuffle Applied (Seed N): Send Any Message in
+   the Console to Start the Renders of the Previews and Final Video". Quote not beside this notice.
+[B200] "Reshuffled Look (Seed N)" / "One Frame at 2560 x 1440, as Every Clip Would Get It"
+   Verdict: KEEP PLAIN (alt and caption)
+[B201] "No Preview Yet"  Verdict: VARIANTS: "No Preview Yet" | "Preview Not Made Yet" | "Preview a Seed to See It"
+[B202] "Apply This Reshuffle?" / "Recolors Every Built Clip, Then Renders ... Every Scene Needs Approval Again."
+   Verdict: KEEP PLAIN (confirm modal, commits work). Add the manual step: "After Applying, Send Any Message
+   in the Console to Start the Renders."
+[B203,B204] "What changes (scrolls sideways...)", headers Element / Now / After  Verdict: KEEP PLAIN
+[B205] "Cancel"  Verdict: KEEP PLAIN
+[B206] error text  Verdict: KEEP PLAIN (finding 1: make visible)
+
+-----------------------------------------------------------------------------------------------------
+stages/look/LookSound.tsx
+-----------------------------------------------------------------------------------------------------
+[B207] "Could Not Load the Template" + message  Verdict: PLAIN + QUOTE (failed, existing); add retry
+[B208] "Loading Options"
+   Verdict: VARIANTS (+ QUOTE existing loading)
+   Variants: "Loading Options" | "Loading Looks and Sounds" | "Gathering the Options"
+[B209] "Synthesizing a Few Seconds..."
+   Verdict: VARIANTS + QUOTE (moment: recordingVoice, NEW)
+   Variants: "Synthesizing a Few Seconds..." | "Making a Few Seconds of Voice..." |
+             "Recording a Short Voice Sample..." | "Generating a Few Seconds of Voice..."
+   Lines: NEW lunch | curProgress | fWonder | fSimple
+[B210] "Voice Sample Ready"  Verdict: KEEP PLAIN (quiet quote optional, moment: recordingVoice done: fSimple)
+[B211] "Hear the Voice"  Verdict: KEEP PLAIN
+[B212] "Voice Sample"  Verdict: KEEP PLAIN
+[B213,B214] "Saving...", "Saved"  Verdict: KEEP PLAIN (B214 duplicates B215; show only B215)
+[B215] "Template Saved: Approve It in the Checkpoint Tab, Then the Requirements Come Next"  Verdict: KEEP PLAIN
+[B216] "Starter: {Name}"  Verdict: KEEP PLAIN
+[B217] "Save Template"  Verdict: KEEP PLAIN
+[B218,B219] "Template", "Checkpoint"  Verdict: KEEP PLAIN
+[B220] "Showing Defaults: The Video Uses These Until You Save"  Verdict: KEEP PLAIN
+[B221] "Could Not Render the Fonts Options in Your Look"  Verdict: KEEP PLAIN, grammar:
+       "Could Not Render the Options for Fonts in Your Look" (and never clear silently, finding 7)
+
+-----------------------------------------------------------------------------------------------------
+stages/look/useTemplateEditor.tsx
+-----------------------------------------------------------------------------------------------------
+[B222] "Starter Templates"  Verdict: KEEP PLAIN
+[B223] chooseLook quote (coloured)  Verdict: KEEP (existing chooseLook); add NEW fForm | fBest | fGoodLook
+[B224-B227] switch, Dark/Light, radio cards, starter names + alt  Verdict: KEEP PLAIN
+[B228] "Want to Make It Your Own?"  Verdict: KEEP PLAIN (already a light, plain invitation)
+[B229] "Build Your Own"  Verdict: KEEP PLAIN
+[B230] "Audio & Subtitles"  Verdict: KEEP PLAIN
+[B231] "Subtitles" / "Previewed Now; Burned Into the Video in a Later Version"  Verdict: KEEP PLAIN; check
+       whether still true (finding 14) before keeping it.
+[B232,B233] "Whole Look", "One Frame at 2560 x 1440, as Every Clip Will Look"  Verdict: KEEP PLAIN
+[B234] "Render the Whole Look"  Verdict: KEEP PLAIN
+[B235] "Rendering the Whole Look..."
+   Verdict: VARIANTS + QUOTE (existing rendering; add fCurious, heavy)
+   Variants: "Rendering the Whole Look..." | "Rendering One Full-Size Frame..." | "Drawing the Whole Look..."
+[B236] "Whole Look Ready" or "{answer.note}"  Verdict: KEEP PLAIN
+[B237] alt "Whole Look" / caption  Verdict: KEEP PLAIN, alt should describe the image (finding 12)
+[B238] "Nothing Rendered Yet"  Verdict: VARIANTS (house: Not Made Yet)
+   Variants: "Nothing Rendered Yet" | "Not Rendered Yet" | "Whole Look Not Rendered Yet"
+[B239] "Starting From {Template}, {Mode}"  Verdict: KEEP PLAIN
+[B240] "Done"  Verdict: KEEP PLAIN
+
+-----------------------------------------------------------------------------------------------------
+stages/look/LookTree.tsx and CustomEditor.tsx
+-----------------------------------------------------------------------------------------------------
+[B241-B249] group names, element label, chosen value, Changed/Custom badge, description, option labels,
+            Default, Custom / "Your own {x}" / "Your Value"  Verdict: KEEP PLAIN
+            (B249: backend hint "Your own color or gradient" -> Title Case "Your Own Color or Gradient")
+[B250] "Preview Unavailable"  Verdict: KEEP PLAIN, add retry (finding 7)
+[B251] "Rendering in Your Look..."
+   Verdict: VARIANTS (small placeholder, no quote)
+   Variants: "Rendering in Your Look..." | "Rendering This Option..." | "Drawing This Option in Your Look..."
+[B252] "Unreadable Text in This Look"  Verdict: KEEP PLAIN, clearer: "Text Cannot Be Read in This Look"
+[B253] "Choose a Value to See It"  Verdict: KEEP PLAIN
+[B254] alt "{Label}: {option} ({Mode} Mode)"  Verdict: KEEP PLAIN
+[B255] "Your Own {Label}"  Verdict: KEEP PLAIN
+[B256] "{element.description}"  Verdict: KEEP PLAIN
+[B257] "Color or Gradient", "Solid", "Gradient"  Verdict: KEEP PLAIN
+[B258] "{Label}" field label, hint  Verdict: KEEP PLAIN (Title Case the hint)
+[B259] "Cancel", "Apply"  Verdict: KEEP PLAIN. "Apply" disabled hint: "Enter a Valid Color First".
+
+
+====================================================================================================
+NEW MOMENTS  (name | rows | lines by key; full text under each)
+====================================================================================================
+
+-- NEW MOMENTS --
+
+stalePage | rows B25 | reject, fCannot, fExamine
+   reject: "I reject your reality, and substitute my own!" - MythBusters (2004), Adam Savage, Rear Axle episode
+   fCannot: "I cannot tell by the appearance, but I can in this way" - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fExamine: "Still examine it by a few experiments." - Laboratory journal, 19 March 1849, via Wikiquote (Faraday, public domain)
+
+changeRecorded | rows B72, B73 | makeItSo, engage, fProper
+   makeItSo: "Make it so!" - Star Trek: The Next Generation, Jean-Luc Picard
+   engage: "Engage!" - Star Trek: The Next Generation, Jean-Luc Picard
+   fProper: "We will light one or two, and set them at work in the performance of their proper functions." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+
+claudeFinished | rows B83, B108, B110 | fAnother, fSimple
+   fAnother: "I have another experiment here, which I think will explain to you more about it." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fSimple: "I will shew you; it is very simple, and easily done." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+consoleIdle | rows B99 | fAsked, fWorks, engage
+   fAsked: "You have asked me several times, and I am very glad you have" - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fWorks: "I have far more confidence in the one man who works mentally and bodily at a matter than in the six who merely talk about it" - Letter to John Tyndall, 19 April 1851, via Wikiquote (Faraday, public domain)
+   engage: "Engage!" - Star Trek: The Next Generation, Jean-Luc Picard
+
+checksPassed | rows B127, B186 | fPure, veryGood, factSphere, fSpark
+   fPure: "There is, you see, pure air down to the bottom; the jar is full of it." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   veryGood: "Very very good." - Portal (2007), GLaDOS
+   factSphere: "The Fact Sphere is not defective. Its facts are wholly accurate and very interesting." - Portal 2 (2011), Fact Sphere (Faraday, public domain)
+   fSpark: "I put that spark into the jar, it will tell you whether we have oxygen here or not." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+notYet | rows B132, B141, B142 | fHalf, fCompose, fWonder
+   fHalf: "Here is one only half-finished." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fCompose: "I shall shew you of what it is composed, and where it gets its elements from." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fWonder: "I attempt to pour a little of this gas into that glass; I wonder whether any has gone in or not." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+writingScript | rows B148, B152 | hitchDrama, styleOmit, newtonSimple, fPoem
+   hitchDrama: "Drama is life with the dull bits cut out." - Alfred Hitchcock, Picture Parade, BBC (1960)
+   styleOmit: "Omit needless words." - Strunk and White, The Elements of Style, Rule 17
+   newtonSimple: "Truth is ever to be found in simplicity, and not in the multiplicity and confusion of things." - Isaac Newton, manuscript (Rules for methodizing the Apocalypse)
+   fPoem: "I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your minds." - Lecture notes of 1858, Life and Letters Vol. 2 p. 403, via Wikiquote (Faraday, public domain)
+
+critiquing | rows B154, B155, B165, B169 | feyFool, fKindest, factSphere, fExamine
+   feyFool: "The first principle is that you must not fool yourself — and you are the easiest person to fool." - Richard Feynman, Cargo Cult Science (1974) (Faraday, public domain)
+   fKindest: "Nature is our kindest friend and best critic in experimental science if we only allow her intimations to fall unbiassed on our minds." - Letter to John Tyndall, 19 April 1851, via Wikiquote (Faraday, public domain)
+   factSphere: "The Fact Sphere is not defective. Its facts are wholly accurate and very interesting." - Portal 2 (2011), Fact Sphere (Faraday, public domain)
+   fExamine: "Still examine it by a few experiments." - Laboratory journal, 19 March 1849, via Wikiquote (Faraday, public domain)
+
+planningScenes | rows B167 | fCompose, fPrettyExp, fUnderstand, hitchDrama
+   fCompose: "I shall shew you of what it is composed, and where it gets its elements from." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fPrettyExp: "In order that you may understand that, let me shew you a very pretty, but very common-place experiment." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fUnderstand: "Now, you will begin to understand what I am about to say." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   hitchDrama: "Drama is life with the dull bits cut out." - Alfred Hitchcock, Picture Parade, BBC (1960)
+
+buildingClips | rows B170, B175, B176 | fHalf, fLarger, heavy, curProgress
+   fHalf: "Here is one only half-finished." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fLarger: "It is wonderful how it accumulates when you come to larger volumes." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   heavy: "Whoa, this is heavy." - Back to the Future (1985), Marty McFly
+   curProgress: "I was taught that the way of progress was neither swift nor easy." - Marie Curie, via Wikiquote
+
+syncing | rows B178 | lunch, fSpark
+   lunch: "Time is an illusion. Lunchtime doubly so." - Douglas Adams, The Hitchhiker's Guide to the Galaxy (1979 novel), ch. 2
+   fSpark: "I put that spark into the jar, it will tell you whether we have oxygen here or not." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+sceneCode | rows B160 | lovePatterns, fMath
+   lovePatterns: "We may say most aptly that the Analytical Engine weaves algebraical patterns just as the Jacquard-loom weaves flowers and leaves." - Ada Lovelace, Notes on the Analytical Engine (1843)
+   fMath: "I was at first almost frightened when I saw such mathematical force made to bear upon the subject, and then wondered to see that the subject stood it so well." - Letter to J. C. Maxwell, 25 March 1857, via Wikiquote (Faraday, public domain)
+
+reshuffling | rows B188, B195, B198 | fColoured, fBeautColour, darwinFools, innov
+   fColoured: "I have coloured the fluid, that you may see the action better." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fBeautColour: "What a beautifully coloured gas I have obtained in this way, shewing me the presence of the oxygen!" - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   darwinFools: "I love fools' experiments. I am always making them." - Charles Darwin, recalled by E. Ray Lankester
+   innov: "Innovating innovation!" - Minecraft, splash text
+
+recordingVoice | rows B209, B210 | lunch, curProgress, fWonder, fSimple
+   lunch: "Time is an illusion. Lunchtime doubly so." - Douglas Adams, The Hitchhiker's Guide to the Galaxy (1979 novel), ch. 2
+   curProgress: "I was taught that the way of progress was neither swift nor easy." - Marie Curie, via Wikiquote
+   fWonder: "I attempt to pour a little of this gas into that glass; I wonder whether any has gone in or not." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fSimple: "I will shew you; it is very simple, and easily done." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+-- ADDITIONS TO EXISTING MOMENTS --
+
+failed (add) | rows B2, B76, B94, B207 | fStillTry, designed, guessing, didntGive
+   fStillTry: "But still try, for who knows what is possible..." - Life and Letters of Faraday (1870), Vol. II, p. 483, via Wikiquote (Faraday, public domain)
+   designed: "I don't care what anything was designed to do. I care about what it can do." - Apollo 13 (1995), Gene Kranz
+   guessing: "Let's work the problem, people. Let's not make things any worse by guessing." - Apollo 13 (1995), Gene Kranz
+   didntGive: "I like this player. It played well. It did not give up." - Minecraft, The End Poem
+
+processing (add) | rows B78, B82, B106, B107 | curProgress, fProper, heavy
+   curProgress: "I was taught that the way of progress was neither swift nor easy." - Marie Curie, via Wikiquote
+   fProper: "We will light one or two, and set them at work in the performance of their proper functions." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   heavy: "Whoa, this is heavy." - Back to the Future (1985), Marty McFly
+
+approved (add) | rows B47, B60 | fWorkFinish, peak
+   fWorkFinish: "Work, Finish, Publish." - Gladstone, Michael Faraday (1874), p. 123, via Wikiquote (Faraday, public domain)
+   peak: "We get to the peak together, or we don't get there at all." - Hidden Figures (2016), Al Harrison
+
+complete (add) | rows B180 | peak, sagaQuestions, curRejoice, godardTruth, fWorkFinish, asiNew
+   peak: "We get to the peak together, or we don't get there at all." - Hidden Figures (2016), Al Harrison
+   sagaQuestions: "Every new set of discoveries raises a host of questions which we were never before wise enough even to ask." - Carl Sagan, Broca's Brain (1979)
+   curRejoice: "All my life through, the new sights of Nature made me rejoice like a child." - Marie Curie, Pierre Curie (1923)
+   godardTruth: "The cinema is truth twenty-four times per second." - Jean-Luc Godard, Le Petit Soldat (1960)
+   fWorkFinish: "Work, Finish, Publish." - Gladstone, Michael Faraday (1874), p. 123, via Wikiquote (Faraday, public domain)
+   asiNew: "It is the nature of science that answers automatically pose new and more subtle questions." - Isaac Asimov, The Wellsprings of Life (1960)
+
+chooseLook (add) | rows B223 | fForm, fBest, fGoodLook
+   fForm: "Now, let us look a little at the form of the flame as you see it under the glass shade." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fBest: "It is not the best looking thing, but the best acting thing, which is the most advantageous to us." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   fGoodLook: "This good-looking candle is a bad burning one." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+
+readyToBegin (add) | rows B79 | engage, makeItSo
+   engage: "Engage!" - Star Trek: The Next Generation, Jean-Luc Picard
+   makeItSo: "Make it so!" - Star Trek: The Next Generation, Jean-Luc Picard
+
+rendering (add) | rows B182, B235 | fCurious, heavy
+   fCurious: "It is a curious thing to see how wax candles are made." - Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain)
+   heavy: "Whoa, this is heavy." - Back to the Future (1985), Marty McFly
+
+openingRun (add) | rows B6 | fCompose, fUnderstand
+   fCompose: "I shall shew you of what it is composed, and where it gets its elements from." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+   fUnderstand: "Now, you will begin to understand what I am about to say." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+noChanges (add) | rows B118 | fSimple
+   fSimple: "I will shew you; it is very simple, and easily done." - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+asks (add) | rows B85 | fAsked
+   fAsked: "You have asked me several times, and I am very glad you have" - Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain)
+
+====================================================================================================
+NEW LINES POOL  (key | text | source | url)  every new verified line once
+====================================================================================================
+fWeigh | "We will shut that in and put it in the balance." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) [verified, unused by Part 2] | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fSimple | "I will shew you; it is very simple, and easily done." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fProper | "We will light one or two, and set them at work in the performance of their proper functions." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fBest | "It is not the best looking thing, but the best acting thing, which is the most advantageous to us." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fGoodLook | "This good-looking candle is a bad burning one." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fColoured | "I have coloured the fluid, that you may see the action better." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fBeautColour | "What a beautifully coloured gas I have obtained in this way, shewing me the presence of the oxygen!" | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fHalf | "Here is one only half-finished." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fSpark | "I put that spark into the jar, it will tell you whether we have oxygen here or not." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fPure | "There is, you see, pure air down to the bottom; the jar is full of it." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fUnderstand | "Now, you will begin to understand what I am about to say." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fCurious | "It is a curious thing to see how wax candles are made." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fAnother | "I have another experiment here, which I think will explain to you more about it." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fAsked | "You have asked me several times, and I am very glad you have" | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fWonder | "I attempt to pour a little of this gas into that glass; I wonder whether any has gone in or not." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fForm | "Now, let us look a little at the form of the flame as you see it under the glass shade." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fCompose | "I shall shew you of what it is composed, and where it gets its elements from." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fLarger | "It is wonderful how it accumulates when you come to larger volumes." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fFluted | "These fluted candles, pretty as they are, are bad candles; they are bad because of their external shape." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) [verified, unused by Part 2] | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fCannot | "I cannot tell by the appearance, but I can in this way" | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fPrettyExp | "In order that you may understand that, let me shew you a very pretty, but very common-place experiment." | Michael Faraday, The Chemical History of a Candle, Lecture I (1860, public domain) | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I
+fOpen | "I think my candle will go on burning, because the air-passage is open at the bottom and the top." | Michael Faraday, The Chemical History of a Candle, Lecture V (1860, public domain) [verified, unused by Part 2] | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_V
+fWorkFinish | "Work, Finish, Publish." | Gladstone, Michael Faraday (1874), p. 123, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fStillTry | "But still try, for who knows what is possible..." | Life and Letters of Faraday (1870), Vol. II, p. 483, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fKindest | "Nature is our kindest friend and best critic in experimental science if we only allow her intimations to fall unbiassed on our minds." | Letter to John Tyndall, 19 April 1851, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fPoem | "I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your minds." | Lecture notes of 1858, Life and Letters Vol. 2 p. 403, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fWorks | "I have far more confidence in the one man who works mentally and bodily at a matter than in the six who merely talk about it" | Letter to John Tyndall, 19 April 1851, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fExamine | "Still examine it by a few experiments." | Laboratory journal, 19 March 1849, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fMath | "I was at first almost frightened when I saw such mathematical force made to bear upon the subject, and then wondered to see that the subject stood it so well." | Letter to J. C. Maxwell, 25 March 1857, via Wikiquote (Faraday, public domain) | https://en.wikiquote.org/wiki/Michael_Faraday
+fBestTest | "experiment is the best test of such consistency." | Laboratory journal, 19 March 1849, via Wikiquote (Faraday, public domain) [verified, unused by Part 2] | https://en.wikiquote.org/wiki/Michael_Faraday
+feyFool | "The first principle is that you must not fool yourself — and you are the easiest person to fool." | Richard Feynman, Cargo Cult Science (1974) (Faraday, public domain) | https://en.wikiquote.org/wiki/Richard_Feynman
+feyImag | "The imagination of nature is far, far greater than the imagination of man." | Richard Feynman, The Value of Science (1955) section (Faraday, public domain) [verified, unused by Part 2] | https://en.wikiquote.org/wiki/Richard_Feynman
+sagaQuestions | "Every new set of discoveries raises a host of questions which we were never before wise enough even to ask." | Carl Sagan, Broca's Brain (1979) | https://en.wikiquote.org/wiki/Carl_Sagan
+asiNew | "It is the nature of science that answers automatically pose new and more subtle questions." | Isaac Asimov, The Wellsprings of Life (1960) | https://en.wikiquote.org/wiki/Isaac_Asimov
+curProgress | "I was taught that the way of progress was neither swift nor easy." | Marie Curie, via Wikiquote | https://en.wikiquote.org/wiki/Marie_Curie
+curRejoice | "All my life through, the new sights of Nature made me rejoice like a child." | Marie Curie, Pierre Curie (1923) | https://en.wikiquote.org/wiki/Marie_Curie
+lovePatterns | "We may say most aptly that the Analytical Engine weaves algebraical patterns just as the Jacquard-loom weaves flowers and leaves." | Ada Lovelace, Notes on the Analytical Engine (1843) | https://en.wikiquote.org/wiki/Ada_Lovelace
+darwinFools | "I love fools' experiments. I am always making them." | Charles Darwin, recalled by E. Ray Lankester | https://en.wikiquote.org/wiki/Charles_Darwin
+newtonSimple | "Truth is ever to be found in simplicity, and not in the multiplicity and confusion of things." | Isaac Newton, manuscript (Rules for methodizing the Apocalypse) | https://en.wikiquote.org/wiki/Isaac_Newton
+styleOmit | "Omit needless words." | Strunk and White, The Elements of Style, Rule 17 | https://en.wikiquote.org/wiki/The_Elements_of_Style
+hitchDrama | "Drama is life with the dull bits cut out." | Alfred Hitchcock, Picture Parade, BBC (1960) | https://en.wikiquote.org/wiki/Alfred_Hitchcock
+godardTruth | "The cinema is truth twenty-four times per second." | Jean-Luc Godard, Le Petit Soldat (1960) | https://en.wikiquote.org/wiki/Jean-Luc_Godard
+lunch | "Time is an illusion. Lunchtime doubly so." | Douglas Adams, The Hitchhiker's Guide to the Galaxy (1979 novel), ch. 2 | https://en.wikiquote.org/wiki/The_Hitchhiker%27s_Guide_to_the_Galaxy
+makeItSo | "Make it so!" | Star Trek: The Next Generation, Jean-Luc Picard | https://en.wikiquote.org/wiki/Star_Trek:_The_Next_Generation
+engage | "Engage!" | Star Trek: The Next Generation, Jean-Luc Picard | https://en.wikiquote.org/wiki/Star_Trek:_The_Next_Generation
+designed | "I don't care what anything was designed to do. I care about what it can do." | Apollo 13 (1995), Gene Kranz | https://en.wikiquote.org/wiki/Apollo_13_%28film%29
+guessing | "Let's work the problem, people. Let's not make things any worse by guessing." | Apollo 13 (1995), Gene Kranz | https://en.wikiquote.org/wiki/Apollo_13_%28film%29
+peak | "We get to the peak together, or we don't get there at all." | Hidden Figures (2016), Al Harrison | https://en.wikiquote.org/wiki/Hidden_Figures
+factSphere | "The Fact Sphere is not defective. Its facts are wholly accurate and very interesting." | Portal 2 (2011), Fact Sphere (Faraday, public domain) | https://en.wikiquote.org/wiki/Portal_2
+veryGood | "Very very good." | Portal (2007), GLaDOS | https://en.wikiquote.org/wiki/Portal_%28game%29
+mindGap | "Mind the gap." | Portal (2007), GLaDOS [verified, unused by Part 2] | https://en.wikiquote.org/wiki/Portal_%28game%29
+heavy | "Whoa, this is heavy." | Back to the Future (1985), Marty McFly | https://en.wikiquote.org/wiki/Back_to_the_Future
+reject | "I reject your reality, and substitute my own!" | MythBusters (2004), Adam Savage, Rear Axle episode | https://en.wikiquote.org/wiki/MythBusters
+brave | "Any computer is a laptop if you're brave enough!" | Minecraft, splash text [verified, unused by Part 2] | https://en.wikiquote.org/wiki/Minecraft_%28game%29
+innov | "Innovating innovation!" | Minecraft, splash text | https://en.wikiquote.org/wiki/Minecraft_%28game%29
+didntGive | "I like this player. It played well. It did not give up." | Minecraft, The End Poem | https://en.wikiquote.org/wiki/Minecraft_%28game%29
+help140 | "Help is only 140 million miles away." | The Martian (2015), tagline [verified, unused by Part 2] | https://en.wikiquote.org/wiki/The_Martian_%28film%29
+bringHome | "Bring Him Home." | The Martian (2015), tagline [verified, unused by Part 2] | https://en.wikiquote.org/wiki/The_Martian_%28film%29
+
+====================================================================================================
+UNVERIFIED, NOT PROPOSED  (text | why)
+====================================================================================================
+"Reticulating splines" (SimCity 2000 loading text) | search snippets only; no fetched page carrying the
+   exact string (Wikipedia SimCity_2000 raw and Reticulating_splines gave nothing; unsung.aresluna.org
+   failed SSL; sims.fandom blocked by Cloudflare). Would suit processing / buildingClips if verified.
+"Mapping the llama genome", "downloading golf balls", "counting backwards from infinity" (loading jokes) |
+   search-result snippets only; not fetched word for word.
+"The most exciting phrase to hear in science ... is not 'Eureka!' but 'That's funny...'" (Asimov) |
+   Wikiquote lists it only as Attributed (Fortune program, 1987): not sourced to Asimov.
+"Everything makes sense a bit at a time..." (Pratchett) | Wikiquote entry has no source line.
+"Measure twice, cut once", "Ship it", "LGTM", "It works on my machine", merge-conflict jokes |
+   no fetched page with a sourced original; folklore.
+"I have not failed. I've just found 10,000 ways that won't work." (Edison) | not found in the sourced
+   section of the fetched Wikiquote Thomas_Edison page. Not proposed.
+Zelda, Skyrim, Hades, Celeste, Outer Wilds, Kerbal, Factorio, Civilization tech quotes | their Wikiquote
+   pages either 404 or had nothing short and suitable; the existing alone / awake lines stay.
+Star Trek "Tea. Earl grey. Hot." | verified on page but off-theme for every row; not proposed.
+"Cinema is truth 24 times a second" as often paraphrased | only the Wikiquote wording is proposed.
+Doctor Who "Geronimo", Interstellar, Mass Effect, Silicon Valley lines | nothing short, safe and fitting
+   found on the fetched pages (Interstellar and Mass Effect pages are about love or combat).
+Apollo 13 "Failure is not an option" | already in the catalogue (failure); not repeated.
+
+====================================================================================================
+NOTES
+====================================================================================================
+- Reversal to confirm: DESIGN_REFERENCE.md lists "Let's work the problem, people" as rejected (not on the
+  page). The Wikiquote Apollo 13 page now reads "Let's ''work'' the problem, people. Let's not make things
+  any worse by ''guessing''." (italics on two words). Key `guessing` is proposed from the full sentence
+  with italics stripped; drop it if the owner wants exactly the page's markup, or keep only after a
+  re-check. Cite as Gene Kranz.
+- Lyrics: none. "This was a triumph" and the Portal lines already in the catalogue are game dialogue,
+  not lyrics; the proposed Portal lines are "Very very good.", "Mind the gap." (unused) and the Portal 2
+  Fact Sphere line.
+- Misattribution checks: every Wikiquote line was taken from a sourced section; Marie Curie, Darwin,
+  Newton, Godard and Faraday lines sit above their pages' Disputed/Misattributed headings. Faraday's
+  "Work, Finish, Publish" and the Darwin "fools' experiments" line are reported second-hand (Gladstone
+  1874; Lankester recollection): credit says so.
+- Fragments: fAsked ("You have asked me several times, and I am very glad you have") is a clause cut at
+  the comma; fCannot is cut before "[introducing the taper]"; fBestTest is a fragment; Wikiquote Faraday
+  lines are the same wording as the journal. Keep the ellipsis/fragment as shown.
+- Candle URLs point at the lecture in which the sentence was found; the first matching lecture is used.
+  Words match Wikisource with zero-width spaces removed; Faraday's "shew" spelling is kept.
+- Tone: avoided death, violence, mockery. Not used because grim: Portal 2 Curie "dying of radioactivity",
+  "You're not a good person" (Portal), Worf lines. Marty's "Whoa, this is heavy." is light and is used
+  only for slow renders. "I reject your reality" (MythBusters) is playful: use for the stale-page note only,
+  not for an error. "Make it so!" and "Engage!" are order-giving: use only after a request is recorded or
+  at Ready to Begin, never on a failure.
+- Commit text stays sober: B47, B54, B56, B58, B60, B171, B194, B199, B202 keep plain wording; quotes there
+  are optional, quiet, and never replace the instruction.
+- Terminology fixes spotted while reading (all plain): B4, B18, B24/B182, B96, B116, B137, B147, B150,
+  B185, B187, B197, B199 vs B202, B221, B249, B252.
+- Counts: rows B1-B259 all covered (label rows grouped); 58 new verified lines; 15 new moments; 10 existing
+  moments gain lines.
+
+
+####################################################################################################
+PART 3 — Backend, command line, Claude session, hooks (C1–C300)
+####################################################################################################
+
+FARADAY - REFERENCE WORDINGS FOR PART 3 (rows C1-C300 of docs/history/text-audit-2026-11-27.md)
+Written 2026-11-27. Research only; no repo file was edited.
+
+How to read: each entry gives the current text, then a verdict.
+  KEEP PLAIN (machine-read)  = parsed by tests/Claude/hooks, or must stay exact. Do not shuffle, do not reword.
+  PLAIN REWORD               = developer text shown to a user; a clearer plain wording is given.
+  PLAIN + QUOTE / VARIANTS   = human-facing moment; a moment name and 2-6 candidates to shuffle.
+Keys in [brackets] after a line, e.g. [k:fTry], refer to the NEW LINES POOL at the end.
+Existing catalogue keys (voice.ts) are written [e:waiting], [e:houston], etc.
+Internal logs are skipped, as asked.
+
+A rule that applies to every PLAIN REWORD below: the user-facing text must use the site's own words
+(Requirements, Look & Sound, Outline, Script, Scene Plans, All Scenes, Final Video; "scene", "clip", "run")
+and never CP0-CP4, file names, rule codes (A2, VP3...), ids (s01, r001) or Python class names. The
+CLAUDE-facing text keeps its CPn, commands and ids. The cleanest fix (from audit F3) is two fields per problem:
+{user_text, claude_text}. Wordings below are the user_text.
+
+=====================================================================================================
+1. API ERRORS (C1-C37)
+=====================================================================================================
+
+[C1] "changes come only from this page"  (app/web/app.py:166, HTTP 403)
+   Verdict: PLAIN REWORD. The API text stays the contract; only the sentence the site shows changes.
+   Reword: "This request did not come from the Faraday page. Reload the page and try again."
+[C2] "send JSON"  (app.py:170, HTTP 415/400)
+   Verdict: KEEP PLAIN (machine-read). Protocol guard for programs; a person never sees it.
+[C3] "<field>: <pydantic message>"  (app.py:185-186)
+   Verdict: PLAIN REWORD for the site; keep the raw form in the log and for API clients.
+   Reword: "<Field label> needs a value." / "<Field label> is too short." / "<Field label> is not valid."
+   Use a label table for the first path segment (objectives -> Objectives, requirement -> Topic).
+C4 [pydantic ValidationError escaping a handler]: same as C3.
+   Verdict: PLAIN REWORD as C3: "Some details were not valid: <Field label>. Check them and try again."
+[C5] "<ExceptionType>: <message>"  (app.py:197, HTTP 500)
+   Verdict: PLAIN REWORD. Raw type and message go to the log only (Phase 5 logging already holds them).
+   Reword: "Something went wrong on this computer. Try again; if it keeps happening, see the log file."
+   Moment: serverError (see NEW MOMENTS). Variants for the full-page/500 screen only (not the API string):
+   - "Something went wrong on our side. Try again in a moment."  (plain)
+   - "Houston, we have a problem." [e:houston] + plain line above. Rule: no death/violence; this is mild.
+   - "This is only the beginning." is NOT suitable here (reads as taunt). Not proposed.
+   - "But still try, for who knows what is possible..." [k:fTry]  (Faraday, Life and Letters II p. 483)
+[C6] "sign in first"  (app.py:203, HTTP 401)
+   Verdict: PLAIN REWORD (the site already routes to Sign In; the text shows only in the fallback).
+   Reword: "Sign in to continue. Your sign-in may have expired or Faraday may have restarted."
+[C7] "no run {run}"  (app.py:209, HTTP 404)
+   Verdict: PLAIN REWORD. Reword: "This run no longer exists. It may have been deleted."
+   Moment: notFound (frontend "unknown run" screen only, never in the API string). Variants:
+   - "Nothing Here" (house term for no data) + plain line above.
+   - "These aren't the droids you're looking for." [k:starWars]  (Star Wars 1977, Obi-Wan; light, no fail)
+   - "Nothing is too wonderful to be true..." is NOT a fit (reads as sarcasm on a missing page). Not proposed.
+[C8] "Open the sign-in link `text-2-shorts serve` printed in its terminal."  (app.py:252, HTTP 403)
+   Verdict: PLAIN REWORD. Reword: "Open the sign-in link that Faraday printed in the terminal where you started it."
+[C9] "Claude Code on this machine is not signed in. Run `claude auth login` in a terminal..." (app.py:257)
+   Verdict: PLAIN REWORD, and split into three causes (audit F10).
+   Reword: not signed in -> "Claude Code Is Not Signed In. Sign in through Claude Code on this computer, then try again."
+           missing       -> "Claude Code Is Not Installed on this computer."
+           timeout       -> "Claude Code Did Not Answer. Try again in a moment."
+   Moment: restricted (existing: [e:dave] "I'm sorry, Dave. I'm afraid I can't do that." and [e:notPass])
+   already fits the page that shows these; do not add quotes to the API string.
+[C10] "the run could not be set up, so it was not kept: {error}"  (app.py:134, HTTP 500)
+   Verdict: PLAIN REWORD. Reword: "The run could not be set up, so nothing was kept. Try again." (cause in log)
+[C11] "no starter template {name}"  (app.py:314, 572, 590, 611, HTTP 404)
+   Verdict: PLAIN REWORD. Reword: "That starter look is not available. Choose another."
+[C12] "this look and sound cannot be used yet"  (app.py:316, 493, 500, 574, HTTP 409 + problems)
+   Verdict: KEEP PLAIN (409 problems stay exact), but the headline may read "This Look and Sound cannot be used yet."
+   Capitalise Look & Sound the same way everywhere (audit F6).
+[C13] "{RunNotCreated text} (Preflight failed: claude CLI not found, latex missing...)"  (app.py:320, 345)
+   Verdict: KEEP PLAIN (machine-read) for the CLI and API. On the site: PLAIN REWORD to one line per missing item:
+   "Claude Code is not installed.", "LaTeX is not installed (needed for maths).", "AWS voice credentials are
+   missing. Add them, or choose Google voices." (and the Google equivalent). No 'preflight' on the site.
+[C14] "this run has no readable brief to copy"  (app.py:341, 409)
+   Verdict: PLAIN REWORD. Reword: "This run cannot be duplicated because its Requirements cannot be read."
+[C15] "Claude is working on this run: wait for the turn to end"  (app.py:362, 409)
+   Verdict: PLAIN REWORD. Reword: "Claude is still working on this run. Wait for it to finish, then delete it."
+[C16] "no draft {draft}"  (app.py:396, 404)   Verdict: PLAIN REWORD. "This draft no longer exists."
+[C17] "Claude is still working on the previous message"  (app.py:427, 409)
+   Verdict: KEEP PLAIN (a 409 the console client may test). Wording is already good.
+[C18] "{ApprovalBlocked text}: cannot approve {target} yet: {problem}; {problem}..."  (app.py:449; approvals.py:98)
+   Verdict: KEEP PLAIN (409 problems stay exact). Only the display of each problem line changes (see section 3).
+[C19] "{SystemExit text from a workflow gate}"  (app.py:451)   Verdict: KEEP PLAIN (409 problems stay exact).
+[C20] "no change request {id}"  (app.py:472; change_requests.py:65, 404)
+   Verdict: PLAIN REWORD. Reword: "That change request no longer exists."
+[C21] "no template {name}: choose one of obsidian, paper, ..."  (app.py:488; templates.py:207)
+   Verdict: PLAIN REWORD for the site ("That starter look is not available."); the CLI form (C241) stays plain.
+[C22] "choose the look and sound first: there is nothing to reshuffle"  (app.py:537, 409)
+   Verdict: PLAIN REWORD. Reword: "Choose a Look and Sound first. There is nothing to reshuffle yet."
+[C23] "this reshuffle cannot be used"  (app.py:540)  Verdict: PLAIN REWORD. "This reshuffle cannot be used. Try another."
+[C24] "the voice could not be synthesised: {failed}"  (app.py:512)
+   Verdict: PLAIN REWORD. Reword: "The voice sample could not be made. Check your voice account and try again."
+[C25-C28] "the still / starter / previews / preview could not be rendered: {failed}"  (app.py:526, 582, 596, 638, 653)
+   Verdict: PLAIN REWORD, one wording for all four (audit F8); the stderr tail goes to the log, not the screen.
+   Reword: "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+   Existing house title is "Full Size Did Not Render: Showing the Preview"; keep that for the full-size case.
+[C29] "{element} has no picture"  (app.py:605)   Verdict: PLAIN REWORD. "This option has no preview picture."
+[C30] "no such preview" / [C31] "no such file in this run" / [C32] "no such file"  (app.py:647, 655, 663, 682, 404)
+   Verdict: KEEP PLAIN (media/asset 404s are read by the browser, never shown as prose). The player's own
+   failure text is a frontend row (A212).
+C33 "The website is not built yet: run `npm ci && npm run build` in frontend/, then reload."  (app.py:672)
+   Verdict: PLAIN REWORD (shown in a browser to whoever opens an unbuilt checkout).
+   Reword: "Faraday's website has not been built yet. Build it once (see the README), then reload this page."
+   Moment: serverError. Optional line: "But first let us see that our instrument is in order." [k:fInstrument]
+   (Faraday, Candle Lecture IV; fits: the instrument is not ready). Keep the build instruction visible beneath.
+C34 "Here is how your narrator will sound. Square the short sides..."  (app.py:106-108)
+   Verdict: KEEP PLAIN (dead constant; the live sample is generate_preview.py:221). No change.
+C35 "Text-2-Shorts (FastAPI title)"  Verdict: KEEP PLAIN (not exposed).
+C36 (no user text; account fields)  Verdict: KEEP PLAIN.
+C37 "{window.id} e.g. five_hour, seven_day; used_percent; resets_at; status 'allowed'"  (usage.py:313-320)
+   Verdict: KEEP PLAIN as API data; PLAIN REWORD where the site prints it (audit F9). Map ids once:
+   five_hour -> "5-hour limit", seven_day -> "Weekly limit". Show "Resets Mon 14:00 (your time)".
+
+=====================================================================================================
+2. RUN VIEWS (C38-C50)
+=====================================================================================================
+
+C38 "completed / failed / configuring / awaiting_approval / in_progress"  (run_views.py:50-56)
+   Verdict: KEEP PLAIN (machine-read status ids; the site maps them, StatusPill prints raw ids per audit A45).
+   Site labels: Done / Failed / Setting Up / Waiting for You / In Progress.
+C39 "made by an older version"  (run_views.py:62)   Verdict: KEEP PLAIN (stage key). Add a separate reason field.
+C40 "cannot be read: {ExceptionType}: {message[:200]}"  (run_views.py:73)
+   Verdict: PLAIN REWORD. Reword: "This run cannot be read. One of its files is damaged." (cause in the log)
+C41 "This run cannot be read: {type}: {msg}. Fix or remove that file and the page comes back."  (run_views.py:148)
+   Verdict: PLAIN REWORD. Reword: "This run cannot be read because <file name> is damaged. Repair or delete
+   that file, then reload."  Name the file (audit F5).
+C42 "Made by an older version of Faraday: only its final video can be shown."  (run_views.py:150)
+   Verdict: KEEP PLAIN (already plain, exact and kind).
+C43-C47 checkpoint labels "Requirements / Template / Outline / Script / Scene Plans / Final Video",
+   "Start Scene {N}", "All Scenes", "Scene {N}", raw-target fallback  (run_views.py:105-120)
+   Verdict: KEEP PLAIN (labels). One change: "Template" -> "Look & Sound" to match the site (audit F6).
+C48 default run name "{Name} - {Mon D, YYYY}" / "Untitled Run"   Verdict: KEEP PLAIN.
+C49 "{YYYY-MM-DD HH:MM} created / updated"   Verdict: KEEP PLAIN (sortable, tests parse it).
+C50 machine stage keys ('1 template', '2 outline', ...)  Verdict: KEEP PLAIN (machine-read; driver and tests).
+
+=====================================================================================================
+3. CHECKPOINT PROBLEMS (C51-C139)
+=====================================================================================================
+Policy: these are 409 problems and Claude acts on them. The text Claude reads stays exact (KEEP PLAIN).
+Where the site shows them (CheckpointPanel, Home), show the PLAIN REWORD instead, produced from the same
+problem by a {user_text, claude_text} pair. No quotes inside problems.
+
+C51 "{target} changed since you opened it: reload the page to see it as it is now"  (approvals.py:139)
+   Verdict: PLAIN REWORD for ledger key -> label. Reword: "Scene Plans changed since you opened this page. Reload
+   to see the current version." Use the checkpoint label (C43-C46), never "scene:s01".
+C52 "cannot approve {target} yet: {problems joined by '; '}"  (approvals.py:98)   Verdict: KEEP PLAIN (machine-read).
+   Site shows: "Not ready to approve yet:" + one bullet per problem.
+C53 "{checkpoint} is not approved, or changed since it was approved: get {short} first"  (checkpoints.py:29)
+   Verdict: KEEP PLAIN for Claude. Site reword: "The Outline has not been approved, or it changed after you
+   approved it. Approve it first."
+C54-C58 fragments "the requirements checkpoint (brief, topics, content)", "the template checkpoint...", "CP0 (the outline)",
+   "CP1 (the complete script)", "CP2 (the scene visual plans)"  (checkpoints.py:11-15)
+   Verdict: PLAIN REWORD for the site via the label map: "Requirements", "Look & Sound", "Outline", "Script",
+   "Scene Plans". CPn stays in Claude-facing text only (audit F2).
+C59 "open change request {id} ({target}, {kind}): {text} - apply or decline it first"  (change_requests.py:112)
+   Verdict: PLAIN REWORD. Reword: "A change request is still open for Scene 3: "<text>". Claude must apply it
+   or you must decline it first." Drop id and kind code.
+C60 "script: changes were requested at CP1 - run the script-critic (round {n} of {m})"  (critiques.py:112)
+   Verdict: KEEP PLAIN for Claude. Site reword: "You asked for script changes. Claude will review the script again
+   (round 1 of 3) before you can approve it."
+C61 "no scene plans yet"  Verdict: KEEP PLAIN (plain already). Site: "Scene Plans: Not Made Yet".
+C62-C63 "{scene_id}: {plan error}", "{sNN}: has a plan but is not a scene of the script - delete it"
+   Verdict: PLAIN REWORD for the site: "Scene 4 has a plan but is not in the script. Claude will remove it."
+C64 "final.mp4 is missing or out of date"  (approvals.py:79)
+   Verdict: KEEP PLAIN. WARNING: C68 matches this text by substring (UNFORCEABLE). Rewording it silently lets
+   'force' approve an unseen video (audit F8). Match by problem code first, then reword.
+C65 "media check {CODE}: {message}"  Verdict: KEEP PLAIN for Claude; site: "Video check: <message>" (no code).
+C66-C67 "{sNN}: no valid plan", "{sNN}: {clipId} is not built from its current inputs"
+   Verdict: KEEP PLAIN (C67 is UNFORCEABLE substring). Site reword: "Scene 2 has a clip that is out of date."
+C68 UNFORCEABLE substrings  Verdict: KEEP PLAIN (machine-read; see C64).
+C69-C74 stage file problems "brief.json does not exist", "topics.md must be a numbered list...", "content.md has no
+   '## {topic}' section", ...  (validation.py:43-73)
+   Verdict: KEEP PLAIN for Claude. Site reword by file role: "The topic list is missing." / "The topic list must be a
+   numbered list, one topic per line." / "The research notes have no section for <topic>." / "The notes for <topic>
+   are empty." No file names.
+C75 "{loc}: {pydantic msg}" (validation.py:45, 92, 142, 196)   Verdict: KEEP PLAIN for Claude; site: "A required detail
+   is missing or invalid in the <Outline / Script / Scene Plan>."
+C76-C86 outline rules with codes (A2, A3, G2, S13, VP2-VP5)  (validation.py:95-127)
+   Verdict: KEEP PLAIN (Claude fixes against these exact rules, tests assert them). Site reword drops codes, e.g.
+   C81 -> "Scene 3 runs 140 s; every segment must be 10 to 120 s." C84 -> "The first sentence of the visual plan
+   must describe the empty screen." C85 -> "The last sentence of the visual plan must begin 'The scene ends with'."
+C87-C91 script rules: scene mapping, uncovered objective, words vs seconds, total length (validation.py:149-180)
+   Verdict: KEEP PLAIN for Claude. Site reword: C88 "Learning objective 2 is not covered by any scene."
+   C90 "Scene 2 has 190 spoken words, but 60 s needs about 150. Shorten the narration or lengthen the scene."
+   C91 "The scenes add up to 8:10, but the target is 6:00 (plus or minus 20%). Shorten or merge scenes."
+C92-C96 plan rules (plan missing, scene_id mismatch, empty execution plan, bad execution plan, unknown scene)
+   Verdict: KEEP PLAIN for Claude (C94 names `plan-task`, a command). Site reword: "Scene 3 has no plan yet.
+   Claude will write it." (C94); "Scene 3's plan breaks a drawing rule: <rule in plain words>." (C95).
+C97 "{sNN}: the clips' narration must be the script's spoken text ... get CP1 again"  (validation.py:215)
+   Verdict: KEEP PLAIN for Claude. Site reword: "Scene 3's narration no longer matches the approved Script. To change
+   the words, change the Script and approve it again."
+C98-C105 plan details (on-screen text in no clip, sound effect not found, entry descriptions, SSML, SSML words, empty
+   transition_in, entry/exit must be empty, colour per symbol)
+   Verdict: KEEP PLAIN for Claude (SSML tag lists, field names). Site reword examples:
+   C99 "A sound-effect file for Scene 2 was not found. Check the file you chose."
+   C104 "Scenes must start and end on an empty screen."  C105 "The symbol x is blue here but green in Scene 3;
+   one colour per symbol."  C98 "The on-screen text 'F = ma' appears in no clip of Scene 2."
+C106 "{file} does not exist: run the accuracy-reviewer subagent"  (validation.py:265)
+   Verdict: KEEP PLAIN for Claude. PLAIN REWORD for the site: "The accuracy check has not been done yet. Claude
+   will do it before you approve." (audit: a user cannot run a subagent)
+C107 "{file} reviewed an older version of the {script|plans}: run the accuracy-reviewer again"
+   Verdict: same. Site: "The accuracy check was done on an older Script. Claude will check it again."
+C108 "{file}: unknown target {target}" / C117 same (critiques.py:90)  Verdict: KEEP PLAIN for Claude; site hides it:
+   "The accuracy review mentions something that is not in the Script. Claude will fix the review."
+C109 "accuracy ERROR in {target}: {why}"  Verdict: KEEP PLAIN. Site: "Accuracy problem in Scene 2: <why>."
+C110-C116 critique files (missing, malformed, too many rounds, verdict vs score, wrong criterion, unknown aspect)
+   Verdict: KEEP PLAIN (machine-read by the critic subagents and tests). Site: show a single neutral line,
+   "Claude's review file needs fixing. Claude will redo the review." Never show round counts as user work.
+C118-C123 refactor records and critic staleness: "record the refactor of iteration {n} in scenes/{sNN}/changes.json",
+   "run the {critic}", "REQUIRES ATTENTION - ... open issues for the user to accept (approve --force) or fix"
+   Verdict: KEEP PLAIN for Claude. Site reword for C121 (the one addressed to the user): "Scene 2 still has open
+   issues after 3 review rounds: <issue>. Approve with Open Problems to accept them, or Request a Change."
+   (uses the house term "Approve with Open Problems"). C118-C120, C122-C123: site shows "Claude is still
+   reviewing Scene 2."
+C124 "{sNN}: preview missing or out of date (text-2-shorts preview <run> {sNN})"  (production.py:194)
+   Verdict: KEEP PLAIN (UNFORCEABLE substring, C68). Site reword: "Scene 2's preview is missing or out of date."
+C125-C127 sync problems "{sNN} out of sync - ... (audio-refactorer)", "the voice runs past its animation",
+   "no beat timings"  Verdict: KEEP PLAIN for Claude. Site reword: "In Scene 2 the voice and the picture are 0.8 s apart
+   at beat 3. Claude will adjust the timing." (drop subagent name, clip ids).
+C128 media check texts (MISSING_CLIPS, RESOLUTION, FRAME_RATE, 16:9, audio stream, LUFS, dBTP, silence, ffmpeg line,
+   black stretch, duration)
+   Verdict: KEEP PLAIN (codes are tested). Site reword, one sentence each, e.g. "Loudness is -19 LUFS; the target is
+   -16." / "There is a silence of 3.1 s." / "The video is 1920x1080 but 2560x1440 was expected."
+C129 "template.json does not exist: choose one on the website (Look & sound) or `template . <name>`"
+   Verdict: PLAIN REWORD for the site. Reword: "Choose a Look and Sound first." (the CLI keeps the command)
+C130-C131 "template.json is not JSON: ...", "music {file} not found: the user's own file..."
+   Verdict: PLAIN REWORD. "The Look and Sound file is damaged. Choose it again." / "The music file you chose was not found."
+C132-C139 video_settings problems ("unknown element", "{name}: not set", "is not one of", "custom colour is #RRGGBB",
+   "custom rate is 0.8-1.2", contrast "needs 4.5:1", pydantic)
+   Verdict: KEEP PLAIN for Claude and CLI (C241-C243 print them). Site reword via the element label table:
+   "Accent color must be a hex colour like #3B82F6." / "Speaking speed must be between 0.8 and 1.2."
+   / "Text colour #777777 is too faint on this background (contrast 3.1 to 1; it needs 4.5 to 1)."
+
+=====================================================================================================
+4. CONSOLE (C140-C147)
+=====================================================================================================
+
+[C140] "Turn finished."  (console.py:95, end-of-turn marker)
+   Verdict: VARIANTS (human-facing). First check whether tests or the frontend match the exact string; if so keep
+   it and put the variants in the frontend line only. Moment: consoleIdle (NEW). Variants, all meaning "Claude has
+   stopped and is waiting for you":
+   - "Turn finished."                                   (plain default, keep as one of the variants)
+   - "Claude has finished. Over to you."
+   - "Claude is waiting for you."
+   - "Wake me, when you need me." [e:wakeMe] is already used for nothingToDecide; do not reuse here.
+   - "Now you will see the power." [k:fPower]  (Faraday, Candle Lecture IV) - only when the finished turn made
+     a visible result (a stage became ready for review). Not for a bare "Turn finished".
+   - "Make it so." [k:picard]  (Picard, Encounter at Farpoint) - only on the Start Production button's first
+     turn; brand-free, short. Optional.
+[C141] "{result text or subtype} (e.g. error_max_turns)"  (console.py:94)
+   Verdict: PLAIN REWORD for the subtype case. Reword: error_max_turns -> "Claude reached its limit for one turn.
+   Send a message to let it continue."; other subtypes -> "Claude stopped with an error. Try again." Raw subtype
+   to the log. Moment: consoleStopped (NEW) -- plain only; no quote on a failure line.
+[C142] "Claude Code stopped (exit {code}). {last 600 chars of stderr}"  (console.py:197)
+   Verdict: PLAIN REWORD. Reword: "Claude Code Stopped Unexpectedly. Send a message to start it again; the details
+   are in the log." Same moment consoleStopped (plain).
+C143 console tool line "{Tool} {file name | command | ...}"  Verdict: KEEP PLAIN (a log of what Claude did).
+C144 "**{header}** - {question} (+ options)"  (AskUserQuestion)   Verdict: KEEP PLAIN (it is Claude's question verbatim).
+C145 "{Claude text}"  Verdict: KEEP PLAIN. C146 "{user message}"  Verdict: KEEP PLAIN (echo).
+C147 "Produce this video: follow the text-2-shorts-produce skill from the current state."  (sandbox.py:130; app.py:420)
+   Verdict: KEEP PLAIN (machine-read: it is the instruction Claude acts on). It appears in the console as a user
+   message; the frontend may show the line "You pressed Start Production." instead of the raw sentence.
+
+=====================================================================================================
+5. LOOK AND SOUND CATALOGUE (C148-C209)
+=====================================================================================================
+Where references fit best. These are static labels and notes, not shuffled. A note may carry ONE light fact
+about the thing's history, only where verified (see POOL, keys h:*). Plain explanation always comes first.
+
+C148 element labels (21)  Verdict: KEEP PLAIN. Optional: "Math font" -> "Maths font" (house spelling is
+   British: Colour in labels). "Typography" -> "Text size".
+C149 group names  Verdict: KEEP PLAIN.
+C150 template names (arctic, aurora, cosmic, graphite, ivory, lavender, midnight, monochrome, obsidian, paper,
+   peach, sage)  Verdict: KEEP PLAIN. Names are machine ids in template.json and tests.
+C151 template descriptions  Verdict: KEEP PLAIN (already concrete and plain: "Icy blue on an isometric grid...").
+C152 custom hints 'color or gradient', 'color', 'font family'  Verdict: PLAIN REWORD: "A colour or a gradient",
+   "A colour, like #3B82F6", "A font name installed on this computer" (British "colour").
+C153-C173 option lists
+   Verdict: KEEP PLAIN (labels; ids are in templates). Observations:
+   C167 "US female, warm / US male, steady / British female / Indian English female" is good: describes a voice by ear.
+   C158 "Whisper, Faint, Subtle, Soft, Visible" good. C171 "Bold social" is jargon -> "Bold, for phones".
+   C159 "Ink", "Neon", "Earth", "Chalk pastel": good. C169 "Friendly teacher, Calm documentary, Energetic,
+   Storyteller": good; "Calm documentary" could carry the history note "In the manner of a lecture table" - NOT added.
+   Palette name "Okabe-Ito" (C199) is the one place a reference already exists; see C199.
+
+--- Element descriptions: PLAIN REWORD for all C174-C194 (audit F1). Notes are one or two plain sentences, no
+    library names, no file names, no "role" jargon. Optional history clause in [brackets] only where verified.
+[C174] "Dark or light. Every colour element below carries a value for both modes."
+   Reword: "Choose a dark or a light screen. Every colour below has a version for each."
+[C175] "How the backdrop is built from Manim primitives. fill: solid (camera background), linear (gradient Rectangle)..."
+   Reword: "How the background looks: one flat colour, a gradient, or a soft glow in the centre. A chalk or paper
+   texture can be added."
+[C176] "Base colour, gradient end (shade) and centre glow, for each mode."
+   Reword: "The colour of the background. Gradients and glows use its lighter and darker shades."
+[C177] "Grid geometry (Manim Lines/Dots/NumberPlane). Drawn only when the background type includes a grid."
+   Reword: "The pattern behind the picture: dots, graph paper, a coordinate plane or an isometric grid. Shown only when
+   the background includes a grid."
+   History clause (optional, verified at no URL: DO NOT USE - isometric/graph paper history not fetched). None added.
+[C178] "Grid line colour, taken from the active mode's palette."  Reword: "The colour of the grid lines."
+[C179] "Line/dot opacity; graph-paper minor lines and plane axes scale from it."
+   Reword: "How strong the grid lines are, from a whisper to clearly visible."
+[C180] "Content roles: text, focus, given, derived, warning. Each variant has a dark and a light set..."
+   Reword: "The main colours: text, the thing being discussed, what is given, what is worked out, and warnings.
+   Each set has a dark and a light version."
+   Optional history for 'Okabe-Ito' lives in C199.
+[C181] "Supporting roles: secondary (labels, notes), surface (panel fill...), outline..., dim ..."
+   Reword: "The quieter colours: labels and notes, panel fills, dividers, and faded items."
+[C182] "One brand/highlight colour (role 'accent'), also used for word highlighting unless the subtitle style says otherwise."
+   Reword: "One highlight colour. It also marks the spoken word in the subtitles, unless the subtitle style says otherwise."
+[C183] "Google Fonts family rendered by Pango (Manim Text). install_fonts.py downloads all of them."
+   Reword: "The font used for words on screen. If a font is not installed on this computer, a plain default is shown
+   in the preview."
+   History clauses, all verified (h:inter, h:sourceSans); use at most one per option, as an optional second line:
+   Inter - "Drawn by Rasmus Andersson in 2017 for reading on screens at small sizes."  (h:inter)
+   Source Sans 3 - "Drawn by Paul D. Hunt for Adobe in 2012, inspired by the American gothic typefaces such as
+   Franklin Gothic and News Gothic." (h:sourceSans)
+   Merriweather and Lora: no verified source fetched; no clause.
+[C184] "LaTeX preamble for MathTex/Tex. The kit test-compiles the chosen one at startup."
+   Reword: "The font used for equations."
+   History clauses (verified): Computer Modern - "Made by Donald Knuth with his Metafont program for his TeX typesetting
+   system." (h:cm).  Latin Modern - "A later version of Computer Modern kept by Polish TeX users Bogusław Jackowski and
+   Janusz Nowacki." (h:latinModern)  Palatino - "Designed by Hermann Zapf; released in 1949 by the Stempel foundry; named after
+   the Renaissance calligrapher Giambattista Palatino." (h:palatino)  Euler - "Zapf's design for the American
+   Mathematical Society, made to look like a mathematician's handwriting on a blackboard." (h:euler)
+   Utopia - "Drawn by Robert Slimbach for Adobe in 1989." (h:utopia)  CM Bright, Fourier, Times: no verified source.
+[C185] "Type scale in Manim font_size units."  Reword: "How large the text is: compact, standard, comfortable or large."
+[C186] "Frame border drawn from Manim primitives; inset is how far content must stay inside it (Manim units)."
+   Reword: "A border around the picture. Content stays inside it."
+[C187] "Palette role used for the border (letterbox bars use it as a fill)."  Reword: "The colour of the border."
+[C188] "English narrator: the same person-type on both providers. Polly neural and Google Neural2 return exact word
+   timings; Polly generative and Google Chirp 3 HD sound richer but highlighting is estimated."
+   Reword: "The English voice. Some voices sound richer, but word highlighting in the subtitles is then approximate."
+   (no brand names: Polly and Google belong to the voice provider setting, not to this note.)
+[C189] "Rate (Polly prosody %, Google speaking_rate) and pause after each sentence."
+   Reword: "How fast the narrator speaks, and how long it pauses after each sentence."
+[C190] "How the script is written (rules for the script model; ...). Documentary/formal use Polly's newscaster style..."
+   Reword: "How the script is worded: a friendly teacher, a calm documentary, an energetic host or a storyteller."
+[C191] "Burned-in subtitles on or off. An .srt sidecar is always written."
+   Reword: "Show subtitles on the video, or hide them. A separate subtitle file is always saved with the video."
+[C192] "Burned-in subtitle look. text_color 'auto' = ...; outline 'auto' = ... Boxes are fixed fills so they read on either mode."
+   Reword: "How the subtitles look: a bar, an outline, a pill, minimal, bold or high contrast. All stay readable on a
+   dark or a light screen."
+[C193] "Where burned-in subtitles sit. reserve = fraction of frame height kept clear of content."
+   Reword: "Where the subtitles sit. Pictures keep clear of that area."
+[C194] "How the spoken word is tracked in burned-in subtitles."
+   Reword: "How the word being spoken is marked in the subtitles."
+
+--- Individual option labels
+[C195] "Auto (white on dark, black on light)"  Reword: "Automatic: white on a dark screen, black on a light one"
+[C196] "Primary (given)"   Reword: "Main colour" (drop "given").
+[C197] "Off (sidecar .srt only)"  Reword: "Off (the subtitle file is still saved)"
+[C198] "Textured (chalk/paper)"  Reword: "Textured, like chalk or paper"
+[C199] "Colour-blind safe (Okabe-Ito)"
+   Verdict: KEEP PLAIN with one verified history clause: "Colour-blind safe: the Okabe-Ito set, chosen by Masataka
+   Okabe and Kei Ito, who are both colour-blind themselves." (h:okabeIto)  Source reports "strong protanopes".
+[C200] "Computer Modern (default) / Latin Modern / Palatino / Times (mathptmx) / Utopia (Fourier) / Euler (hand-drawn
+   feel) / CM Bright (sans maths)"
+   Reword: "Computer Modern (default), Latin Modern, Palatino, Times, Utopia, Euler (like handwriting), CM Bright
+   (without serifs)". Drop the package names. History clauses in C184.
+[C201] "Bottom, raised (player-safe) / Adaptive (avoid content)"  Reword: "Bottom, raised above video player controls / Adaptive,
+   moves out of the way of the picture"
+[C202] "Lecture XL"  Reword: "Extra large, for lectures" (also fits Faraday's own lecture room).
+[C203] "Background shade"  Reword: "A shade of the background"
+[C204] "Draft 480p 15fps / ... 4K 30fps"  Verdict: KEEP PLAIN (never shown, frame hidden).
+[C205] "Polly {voice_id} - Google {neural2 id}"  Reword: show the human description only (C167); provider ids to a
+   "details" line.
+[C206] "{N}% - about {W} words a minute"  Verdict: KEEP PLAIN (good, plain, exact).
+[C207] "{script_rules}"  Verdict: PLAIN REWORD only if it reads as an instruction to the model. The example
+   ("Speak to one learner as 'you'; use 'we' when working things out...") is fine as a description of the tone.
+[C208] "The font {family} is not available, so a default font is shown. Fetch the template fonts with
+   `uv run python backend/templates/generate_preview.py fonts`."
+   Verdict: PLAIN REWORD. Reword: "The font {family} is not installed on this computer, so the preview uses a plain
+   default. The finished video uses the same default until you install the font." Move the command to the README.
+[C209] "Colours / Fonts / Background / Grid / Border"  Verdict: KEEP PLAIN (button labels; British spelling).
+
+=====================================================================================================
+6. COMMAND LINE (C210-C274)
+=====================================================================================================
+Policy: tests parse the CLI output (approve, validate, hash, next, status). Everything in 6b that Claude or a test reads
+stays exact. Human-only lines (serve banner, new/final success, help epilog) can take a quote.
+
+--- 6a. Argparse help (C210-C233)
+C210 "a video is {3}-{20} minutes of teaching"  Verdict: KEEP PLAIN (argparse error; exact range).
+C211-C233 per-argument --help strings  Verdict: KEEP PLAIN (reference text; stable). Two small rewordings where the
+   audit found developer text:
+   C216 "-- CMD...: run CMD instead of claude in the jail (debugging)" -> "-- CMD...: run CMD instead of Claude Code
+   in the isolated workspace (for debugging)". ("jail" is private slang.)
+   C221 "what each agent gets wrong, over every run -> artifacts/reports/mistakes.json and .md" -> "which mistakes
+   each helper makes, across all runs; written to artifacts/reports/".
+   C233 "(no help text) new, open, voice, template, final, status, report, validate, next, preview, hash, task,
+   accept, usage-ok, resolve" -> PLAIN REWORD: add one plain line per command (missing help).
+[C-epilog] NEW: a closing line for `text-2-shorts --help` (human-facing, not parsed).
+   Moment: cliHelpEpilog. Plain first line, then one verified quote on a second line, chosen at random per call:
+   - "Curiosity, Illustrated."  (brand, always first line)
+   - "There is no better, there is no more open door..." [e:openDoor]  (already verified; keep shortened with
+     the original ellipsis: "There is no better... open door by which you can enter into the study of natural
+     philosophy" - do NOT shorten; use the full existing text or none)
+   - "Work, Finish, Publish." [k:fWork]  (Faraday to William Crookes, via Gladstone 1874)
+   - "I could trust a fact." [k:fTrustFact]  (Faraday, via Bence Jones, Life and Letters II p. 483)
+   - "I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your minds." [k:fPoem]
+     (Faraday, lecture notes of 1858; 23 words, public domain)
+   - "What I cannot create, I do not understand." [k:feynCreate]  (Feynman's blackboard, 1988)
+
+--- 6b. Command output (C234-C274)
+C234 "Invalid requirements: {pydantic error}"  Verdict: KEEP PLAIN (machine-read stderr). Site shows its own text (C3).
+C235 "{RunNotCreated text}: Preflight failed: ..."  Verdict: KEEP PLAIN (CLI). It already names the fix.
+[C236] "{run relative path}  next: text-2-shorts serve (the website), or text-2-shorts open {path}"  (`new` succeeded)
+   Verdict: VARIANTS (human-facing). Keep the two commands exact on the line. Moment: cliNewDone (NEW).
+   Only add a prefix line, shuffled; the command line below it is KEEP PLAIN.
+   - "Run created."  (plain)
+   - "Run created. First let us see that our instrument is in order."  NOT USED (check is not shown here).
+   - "Make it so." [k:picard]
+   - "Let us make an experiment or two." [e:experiment]  (existing; Candle IV)
+   - "Yes! We have proved it by combustion" NOT suitable here.
+C237 "{run} is not a run workspace (no brief.json) - create one with text-2-shorts new"  Verdict: KEEP PLAIN (machine-read).
+[C238] "Text-2-Shorts: http://127.0.0.1:{port}/#/signin?token={token}"  (serve starts)
+   Verdict: KEEP PLAIN for the URL line (a person copies it; tests may parse the token). Change the label "Text-2-Shorts:"
+   to "Faraday:" ONLY if tests allow (audit F6); otherwise leave.
+[C239] "  open that link to sign in with Claude Code's account (valid until serve stops; Ctrl+C to stop)"
+   Verdict: VARIANTS for a new line ABOVE the URL. Moment: serveBanner (NEW). Human-facing, not parsed; the URL
+   line and this line stay unchanged beneath it.
+   - "Faraday - Curiosity, Illustrated."   (brand; plain; default)
+   - "I have arranged certain apparatus, the use of which you will see as I go on." [k:fApparatus]
+   - "But first let us see that our instrument is in order." [k:fInstrument]
+   - "There is no better, there is no more open door ..." [e:openDoor]  (use the existing full text)
+   - "Hello and, again, welcome to the Aperture Science computer-aided enrichment center." [e:aperture]
+     (existing; already used by 'welcome'; optional here)
+   - "Hey, you. You're finally awake." [e:awake]  (existing; only for a server that was started by `serve` after
+     a long idle - not recommended: reads as a taunt in a terminal. Not proposed.)
+   Rule: print exactly one, then a blank line, then the unchanged two lines.
+C240 "{name}: {description} (one line per starter template)"  Verdict: KEEP PLAIN.
+C241 "no template {name}: choose one of {a, b, c}"  Verdict: KEEP PLAIN (machine-read; exact names).
+C242-C243 "{name} has no custom value: choose one of its options", "template.json would be invalid: {problems}"
+   Verdict: KEEP PLAIN. C244 "{template.json path}"  Verdict: KEEP PLAIN (path printed for scripts).
+C245 "invalid change request: {pydantic errors}"  Verdict: KEEP PLAIN (stderr for Claude).
+C246 "{id} recorded for {target} ({kind}). Apply it: {route}; then `text-2-shorts resolve <run> {id} applied`."
+   Verdict: KEEP PLAIN (instruction to Claude; CPn and commands). Site shows its own "Change request sent" line.
+C247-C248 resolve output  Verdict: KEEP PLAIN.
+C249 "go-ahead for this step only: {stage}"  (usage-ok)  Verdict: KEEP PLAIN for the CLI (parsed by tests); the site's
+   button reads "Continue Anyway" (see usageHigh).
+C250 "cannot approve {target} yet: - {problem} - {problem} (use --force only if the user explicitly accepts these)"
+   Verdict: KEEP PLAIN (machine-read; the --force guard sentence is addressed to Claude on purpose).
+[C251] "approved {target}[ (forced)]"
+   Verdict: KEEP PLAIN (tests grep "approved"). A shuffled human line may follow on a SECOND line only for the
+   last stage (final). Moment: cliDone (NEW), printed after `approve . final` or `final` success (C264):
+   - "Done."  (plain default)
+   - "Work, Finish, Publish." [k:fWork]  (Faraday, 'secret of success' advice to William Crookes)
+   - "This was a triumph." [e:triumph]  (existing, Portal; already used by 'complete')
+   - "Yes! We have proved it by combustion" [e:proved]  (existing; already used by 'approved')
+   - "Make it so." [k:picard]  (Picard; short; a good fit for finishing a render)
+   - "We're made of star-stuff. We are a way for the cosmos to know itself." [e:starStuff] (existing)
+C252 "Claude Code sessions: {n} model responses - input {t} tokens (...)"  (report)  Verdict: KEEP PLAIN (a report).
+C253 "{error lines} or '{what}: OK'"  (validate)  Verdict: KEEP PLAIN (machine-read).
+   NOTE: do not add 'Your system is ready' style praise to validate; tests read "OK".
+C254-C256 doc cards, hash, voice summary  Verdict: KEEP PLAIN. C257 brief missing  Verdict: KEEP PLAIN.
+C258 "{clipId}: the voice provider failed - {error}. Run voice again to go on from here."
+   Verdict: KEEP PLAIN (Claude reads it); site reword if shown: "The voice service failed on one clip. Try again;
+   it continues from where it stopped."
+C259-C261 stale clips/audio/previews before `final`  Verdict: KEEP PLAIN (machine-read; Python list repr is a bug,
+   not a wording issue). Replace "(CP3)" with "(scene previews)" in a site copy only.
+C262 "TEXT_2_SHORTS_FPS={n}: must be 60-120"  Verdict: KEEP PLAIN. C263 "Final render failed: {json}" Verdict: KEEP PLAIN
+   (tests read it); site shows plain "The final video did not render. Try again; see the log."
+C264 "{run}/final.mp4  duration: {x}s - clips: {n}  {SEVERITY} {CODE}: {message}"  (final success)
+   Verdict: KEEP PLAIN for the line itself (tests and Claude parse it). Moment: cliDone (human line AFTER it, see C251).
+C265-C267 preview failures  Verdict: KEEP PLAIN. C268 preview line  Verdict: KEEP PLAIN. C269 "{sNN}: READY|..."  Verdict: KEEP PLAIN
+   (machine-read gate result, exit code). C270-C274 crashes, "No audio for", timeouts: Verdict: KEEP PLAIN.
+   (C273 "the render timed out after 7200 s": human wait line; optional human-facing variant not needed.)
+
+=====================================================================================================
+7. TEXT THE CLAUDE SESSION RELAYS TO THE USER (C275-C291)
+=====================================================================================================
+Rule: the driver `what` strings go to Claude, and review.tsx also shows them as "Claude's Next Step". Keep the Claude text
+exact (machine-read, tests assert them). Add a separate user_text for the site. Never shuffle.
+
+[C275] "Claude usage is at {N}% of the {window id} window (resets {Day HH:MM}; read {time}). Next would be: {step}. Ask the
+   user whether to go on; on yes run `text-2-shorts usage-ok .`, then `text-2-shorts next .` again."
+   Verdict: KEEP PLAIN for Claude. PLAIN REWORD for the user (audit F9: raw window id, no date/zone, step as agent
+   target, ends with an instruction):
+   Reword: "Your Claude usage is at 87% of the 5-hour limit. It resets Monday at 14:00. The next step is: Write the
+   Script. Continue now, or wait for the limit to reset?"   Buttons: "Continue Anyway" / "Wait".
+   Window names: five_hour -> "5-hour limit", seven_day -> "weekly limit".
+   Moment: usageHigh (NEW) - an optional one-line lead ABOVE the plain sentence on the site, from this pool. These
+   are about patience and time, never about the user's cost or fault:
+   - "This waiting is a curious and wonderful thing." [e:waiting]  (existing; Candle VI)
+   - "It is curious to see how different substances wait" [e:wait]  (existing; Candle VI)
+   - "A wizard is never late, Frodo Baggins. Nor is he early; he arrives precisely when he means to." [e:wizard]
+   - "I love deadlines. I love the whooshing noise they make as they go by." [k:adamsDeadlines]
+     (Douglas Adams, The Salmon of Doubt) - light, but only on the 85%-warning, not at 100% (where nothing runs).
+   - "Light thinks it travels faster than anything but it is wrong." [k:pratchettLight] (Pratchett, Reaper Man)
+     - optional, about speed limits; a little arch. Medium confidence on fit.
+   Never at 100% (blocked): plain "The limit has been reached. It resets at ..." only.
+[C276] "the user chooses the look and sound in the website's Look & sound tree ... or `text-2-shorts template . <name> ...`"
+   Verdict: KEEP PLAIN for Claude. User text: "Choose a Look and Sound in the Look & Sound tab. Anything you leave alone
+   keeps its default."
+[C277] "template checkpoint: show template.json (starter, changed elements, custom values); on approval `... approve . template`"
+   Verdict: KEEP PLAIN for Claude. User text: "Review your Look and Sound, then approve it."
+[C278] "complete and confirm the requirements: {brief errors}"  Verdict: KEEP PLAIN. User: "Finish the Requirements."
+[C279] "requirements checkpoint: show brief.json (approach...), topics.md and content.md; on approval `... approve . requirements`"
+   Verdict: KEEP PLAIN for Claude. User: "Review the Requirements, the topic list and the research notes, then approve."
+[C280] "CP0: show the outline (segments, timing, visual plans); on approval `... approve . outline`"
+   Verdict: KEEP PLAIN for Claude. User: "Review the Outline: the scenes, their lengths and the visual plans. Then approve."
+[C281] "CP1: show the scene table, the full narration and the accuracy findings; on approval `... approve . script`"
+   Verdict: KEEP PLAIN. User: "Review the Script: scenes, the full narration, and the accuracy findings. Then approve."
+[C282] "CP2: show each scene's composition, transition_in, clip table and last critique round; ..."
+   Verdict: KEEP PLAIN. User: "Review the Scene Plans: how each scene is composed and how it opens. Then approve."
+[C283] "the user asked to confirm each scene: start {sNN} now? on yes `... approve . start:{sNN}`"
+   Verdict: KEEP PLAIN. User: "You asked to confirm each scene. Start Scene 3 now?"
+[C284] "{sNN} failed accept {N} times ({findings}): show the user the findings and ask for a hint, then record it with
+   `... feedback . {clipId} visual "<hint>"`..."
+   Verdict: KEEP PLAIN. User: "Scene 3 did not pass its checks after 3 tries: <findings>. Give a hint to help
+   Claude try again." Moment: asks (existing) may carry: "Help me, Obi-Wan Kenobi. You're my only hope." [e:onlyHope].
+   Do NOT use "Failure is not an option" here.
+[C285] "CP3: every scene is built, previewed and critiqued; give the user each scene's preview.mp4, ... approve . scenes"
+   Verdict: KEEP PLAIN. User: "All scenes are built. Watch each preview, then approve."
+[C286] "CP4: give the user final.mp4 and the media checks; on approval `... approve . final`"
+   Verdict: KEEP PLAIN. User: "The Final Video is ready. Watch it, check the video checks, then approve."
+   Moment: complete (existing) may carry the quote as today.
+[C287-C288] "which scenes should change? apply {id} ({kind}, {target}): {text} - then `... resolve . {id} applied`..."
+   Verdict: KEEP PLAIN (Claude instruction). User: "Claude is applying your change request: "<text>"."
+[C289] "{mode} mode - ..." subagent instruction texts  Verdict: KEEP PLAIN (machine-read; never shown).
+[C290] "done: the video is approved."  (`next` with nothing left)  Verdict: KEEP PLAIN (a test and Claude read it).
+   Human-facing equivalent on the site ('Done'): existing moment complete.
+[C291] "stage {stage}[ - run these in parallel]: - [{do}] {who}[ - {target}] - {what} ..."  Verdict: KEEP PLAIN.
+
+=====================================================================================================
+8. HOOK MESSAGES (C292-C300)
+=====================================================================================================
+All hook output is read by Claude or printed in its terminal; tests assert it. KEEP PLAIN for every row. Only one
+human-facing change is suggested (C299).
+C292 "Text-2-Shorts run {run} {status_text}  NEXT BATCH {format_actions}"  Verdict: KEEP PLAIN (machine-read).
+C293 "approved: ... status: ... open change requests: ... | open findings"  Verdict: KEEP PLAIN. C294 "next: ..."  KEEP PLAIN.
+C295-C298 PostToolUse "text-2-shorts - {tool} {path} - valid", "- changes.txt updated", "- INVALID: ...",
+   "{file} is invalid - fix it: ..."  Verdict: KEEP PLAIN (machine-read, Claude acts on it).
+C299 "The Text-2-Shorts hook crashed ({Type}: {error}), so this was not validated. Check the file with `text-2-shorts validate`."
+   Verdict: KEEP PLAIN (Claude reads it). One note for a human reading the terminal: "Faraday" instead of "Text-2-Shorts" only if
+   tests allow (audit F6).
+C300 "Only the user approves a checkpoint or going on past the usage gate. Finish your task and report back; the session asks the user."
+   Verdict: KEEP PLAIN (addressed to a subagent; machine-read).
+
+=====================================================================================================
+EXTRA HUMAN-FACING MOMENTS NOT ROWED IN C (frontend, but they take their copy from the API's text)
+=====================================================================================================
+Moment: notFound  (frontend route not found, unknown run id, unknown draft; relates to C7, C16, C30-C32)
+   Plain title: "Nothing Here"  + line: "That page or run does not exist. It may have been deleted." + Home button.
+   Optional shuffled line (one per visit):
+   - "These aren't the droids you're looking for." [k:starWars]
+   - "Houston, we have a problem." [e:houston]   (also used by failed; consider keeping it out of notFound)
+   - "DON'T PANIC" [e:panic]  (existing; used by offline)
+   Risk: Star Wars is a film quote and mildly jokey, but nothing mocks the user and nothing is violent.
+Moment: serverError (500 screen / unhandled error; relates to C5, C10, C33)
+   Plain title: "Something Went Wrong" + "Try again. If it keeps happening, see the log file."
+   - "But still try, for who knows what is possible..." [k:fTry]
+   - "Houston, we have a problem." [e:houston]
+   - "I could trust a fact." NOT used (reads as a verdict).
+   - "Experiment is the best test of such consistency." [k:fExperimentTest]  (Faraday journal, 19 March 1849) - the
+     page says "this failed; the next try will tell" : good for a retry screen. Medium fit.
+
+=====================================================================================================
+NEW LINES POOL (every new verified line once)  format: key | text | source | url
+=====================================================================================================
+Faraday, The Chemical History of a Candle (Wikisource API text, fetched 2026-11-27; public domain):
+k:fInstrument | "But first let us see that our instrument is in order." | Faraday, Candle, Lecture IV (1860) |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_IV
+k:fLastTime | "Let us see whether it is in the state in which it was last time." | Candle, Lecture IV |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_IV
+   (fits "resume a run" or "back to a saved draft"; no row uses it in this part)
+k:fPower | "Now you will see the power." | Candle, Lecture IV | https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_IV
+k:fApparatus | "I have arranged certain apparatus, the use of which you will see as I go on." | Candle, Lecture II |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_II
+k:fAnticipate | "I must anticipate a little, and tell you." | Candle, Lecture III |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_III
+   (fits "next steps preview" lines; not placed above, spare)
+k:fTrace | "Let us now trace distinctly the connection between these two points." | Candle, Lecture III |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_III   (spare; for the Overview stage strip)
+k:fMinute | "I can illustrate in a minute or two; but I must not spend much time on it." | Candle, Lecture I |
+   https://en.wikisource.org/wiki/The_Chemical_History_of_a_Candle/Lecture_I   (spare; honest-about-time rendering line)
+Faraday, other (Wikiquote Michael Faraday, sourced entries; fetched 2026-11-27): https://en.wikiquote.org/wiki/Michael_Faraday
+k:fWork | "Work, Finish, Publish." | Faraday's advice to William Crookes, via J. H. Gladstone, Michael Faraday (1874) p. 123 | same url
+k:fTry | "But still try, for who knows what is possible..." | Faraday, Life and Letters of Faraday (1870), vol. II, p. 483 | same url
+k:fTrustFact | "I could trust a fact." | Faraday, quoted by Bence Jones, Life and Letters, vol. II, p. 483 | same url
+k:fPoem | "I am no poet, but if you think for yourselves, as I proceed, the facts will form a poem in your minds." |
+   Faraday, lecture notes of 1858, Life and Letters, vol. 2, p. 403 | same url   (23 words; public domain)
+k:fExperimentTest | "Experiment is the best test of such consistency." | Faraday, laboratory journal 19 March 1849, Life and
+   Letters vol. II p. 248 | same url
+Others (Wikiquote or primary; fetched 2026-11-27):
+k:feynCreate | "What I cannot create, I do not understand." | Richard Feynman, left on his blackboard in February 1988
+   (Caltech Archives, as cited on the page); in the main Quotes section, not Disputed | https://en.wikiquote.org/wiki/Richard_Feynman
+k:feynFool | "The first principle is that you must not fool yourself - and you are the easiest person to fool." | Feynman,
+   'Cargo Cult Science' (1974 Caltech commencement address) | https://en.wikiquote.org/wiki/Richard_Feynman
+   (16 words; suits a "checks" or "accuracy review" empty state; not placed above)
+k:curieRemains | "One never notices what has been done; one can only see what remains to be done." | Marie Curie, letter to her
+   brother, 1894, Quotes section | https://en.wikiquote.org/wiki/Marie_Curie   (spare; a progress/overview line)
+k:lovelaceLoom | "... weaves algebraical patterns just as the Jacquard-loom weaves flowers and leaves." | Ada Lovelace, Notes on the
+   Analytical Engine (1843) | https://en.wikiquote.org/wiki/Ada_Lovelace   (fragment only; the page quotes it as a fragment too)
+k:pratchettLight | "Light thinks it travels faster than anything but it is wrong." | Terry Pratchett, Reaper Man (1991), p. 230 |
+   https://en.wikiquote.org/wiki/Terry_Pratchett   (Wikiquote 'Curiosity/Light' lists; the page is not a Disputed section)
+k:adamsDeadlines | "I love deadlines. I love the whooshing noise they make as they go by." | Douglas Adams, The Salmon of Doubt (2002) |
+   https://en.wikiquote.org/wiki/Douglas_Adams   (Wikiquote's wording; the common 'I like the whooshing sound...' is a misquote, do not use)
+k:itCrowd | "Have you tried turning it off and on again?" | The IT Crowd, 'Yesterday's Jam' (S1 E1), Roy | https://en.wikiquote.org/wiki/The_IT_Crowd
+   (verified; the right place is a Retry button helper text on a failure screen: "Have you tried again?" - NOT proposed; it is
+   a brand-ish, mild mockery of the user; kept in the pool only)
+k:starWars | "These aren't the droids you're looking for." | Star Wars (1977), Obi-Wan Kenobi | https://en.wikiquote.org/wiki/Star_Wars_(film)
+   (Dialogue section of the page; the page does not label the section sourced, same as the existing Star Wars lines)
+k:picard | "Make it so." | Star Trek: The Next Generation, Captain Picard's catchphrase from 'Encounter at Farpoint' (1987) |
+   https://en.wikiquote.org/wiki/Jean-Luc_Picard
+k:teapot | "Any attempt to brew coffee with a teapot should result in the error code "418 I'm a teapot"." | RFC 2324, section 2.3.2 |
+   https://www.rfc-editor.org/rfc/rfc2324.html   (verified; not proposed: 24 words and a joke about error codes that the
+   API never returns)
+k:brewPattern | "Your system is ready to brew." | Homebrew, `brew doctor` when no problems are found | https://www.simplified.guide/homebrew/brew-doctor-run
+   (verified; NOT a quote to display: brand name inside UI text; only the pattern "Everything is in order." is borrowed, in
+   a plain `validate`-free success line, if wanted)
+History facts for the Look & Sound notes (key h:*; each is a plain factual clause, verified on the page):
+h:palatino | "Palatino: designed by Hermann Zapf, released by the Stempel foundry in 1949, named after the 16th-century
+   Italian calligrapher Giambattista Palatino." | https://en.wikipedia.org/wiki/Palatino
+h:cm | "Computer Modern: made by Donald Knuth with his Metafont program, the original typeface family of TeX; based on the
+   10-point Lanston Monotype 'Modern Extended 8A'." | https://en.wikipedia.org/wiki/Computer_Modern
+h:latinModern | "Latin Modern: a later implementation of Computer Modern maintained by Bogusław Jackowski and Janusz Nowacki
+   (TeX User Group Poland); now standard in the TeX community." | https://en.wikipedia.org/wiki/Computer_Modern
+h:euler | "Euler: designed by Hermann Zapf, with help from Donald Knuth and his Stanford students, for the American Mathematical
+   Society; it tries to emulate a mathematician's handwriting on a blackboard." | https://en.wikipedia.org/wiki/AMS_Euler
+h:utopia | "Utopia: designed by Robert Slimbach and released by Adobe Systems in 1989." | https://en.wikipedia.org/wiki/Utopia_(typeface)
+h:inter | "Inter: designed by Rasmus Andersson, first released in 2017 to improve readability of user interface text at small
+   sizes." | https://en.wikipedia.org/wiki/Inter_(typeface)
+h:sourceSans | "Source Sans: designed by Paul D. Hunt for Adobe, released in 2012, inspired by the American Type Founders' gothics
+   (Franklin Gothic, News Gothic)." | https://en.wikipedia.org/wiki/Source_Sans
+h:okabeIto | "The palette is the Okabe-Ito set proposed by Masataka Okabe and Kei Ito, both colour-blind (protanopes)." |
+   https://jfly.uni-koeln.de/color/   (page's recommendation: vermilion, bluish green, reddish purple, sky blue; it does not
+   list the eight colours in text, so do not list them in the note)
+   NOTE the cite for Okabe-Ito: 'Color Universal Design (CUD)' page by Okabe and Ito; the colour names above are on the page.
+
+=====================================================================================================
+NEW MOMENTS  (name | which rows use it | lines (keys))
+=====================================================================================================
+serveBanner     | C238-C239 (human line above the sign-in URL; URL unchanged)     | brand line, k:fApparatus,
+                  k:fInstrument, e:openDoor, e:aperture
+cliNewDone      | C236 (prefix line before the unchanged next-steps line)           | plain "Run created.", k:picard, e:experiment
+cliDone         | C251, C264 (second line after `approve . final` / `final` success) | plain "Done.", k:fWork, e:triumph, k:picard,
+                  e:proved, e:starStuff
+cliHelpEpilog   | C211-C233 (`--help` closing line)                                 | brand line, e:openDoor, k:fWork, k:fTrustFact,
+                  k:fPoem, k:feynCreate
+usageHigh       | C275, C249 (lead line above the plain 85% message, site only)    | e:waiting, e:wait, e:wizard, k:adamsDeadlines,
+                  k:pratchettLight (plain message is always shown)
+consoleIdle     | C140 ("Turn finished." end-of-turn marker)                       | plain "Turn finished.", "Claude has finished. Over to
+                  you.", "Claude is waiting for you.", k:fPower (only after a visible result), k:picard (first turn)
+consoleStopped  | C141, C142                                                       | plain only; no quote on a failure line
+notFound        | frontend unknown-route/run screen (C7, C16, C30-C32)              | k:starWars, e:houston, e:panic
+serverError     | 500 screen (C5, C10, C33)                                         | k:fTry, e:houston, k:fExperimentTest
+Existing moments reused as is: restricted (C9, [e:dave], [e:notPass]), asks (C284, [e:onlyHope]), complete (C286, C290).
+
+=====================================================================================================
+UNVERIFIED, NOT PROPOSED  (text | why)
+=====================================================================================================
+- GitHub 404: "This is not the web page you are looking for" | the search did not return GitHub's own page showing it;
+  only Star Wars' line is proposed (k:starWars), without the GitHub claim.
+- Firefox "Well, this is embarrassing" | only found as the reporter's wording ("Well this is embarrassing...") in
+  bugzilla.mozilla.org/show_bug.cgi?id=973510; not Mozilla's own page. The reporter calls it unprofessional. Not proposed
+  (tone: it makes the product look at fault; also a brand).
+- Chrome "Aw, Snap!" and the offline dinosaur | Google's page (support.google.com/chrome/answer/95669) shows the name and
+  "Chrome is having problems loading the page." but does not mention a dinosaur. Brand, not proposed.
+- Twitter Fail Whale | no page fetched.
+- Slack/Discord loading lines | not fetched.
+- Marie Curie "Nothing in life is to be feared, it is only to be understood." | Wikiquote shows only a different wording
+  ("In life, there's nothing to be feared, everything is to be understood.", as quoted in a 2006 book). Not proposed.
+- Feynman "pleasure of finding things out" as a line | Wikiquote page text only shows it as a book title.
+- Faraday "Without experiment I am nothing." | Wikiquote lists it with no source. "Speculations? I have none. I am resting on
+  certainties." | sourced to a 1896 journal, but it is a deathbed anecdote; not proposed (tone). "The important thing is to know
+  how to take all things quietly." | already in the REJECTED list (unverified source).
+- Douglas Adams "I like the whooshing sound they make as they fly by" | misquote; Wikiquote has the 'noise ... go by' form
+  (k:adamsDeadlines).
+- Merriweather, Lora, CM Bright, Fourier, mathptmx/Times, isometric grid, graph paper, "chalk pastel", Bauhaus-style borders |
+  no history page fetched; no clause added.
+- Sad Mac "Sorry, a system error occurred." | not on the Wikipedia article.
+- Homebrew "Your system is ready to brew." | verified, but not proposed as a line (brand inside UI text).
+- Unix fortune, cowsay, `sl`, git, Zelda "It's dangerous to go alone", Minecraft splash, SimCity "Reticulating splines",
+  Factorio, KSP, Doctor Who, The Martian | not fetched this pass. The Zelda and Minecraft lines are already in voice.ts.
+- "Failure is not an option" on any failure line | exists in voice.ts (e:failure) but tone rule says no.
+
+=====================================================================================================
+NOTES (risks)
+=====================================================================================================
+1. Machine-read text is the main risk. KEEP PLAIN rows were chosen because tests, hooks, Claude or UNFORCEABLE substring
+   matching read them: C2, C12, C17-C19, C38-C39, C49-C52, C61, C64-C68, C69-C139 (as Claude-facing), C143-C147,
+   C210-C274, C275-C300. Rewording any of these for the site must go through a separate user_text field, not by editing the
+   string Claude receives.
+2. C64/C68/C124: "final.mp4 is missing or out of date", "is not built from its current inputs", "preview missing or out of
+   date" are matched as substrings to decide what "--force" may not override (approvals.py:112). Do not reword them in place.
+3. CLI human lines must never break parsed output: print the quote on its own line AFTER the machine line, with a blank
+   line before it, and keep it off stderr and off any command that supports --json or is read by Claude (approve, validate,
+   hash, status, next, report, template, feedback, resolve, usage-ok). Safe commands: serve, new, final, --help, templates.
+4. No lyrics are proposed. All quote lines are at most 24 words (k:fPoem 23, the longest). Fragments of public-domain text are
+   shown word for word from Wikisource or Wikiquote; k:lovelaceLoom is a fragment with a leading ellipsis.
+5. Wikiquote verification went through WebFetch's summariser, which returned the exact line and its section; the Faraday
+   Candle lines were also matched word for word with grep on the Wikisource text (lectures I to IV fetched; V and VI were
+   rate-limited and not used).
+6. Wikiquote's Star Wars page does not mark the Dialogue section as sourced; the existing voice.ts lines from that page are
+   in the same state. If a stricter rule is wanted, drop k:starWars.
+7. Tone: 'houston' is mild but appears in both failed and renderFailed; the new notFound and serverError screens would add a
+   third use. If it feels repetitive, serverError should use k:fTry and notFound should use k:starWars alone.
+8. 'Make it so.' (k:picard) is a catchphrase, not a long quote, and carries a brand (Star Trek) only in the credit line.
+9. Look & Sound history clauses are facts, not quotes. They must go in a second line under the plain explanation and never
+   replace it. The font and typeface claims were each read on the Wikipedia page named; no dates beyond those pages are added.
+10. Spelling: the house style in labels is British (Colour, Centre) but the audit also shows Math/Color in some labels
+    (C148). Pick one before rewording C148-C152.
+11. Rows C34, C35, C36, C204 and the internal log section need no change.
+12. Row count: all of C1-C300 are covered above; groups like C69-C139 and C210-C274 are compressed by shared verdict,
+    with individual rewordings given where the audit flagged developer text.

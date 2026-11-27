@@ -1,9 +1,9 @@
 // A lookup chip: a small icon box, a value, what the value is. Used wherever a page states a few facts at a glance.
 import type { ReactNode } from "react";
 
-export function Chip({ icon, value, label }: { icon: ReactNode; value: ReactNode; label: string }) {
+export function Chip({ icon, value, label, title }: { icon: ReactNode; value: ReactNode; label: string; title?: string }) {
   return (
-    <li className="chip">
+    <li className="chip" title={title}>
       <span className="icon-box icon-box--sm" aria-hidden="true">{icon}</span>
       <span className="chip__value">{value}</span>
       <span className="chip__label">{label}</span>

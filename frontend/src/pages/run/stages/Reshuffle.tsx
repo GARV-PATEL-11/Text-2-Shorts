@@ -12,6 +12,7 @@ import { ImagePreview } from "../../../components/media/ImagePreview";
 import { Button } from "../../../components/ui/Button";
 import { Checkbox, Field } from "../../../components/ui/fields";
 import { Dice, Preview, Shuffle } from "../../../components/ui/icons";
+import { Said, usePick } from "../../../components/ui/Said";
 import { titleCase } from "../../../components/ui/text";
 import { stageStatuses } from "../../../config/stages";
 import { useAction } from "../../../hooks/useAction";
@@ -19,6 +20,7 @@ import { send } from "../../../services/http";
 import { runHash, runPath } from "../../../services/runs";
 import type { ReshuffleGroup, ReshuffleView } from "../../../types/api";
 import { useRun } from "../context";
+import { TITLES } from "../titles";
 import type { StageProps } from "./StageTabs";
 
 const GROUPS: { id: ReshuffleGroup; label: string; hint: string }[] = [
@@ -39,10 +41,13 @@ export function Reshuffle(_: StageProps) {
   const [still, setStill] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const action = useAction();
+  const previewing = usePick(TITLES.reshufflePreviewing);
+  const recoloring = usePick(TITLES.recoloring);
+  const noPreview = usePick(TITLES.previewSeed);
 
   if (stageStatuses(run).template !== "approved") {
     return (
-      <SystemMessage kind="pending" title="Choose a Template First"
+      <SystemMessage kind="pending" title="Approve the Template First"
         action={<Button size="sm" onPress={() => navigate(runHash(id, "template"))}>Open Template</Button>}>
         A Reshuffle Starts From the Run's Approved Template
       </SystemMessage>
@@ -58,23 +63,23 @@ export function Reshuffle(_: StageProps) {
     setGroups((current) => (on ? [...current, group] : current.filter((candidate) => candidate !== group)));
     forget();
   };
-  const preview = () => action.run("Reshuffling, Then Rendering One Frame…", async () => {
+  const preview = () => action.run(previewing, async () => {
     const answer = await send<ReshuffleView>(runPath(id, "/reshuffle"), { ...wanted, apply: false });
     setView(answer);
     if (!answer.changes.length) return "Nothing Changes With This Seed: Try Another";
     setStill((await send<{ url: string }>(runPath(id, "/look/still"), answer.look)).url);
-    return `${answer.changes.length} Elements Change`;
+    return `${answer.changes.length} ${answer.changes.length === 1 ? "Element Changes" : "Elements Change"}`;
   });
-  const apply = () => action.run("Recoloring Every Built Clip…", async () => {
+  const apply = () => action.run(recoloring, async () => {
     await send<ReshuffleView>(runPath(id, "/reshuffle"), { ...wanted, apply: true });
     setConfirming(false);
     forget();
-    refresh(`Reshuffle Applied (Seed ${seed}): Send Any Message in the Console and Claude Renders the Previews and Final Video Again`);
+    refresh(`Reshuffle Applied (Seed ${seed}): Send Any Message in the Console to Start the Renders of the Previews and Final Video`);
   });
 
   return (
     <Section title="Reshuffle the Look"
-      description="Colors, Fonts and Backgrounds Change; Layouts Never Do">
+      description={<>Colors, Fonts and Backgrounds Change; Layouts Never Do <Said moment="reshuffling" /></>}>
       <div className="split">
         <div className="card stack">
           <fieldset className="fieldset">
@@ -84,7 +89,7 @@ export function Reshuffle(_: StageProps) {
             ))}
           </fieldset>
           <div className="seed">
-            <Field label="Seed" type="number" value={seed} min={0} step={1} hint="The Same Seed Always Gives the Same Look"
+            <Field label="Seed" type="number" value={seed} min={0} step={1} hint="The Same Seed Always Gives the Same Look. Use a Whole Number up to 999999999"
               onChange={(value) => { setSeed(value); forget(); }} />
             <Button variant="secondary" icon={<Dice />} onPress={() => { setSeed(newSeed()); forget(); }}>New Seed</Button>
           </div>
@@ -92,13 +97,16 @@ export function Reshuffle(_: StageProps) {
             <Button variant="secondary" icon={<Preview />} onPress={preview} isDisabled={!valid || action.busy}>Preview</Button>
             <Button icon={<Shuffle />} onPress={() => setConfirming(true)} isDisabled={!view?.changes.length || action.busy}>Apply Reshuffle</Button>
           </div>
+          {!valid ? <p className="note">{groups.length ? "Enter a Whole Number up to 999999999 as the Seed" : "Pick at Least One Group"}</p>
+            : !view?.changes.length && !action.busy ? <p className="note">Preview First, Then Apply</p> : null}
+          {action.busy ? <p className="note"><Said moment="reshuffling" /></p> : null}
           <Notice note={action.note} />
         </div>
         <div className="stack">
           {still ? <ImagePreview src={still} fullSrc={still} alt={`Reshuffled Look (Seed ${seed})`} caption="One Frame at 2560 × 1440, as Every Clip Would Get It" />
-            : <SystemMessage kind="empty" title="No Preview Yet" compact />}
+            : <SystemMessage kind="empty" title={noPreview} compact />}
           {view?.changes.length ? (
-            <div className="table-wrap" tabIndex={0} role="region" aria-label="What changes (scrolls sideways on small screens)">
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="What Changes (Scrolls Sideways on Small Screens)">
               <table className="table table--compact">
                 <thead><tr><th scope="col">Element</th><th scope="col">Now</th><th scope="col">After</th></tr></thead>
                 <tbody>
@@ -112,7 +120,7 @@ export function Reshuffle(_: StageProps) {
         </div>
       </div>
       <Modal isOpen={confirming} onOpenChange={setConfirming} icon={<Shuffle />} title="Apply This Reshuffle?"
-        description="Recolors Every Built Clip, Then Renders the Previews and Final Video Again. The Current Final Video Is Kept; Every Scene Needs Approval Again."
+        description="Recolors Every Built Clip. The Current Final Video Is Kept; Every Scene Needs Approval Again. After Applying, Send Any Message in the Console to Start the Renders of the Previews and Final Video."
         footer={<>
           <Button variant="secondary" onPress={() => setConfirming(false)}>Cancel</Button>
           <Button icon={<Shuffle />} onPress={apply} isDisabled={action.busy}>Apply Reshuffle</Button>

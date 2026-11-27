@@ -1151,6 +1151,8 @@ def test_past_85_percent_of_a_usage_window_every_step_waits_for_the_users_go_ahe
     used(86)
     gate = driver.next_actions(tmp_path).actions[0]
     assert gate.do == "ask_user" and "86%" in gate.what and "plan-critic" in gate.what
+    assert "five_hour" in gate.what  # Claude's text is unchanged; the person's is plain
+    assert "86% of the 5-hour limit" in gate.user_text and "five_hour" not in gate.user_text
     workflow_commands.handle_usage_ok_command(argparse.Namespace(run=str(tmp_path)))
     assert driver.next_actions(tmp_path).actions[0].agent == "plan-critic"  # this one step, approved
     write_critique(tmp_path, "s01", "plan", "pass")
@@ -1230,8 +1232,8 @@ def test_a_template_is_chosen_from_the_library_customised_and_approved(tmp_path)
         templates.choose_template(tmp_path, "paper", ["grid_type=hexagons"])  # not a variant
     with pytest.raises(SystemExit, match="contrast"):  # the user's own colour, unreadable under white text
         templates.choose_template(tmp_path, "obsidian", ["custom.background_color=#ffffff"])
-    with pytest.raises(SystemExit, match="voice has no custom value"):  # audio: its options only
-        templates.choose_template(tmp_path, "paper", ["custom.voice=Joanna"])
+    with pytest.raises(SystemExit, match="voice"):  # a custom voice is an Amazon Polly voice and engine, nothing else
+        templates.choose_template(tmp_path, "paper", ["custom.voice=Joanna:turbo"])
     templates.choose_template(
         tmp_path, "paper", ["accent_color=coral", "custom.text_font=Lato", "transition_seconds=0.8"]
     )

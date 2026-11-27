@@ -25,7 +25,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
       <a className="skip" href="#app" onClick={skip}>Skip to Content</a>
       <header className="header">
         <div className="header__inner">
-          <a className="brand" href="#/" aria-label="Faraday: home"><Logo /></a>
+          <a className="brand" href="#/" aria-label="Faraday, Home"><Logo /></a>
           {account && route.page !== "signin" ? (
             <>
               <nav className="header__nav" aria-label="Main">
@@ -47,7 +47,7 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
         </div>
       </header>
       <main id="app" tabIndex={-1}>{children}</main>
-      {route.page === "home" ? null : (  // Home closes with its own line
+      {route.page === "home" || route.page === "signin" ? null : (  // Home closes with its own line; Sign In shows the line above
         <footer className="footer">
           <div className="footer__inner">
             <span className="footer__brand"><Logo height={16} /></span>

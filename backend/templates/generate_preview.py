@@ -204,8 +204,8 @@ def font_note(template: dict) -> str | None:
     if family in fetched or family.lower() in installed:
         return None
     return (
-        f"The font {family} is not available, so a default font is shown. Fetch the template fonts with "
-        "`uv run python backend/templates/generate_preview.py fonts`."
+        f"The font {family} is not installed on this computer, so the preview uses a plain default. "
+        "The finished video uses the same default until you install the font."
     )
 
 

@@ -13,13 +13,15 @@ import { Check, Moon, Palette, Picture, Sun } from "../../../../components/ui/ic
 import type { TabSpec } from "../../../../components/ui/Tabs";
 import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { titleCase } from "../../../../components/ui/text";
-import { Said } from "../../../../components/ui/Said";
+import { Said, usePick } from "../../../../components/ui/Said";
 import { useAction } from "../../../../hooks/useAction";
 import { send } from "../../../../services/http";
 import { starterPreview } from "../../../../services/runs";
 import type { LookCatalogue, LookChoice, LookElement, LookOptionPicture, OptionPictures } from "../../../../types/api";
+import { TITLES } from "../../titles";
 import { CustomEditor } from "./CustomEditor";
 import { LookTree } from "./LookTree";
+import { ProviderTabs, VoiceStudio } from "./VoiceStudio";
 
 /** The starter's own choice: every element as the starter sets it, nothing custom. */
 export const starterChoice = (catalogue: LookCatalogue, name: string): LookChoice | null => {
@@ -32,8 +34,10 @@ export const starterChoice = (catalogue: LookCatalogue, name: string): LookChoic
 const optionsKey = (choice: LookChoice, element: string) =>
   `${element}|${JSON.stringify({ ...choice, elements: { ...choice.elements, [element]: null } })}`;
 
-export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, next }: {
-  catalogue: LookCatalogue; choice: LookChoice; setChoice: Dispatch<SetStateAction<LookChoice | null>>; soundExtras?: ReactNode;
+export function useTemplateEditor({ catalogue, choice, setChoice, next, provider }: {
+  catalogue: LookCatalogue; choice: LookChoice; setChoice: Dispatch<SetStateAction<LookChoice | null>>;
+  /** The run's narration provider, when there is a run (its brief). */
+  provider?: string;
   /** Start a Run's Continue, shown at the right of the Build Your Own line. */
   next?: ReactNode;
 }): { tabs: TabSpec[]; overlay: ReactNode; note: string | null; stillAction: ReturnType<typeof useAction> } {
@@ -43,6 +47,8 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
   const [note, setNote] = useState<string | null>(null);
   const [still, setStill] = useState<string | null>(null);
   const stillAction = useAction();
+  const renderingLook = usePick(TITLES.renderingLook);
+  const nothingRendered = usePick(TITLES.nothingRendered);
   const defaults = useMemo(() => catalogue.templates.find((template) => template.name === choice.template)?.elements ?? {}, [catalogue, choice.template]);
   const mode = choice.elements.theme_mode === "light" ? "light" : "dark";
   const [view, setView] = useState(mode);  // which six the gallery shows; opens on the chosen template's mode
@@ -59,7 +65,7 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
       .catch(() => {
         asked.current.delete(key);
         setDrawn((current) => ({ ...current, [key]: "failed" }));
-        setNote(`Could Not Render the ${titleCase(element)} Options in Your Look`);
+        setNote(`Could Not Render the Options for ${titleCase(element)} in Your Look`);
       });
   }, [choice]);
   useEffect(() => setStill(null), [choice]);  // the whole look belongs to the choice it was rendered from
@@ -70,17 +76,20 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
     delete custom[element];
     return { ...current, elements: { ...current.elements, [element]: option }, custom };
   });
-  const renderStill = () => stillAction.run("Rendering the Whole Look…", async () => {
+  const renderStill = () => stillAction.run(renderingLook, async () => {
     const answer = await send<{ url: string; note?: string | null }>("/api/look/still", choice);
     setStill(answer.url);
     return answer.note ?? "Whole Look Ready";
   });
-  const tree = (kind: "visual" | "sound", open: string[]) => (
-    <LookTree elements={catalogue.elements.filter((element) => element.kind === kind && element.id !== "subtitles")} choice={choice}
+  const tree = (kind: "visual" | "sound", open: string[], group?: string, flat?: boolean) => (
+    <LookTree elements={catalogue.elements.filter((element) => element.kind === kind && element.id !== "subtitles" && (!group || element.group === group))} choice={choice}
       defaults={defaults} mode={mode} pictures={(element) => drawn[optionsKey(choice, element)]} onOpen={onOpen}
-      onPick={pick} onCustom={setEditing} initiallyOpen={open} />
+      onPick={pick} onCustom={setEditing} initiallyOpen={open} flat={flat} />
   );
 
+  const subtitleSummary = ["subtitle_style", "caption_position", "word_highlighting"]  // "Clean Bar · Bottom Centre · …"
+    .map((id) => catalogue.elements.find((element) => element.id === id)?.options.find((option) => option.id === choice.elements[id])?.label)
+    .filter(Boolean).map((label) => titleCase(label!)).join(" · ");
   const choose = (name: string) => setChoice((current) => starterChoice(catalogue, name) ?? current);
 
   const tabs: TabSpec[] = [
@@ -111,18 +120,34 @@ export function useTemplateEditor({ catalogue, choice, setChoice, soundExtras, n
 
       </div>
     ) },
-    { id: "sound", label: "Audio & Subtitles", content: (
-      <Section title="Audio & Subtitles" actions={soundExtras}>
-        <Toggle label="Subtitles" hint="Previewed Now; Burned Into the Video in a Later Version"
-          isSelected={choice.elements.subtitles === "on"} onChange={(on) => pick("subtitles", on ? "on" : "off")} />
-        {tree("sound", ["narration"])}
-      </Section>
+    { id: "sound", label: "Voice Studio", content: (
+      <div className="stack">
+        <Section title="Voice Studio" actions={<ProviderTabs />}>
+          <VoiceStudio catalogue={catalogue} choice={choice} provider={provider} setChoice={(next) => setChoice((current) => (current ? next(current) : current))} />
+        </Section>
+        <Section title="Subtitles" actions={<Toggle label={choice.elements.subtitles === "on" ? "On" : "Off"} isSelected={choice.elements.subtitles === "on"}
+          onChange={(on) => pick("subtitles", on ? "on" : "off")} />}>
+          <div className={`rollout__body${choice.elements.subtitles === "on" ? " is-open" : ""}`} aria-hidden={choice.elements.subtitles !== "on"}
+            inert={choice.elements.subtitles !== "on" || undefined}>
+            <div>
+              <details className="subtitles">
+                <summary>
+                  <span className="subtitles__summary">{subtitleSummary}</span>
+                  <span className="subtitles__edit">Edit</span>
+                </summary>
+                {tree("sound", [], "subtitles", true)}
+              </details>
+            </div>
+          </div>
+        </Section>
+      </div>
     ) },
     { id: "whole", label: "Whole Look", content: (
       <Section title="Whole Look" description="One Frame at 2560 × 1440, as Every Clip Will Look"
         actions={<Button icon={<Picture />} onPress={renderStill} isDisabled={stillAction.busy}>Render the Whole Look</Button>}>
-        {still ? <ImagePreview src={still} fullSrc={still} alt="Whole Look" caption="Backdrop, Grid, Border, Colors, Font and Sizes at Delivery Size" />
-          : <SystemMessage kind="empty" title="Nothing Rendered Yet" compact />}
+        {stillAction.busy ? <p className="note"><Said moment="rendering" /></p> : null}
+        {still ? <ImagePreview src={still} fullSrc={still} alt="One frame showing the whole look: backdrop, grid, border, colors, font and sizes" caption="Backdrop, Grid, Border, Colors, Font and Sizes at Delivery Size" />
+          : <SystemMessage kind="empty" title={nothingRendered} compact />}
       </Section>
     ) },
   ];

@@ -8,18 +8,24 @@ import { Button } from "../../components/ui/Button";
 import { MarkdownField } from "../../components/ui/fields";
 import { ArrowRight, Claude } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
-import { Said } from "../../components/ui/Said";
+import { Said, usePick } from "../../components/ui/Said";
 import { useAction } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
 import { streamTurn } from "../../services/http";
 import { runPath } from "../../services/runs";
 import type { ConsoleEntry, ConsoleView } from "../../types/api";
 import { useRun } from "./context";
+import { TITLES } from "./titles";
 
 /** Claude's words since the user last spoke (or all of them before that). */
-export function lastTurn(entries: ConsoleEntry[]): ConsoleEntry[] {
+export function lastTurn(entries: ConsoleEntry[], live = true): ConsoleEntry[] {
   const lastYou = entries.map((entry) => entry.role).lastIndexOf("you");
-  return entries.slice(lastYou + 1).filter((entry) => entry.role === "claude" || entry.role === "question" || entry.role === "error");
+  const turn = entries.slice(lastYou + 1);
+  const answered = new Set(turn.filter((entry) => entry.role === "answer").map((entry) => entry.id));
+  return turn.filter((entry) => entry.role === "claude" || entry.role === "question" || entry.role === "error"
+    || (live && entry.role === "permission" && !answered.has(entry.id)))  // a prompt still open: answered in the console
+    .map((entry) => entry.role === "permission"
+      ? { ...entry, text: `Claude Is Waiting for Your Permission: ${entry.text}. Open the Console to Answer.` } : entry);
 }
 
 export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void }) {
@@ -29,26 +35,31 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
   const [reply, setReply] = useState("");
   const [live, setLive] = useState<ConsoleEntry[] | null>(null);  // this page's own turn, as it streams
   const turn = useAction();
+  const working = usePick(TITLES.working);
+  const loadingTitle = usePick(TITLES.loadingMessages);
+  const waitingTitle = usePick(TITLES.waitingForClaude);
+  const noReply = usePick(TITLES.noReply);
   const following = useRef<AbortController | null>(null);
   useEffect(() => () => following.current?.abort(), []);  // leaving the page stops following; the turn goes on
   const { reload } = view;
   useEffect(() => reload(), [run, reload]);  // the run changed (a write, the console drawer): read the console again
-  const said = live ?? lastTurn(view.data?.entries ?? []);
+  const said = lastTurn(live ?? view.data?.entries ?? [], live !== null || Boolean(view.data?.busy));
   const lastText = [...said].reverse().find((entry) => entry.role === "claude")?.text ?? "";
   const asks = !turn.busy && (said.some((entry) => entry.role === "question") || /\?\s*$/.test(lastText));
   useEffect(() => onAsking?.(asks), [asks, onAsking]);  // the run page quiets its approval bar while Claude asks
 
-  if (view.error) return <SystemMessage kind="unavailable" title="Could Not Load Claude's Messages" compact>{view.error.message}</SystemMessage>;
-  if (!view.data) return null;
+  if (view.error) return <SystemMessage kind="unavailable" title="Could Not Load Claude's Messages" compact
+    action={<Button variant="secondary" size="sm" onPress={reload}>Try Again</Button>}>{view.error.message}</SystemMessage>;
+  if (!view.data) return <SystemMessage kind="loading" title={loadingTitle} compact said="loading" />;
   const send = (message: string, typed = false) => {
     setReply("");
     setLive([]);
     const controller = new AbortController();
     following.current = controller;
-    void turn.run("Claude Is Working: Renders and Voice Can Take Minutes", async () => {
+    void turn.run(working, async () => {
       await streamTurn(runPath(id, "/console"), message, (entry) => setLive((current) => [...(current ?? []), entry]), controller.signal);
       setLive(null);
-      refresh("Claude Finished");
+      refresh("Claude Finished", "claudeFinished");
     }).then((sent) => {
       if (sent || controller.signal.aborted) return;
       setLive(null);  // back to what the console holds, and the Start button or the question stays answerable
@@ -58,7 +69,7 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
   };
   if (view.data.busy && !turn.busy) {
     return (
-      <SystemMessage kind="processing" title="Claude Is Working" compact>Its Reply Appears Here When It Ends</SystemMessage>
+      <SystemMessage kind="processing" title="Claude Is Working" compact said="processing">Its Reply Appears Here When It Ends</SystemMessage>
     );
   }
   if (!view.data.entries.length && !live) {
@@ -79,7 +90,7 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
         <span className="icon-box icon-box--md" aria-hidden="true"><Claude /></span>
         <div className="claude__titles">
           <h2 className="claude__title">{turn.busy ? "Claude Is Working" : asks ? "Claude Asks" : "Claude Says"}</h2>
-          {asks ? <p className="note"><Said moment="asks" /></p> : null}
+          {turn.busy ? <p className="note"><Said moment="processing" /></p> : asks ? <p className="note"><Said moment="asks" /></p> : null}
         </div>
       </div>
       <div className="claude__body">
@@ -92,7 +103,7 @@ export function ClaudePanel({ onAsking }: { onAsking?: (asking: boolean) => void
               </div>
             ) : null}
           </div>
-        )) : <p className="note">{turn.busy ? "Waiting for Claude" : "No Reply"}</p>}
+        )) : <p className="note">{turn.busy ? waitingTitle : noReply}</p>}
       </div>
       <form className="claude__reply" onSubmit={(event) => { event.preventDefault(); if (reply.trim()) send(reply.trim(), true); }}>
         <MarkdownField label={asks ? "Your Answer" : "Reply to Claude"} value={reply} onChange={setReply} rows={3} maxLength={8000}

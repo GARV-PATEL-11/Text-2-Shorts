@@ -6,12 +6,12 @@ import { log } from "./log";
 export class SignedOut extends Error {}
 
 export class ApiError extends Error {
-  constructor(message: string, readonly problems: string[] = [], readonly status = 0) {
+  constructor(message: string, readonly problems: string[] = [], readonly status = 0, readonly people: string[] = []) {
     super(message);
   }
   /** The message and its problems, for one line of feedback. */
   get full(): string {
-    return [this.message, ...this.problems].join(" — ");
+    return [this.message, ...(this.people.length ? this.people : this.problems)].join(" — ");
   }
 }
 
@@ -24,14 +24,14 @@ async function request(path: string, init: RequestInit = {}, signal?: AbortSigna
   } catch (error) {
     if ((error as Error).name === "AbortError") throw error;
     log.error(`${init.method ?? "GET"} ${path}: the server did not answer`, error);
-    throw new ApiError("Faraday's server did not answer. Check that `text-2-shorts serve` is running.", [], 0);
+    throw new ApiError("Faraday's Server Did Not Answer. Check That `text-2-shorts serve` Is Running.", [], 0);
   }
   if (response.status === 401 && path !== "/api/session") throw new SignedOut("sign in first");
   if (!response.ok) {
     const answer = await response.json().catch(() => ({}));
     const level = response.status >= 500 ? log.error : response.status === 404 && path.startsWith("/media/") ? log.debug : log.warn;  // a file not made yet is normal
     level(`${init.method ?? "GET"} ${path} → ${response.status}: ${answer.error ?? ""}`, answer.problems?.length ? answer.problems : undefined);
-    throw new ApiError(answer.error || `${path} answered ${response.status}`, answer.problems || [], response.status);
+    throw new ApiError(answer.error || `Faraday's Server Could Not Do That (Error ${response.status}). The Details Are in the Log.`, answer.problems || [], response.status, answer.people_problems || []);
   }
   return response;
 }
@@ -53,16 +53,19 @@ export async function send<T>(path: string, body: unknown, method = "POST", extr
   return response.json().catch(() => ({})) as Promise<T>;
 }
 
-/** One console turn, its entries as they stream. Aborting stops following it; the server finishes the turn. */
+/** One console turn, its entries as they stream. Aborting stops following it; the server finishes the turn.
+ * Without a message, follows the turn that is already running (from its start). */
 export async function streamTurn(
-  path: string, message: string, onEntry: (entry: ConsoleEntry) => void, signal?: AbortSignal,
+  path: string, message: string | null, onEntry: (entry: ConsoleEntry) => void, signal?: AbortSignal,
 ): Promise<void> {
-  const response = await request(path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-    body: JSON.stringify({ message }),
-  }, signal);
-  if (!response.body) throw new ApiError("The console sent no reply.");
+  const response = message === null
+    ? await request(`${path}/follow`, { headers: { Accept: "application/x-ndjson" } }, signal)
+    : await request(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+      body: JSON.stringify({ message }),
+    }, signal);
+  if (!response.body) throw new ApiError("The Console Sent No Reply");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffered = "";

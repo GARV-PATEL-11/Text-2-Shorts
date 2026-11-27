@@ -19,6 +19,14 @@
       "title": "Problems",
       "type": "array"
     },
+    "people": {
+      "description": "`problems`, one plain sentence each, for the site",
+      "items": {
+        "type": "string"
+      },
+      "title": "People",
+      "type": "array"
+    },
     "fingerprint": {
       "anyOf": [
         {

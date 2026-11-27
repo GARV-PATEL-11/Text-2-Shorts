@@ -18,10 +18,10 @@ export interface Draft {
 export interface Action {
   do: "write" | "subagent" | "command" | "ask_user"; what: string; agent?: string | null; target?: string | null;
   file?: string | null; read: string[]; before?: string | null; after?: string | null; command?: string | null;
-  checkpoint?: string | null;
+  checkpoint?: string | null; user_text?: string | null;  // ask_user: what a person reads (`what` is for Claude)
 }
 export interface ActionBatch { stage: string; parallel: boolean; actions: Action[] }
-export interface Checkpoint { target: string; label: string; problems: string[]; fingerprint?: string | null }
+export interface Checkpoint { target: string; label: string; problems: string[]; people?: string[]; fingerprint?: string | null }  // people: problems in plain words, same order
 export interface ClipView { clip_id: string; objective: string; status: Status }
 export interface SceneView {
   scene_id: string; title: string; status: Status; clips: ClipView[]; preview?: string | null; sync_problems: string[];
@@ -35,8 +35,20 @@ export interface RunDetail {
   final_video?: string | null; final_checks: MediaFinding[]; final_checked: boolean; requests: TrackedRequest[];
   decisions: Decision[]; problem?: string | null;
 }
-export interface ConsoleEntry { at: string; role: "you" | "claude" | "question" | "tool" | "system" | "error"; text: string; options?: string[] }
-export interface ConsoleView { busy: boolean; entries: ConsoleEntry[]; kickoff: string }
+export type ConsoleRole = "you" | "claude" | "question" | "tool" | "result" | "permission" | "answer" | "partial" | "thinking" | "system" | "error";
+export interface TurnStats { model: string; cost_usd: number; duration_ms: number; context_tokens: number; context_window: number; output_tokens: number; tools: number }
+export interface ConsoleEntry {
+  at: string; role: ConsoleRole; text: string; options?: string[];
+  id?: string | null; tool?: string | null; input?: Record<string, unknown> | null; is_error?: boolean;
+  duration_ms?: number | null; stats?: TurnStats | null; rule?: string | null;
+}
+export type ConsoleMode = "default" | "acceptEdits" | "plan";
+export interface ConsoleSettings { model?: string | null; mode: ConsoleMode; allowed: string[] }
+export interface ConsoleSession { session_id: string; model: string; cwd: string; permission_mode: string; slash_commands: string[]; skills: string[]; agents: string[]; tools: string[] }
+export interface ConsoleView {
+  busy: boolean; entries: ConsoleEntry[]; kickoff: string; settings: ConsoleSettings; session?: ConsoleSession | null;
+  pending: ConsoleEntry[]; rules: Record<string, string[]>; default_model: string; spend_usd: number;
+}
 export interface LookOption { id: string; label: string; detail: string }
 export interface LookElement {
   id: string; label: string; group: string; kind: "visual" | "sound"; description: string; options: LookOption[];
@@ -44,7 +56,7 @@ export interface LookElement {
 }
 export interface LookTemplate { name: string; description: string; elements: Record<string, string> }
 export interface LookCatalogue { templates: LookTemplate[]; elements: LookElement[] }
-export interface LookView { template: string; elements: Record<string, string>; custom: Record<string, string>; saved: boolean }
+export interface LookView { template: string; elements: Record<string, string>; custom: Record<string, string>; saved: boolean; provider?: string }
 export interface LookChoice { template: string; elements: Record<string, string>; custom: Record<string, string> }
 export interface LookOptionPicture { option: string; url: string | null; full: string | null }
 /** An element's options drawn in the user's look: rendering, ready (by option id), or failed. */
@@ -53,3 +65,5 @@ export type ReshuffleGroup = "colours" | "fonts" | "background" | "grid" | "bord
 export interface ReshuffleView { look: LookChoice; changes: { element: string; before: string; after: string }[]; applied: boolean }
 export interface UsageWindow { id: string; used_percent: number; resets_at: number; status: string }
 export interface UsageView { plan: string; checked_at?: string | null; windows: UsageWindow[] }
+export interface PollyVoice { id: string; name: string; gender: string; language_code: string; language: string; engines: string[] }
+export interface VoiceList { provider: string; template: string; voices: PollyVoice[]; curated: Record<string, string> }

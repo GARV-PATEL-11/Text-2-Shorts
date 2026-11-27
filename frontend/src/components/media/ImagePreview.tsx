@@ -5,7 +5,8 @@ import { Dialog, Heading, Modal as AriaModal, ModalOverlay } from "react-aria-co
 import { type Fit, type Ratio, RATIOS } from "../../config/media";
 import { Button } from "../ui/Button";
 import { Close, Expand, Shrink } from "../ui/icons";
-import { Said } from "../ui/Said";
+import { Said, usePick } from "../ui/Said";
+import { TITLES } from "../../config/titles";
 
 /** The picture itself, not interactive (safe inside a radio card's label). */
 export function MediaImage({ src, alt, ratio = "16/9", fit = "contain" }: { src: string; alt: string; ratio?: Ratio; fit?: Fit }) {
@@ -15,7 +16,7 @@ export function MediaImage({ src, alt, ratio = "16/9", fit = "contain" }: { src:
       {state !== "broken" ? (
         <img src={src} alt={alt} loading="lazy" style={{ objectFit: fit }} onLoad={() => setState("ready")} onError={() => setState("broken")} />
       ) : (
-        <span className="media__state">No Image</span>
+        <span className="media__state">Image Did Not Load</span>
       )}
     </span>
   );
@@ -45,12 +46,13 @@ export function Lightbox({ isOpen, onOpenChange, src, fullSrc, alt, caption }: {
   const frame = useRef<HTMLDivElement>(null);
   const screen = useFullScreen();
   const [sharp, setSharp] = useState<"loading" | "ready" | "failed">("loading");
+  const sharpening = usePick(TITLES.sharpening);
   useEffect(() => setSharp("loading"), [fullSrc, isOpen]);
   const change = (open: boolean) => {
     if (!open && document.fullscreenElement) void document.exitFullscreen();
     onOpenChange(open);
   };
-  const quality = !fullSrc ? null : sharp === "ready" ? "2560 × 1440" : sharp === "failed" ? "Preview Size" : "Sharpening…";
+  const quality = !fullSrc ? null : sharp === "ready" ? "2560 × 1440" : sharp === "failed" ? "Preview Size" : sharpening;
   return (
     <ModalOverlay className="overlay overlay--lightbox" isOpen={isOpen} onOpenChange={change} isDismissable>
       <AriaModal className="lightbox">
@@ -76,7 +78,7 @@ export function Lightbox({ isOpen, onOpenChange, src, fullSrc, alt, caption }: {
                   {fullSrc && sharp === "loading" ? (
                     <div className="lightbox__wait" role="status">
                       <span className="spinner" aria-hidden="true" />
-                      <span><Said moment="rendering" /></span>
+                      <span>Rendering Full Size…<br /><Said moment="rendering" /></span>
                     </div>
                   ) : null}
                   {sharp === "failed" ? <div className="lightbox__wait" role="status"><span>Full Size Did Not Render: Showing the Preview <Said moment="renderFailed" /></span></div> : null}
@@ -98,7 +100,7 @@ export function ExpandImage({ src, fullSrc, alt, caption }: { src: string; fullS
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button className="media__expand" type="button" onClick={() => setOpen(true)} aria-label={`Full screen: ${alt}`} title="Full Screen">
+      <button className="media__expand" type="button" onClick={() => setOpen(true)} aria-label={`Full Screen: ${alt}`} title="Full Screen">
         <Expand />
       </button>
       <Lightbox isOpen={open} onOpenChange={setOpen} src={src} fullSrc={fullSrc} alt={alt} caption={caption} />

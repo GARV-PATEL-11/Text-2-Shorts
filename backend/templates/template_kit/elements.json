@@ -6,7 +6,7 @@
  "elements": {
   "theme_mode": {
    "group": "mode",
-   "description": "Dark or light. Every colour element below carries a value for both modes.",
+   "description": "Choose a dark or a light screen. Every colour below has a version for each.",
    "variants": [
     {
      "id": "dark",
@@ -61,7 +61,7 @@
   },
   "background_type": {
    "group": "background",
-   "description": "How the backdrop is built from Manim primitives. fill: solid (camera background), linear (gradient Rectangle), radial (stacked translucent Ellipses). texture: random Dots, light on dark and dark on light.",
+   "description": "How the background looks: one flat colour, a gradient, or a soft glow in the centre. A chalk or paper texture can be added.",
    "variants": [
     {
      "id": "plain",
@@ -100,7 +100,7 @@
     },
     {
      "id": "textured",
-     "label": "Textured (chalk/paper)",
+     "label": "Textured, like chalk or paper",
      "fill": "solid",
      "grid": false,
      "texture": true
@@ -116,7 +116,7 @@
   },
   "background_color": {
    "group": "background",
-   "description": "Base colour, gradient end (shade) and centre glow, for each mode.",
+   "description": "The colour of the background. Gradients and glows use its lighter and darker shades.",
    "variants": [
     {
      "id": "slate",
@@ -304,7 +304,7 @@
   },
   "grid_type": {
    "group": "grid",
-   "description": "Grid geometry (Manim Lines/Dots/NumberPlane). Drawn only when the background type includes a grid.",
+   "description": "The pattern behind the picture: dots, graph paper, a coordinate plane or an isometric grid. Shown only when the background includes a grid.",
    "variants": [
     {
      "id": "dots",
@@ -367,11 +367,11 @@
   },
   "grid_color": {
    "group": "grid",
-   "description": "Grid line colour, taken from the active mode's palette.",
+   "description": "The colour of the grid lines.",
    "variants": [
     {
      "id": "auto",
-     "label": "Auto (white on dark, black on light)",
+     "label": "Automatic: white on a dark screen, black on a light one",
      "source": "auto"
     },
     {
@@ -388,7 +388,7 @@
     },
     {
      "id": "given",
-     "label": "Primary (given)",
+     "label": "Main colour",
      "source": "role",
      "role": "given"
     },
@@ -402,7 +402,7 @@
   },
   "grid_opacity": {
    "group": "grid",
-   "description": "Line/dot opacity; graph-paper minor lines and plane axes scale from it.",
+   "description": "How strong the grid lines are, from a whisper to clearly visible.",
    "variants": [
     {
      "id": "whisper",
@@ -433,7 +433,7 @@
   },
   "primary_palette": {
    "group": "colour",
-   "description": "Content roles: text, focus (what is discussed now), given (inputs), derived (results), warning. Each variant has a dark and a light set; theme_mode picks one.",
+   "description": "The main colours: text, the thing being discussed, what is given, what is worked out, and warnings. Each set has a dark and a light version.",
    "variants": [
     {
      "id": "classic",
@@ -509,7 +509,7 @@
     },
     {
      "id": "okabe_ito",
-     "label": "Colour-blind safe (Okabe-Ito)",
+     "label": "Colour-blind safe: the Okabe-Ito set, chosen by Masataka Okabe and Kei Ito, who are both colour-blind themselves",
      "dark": {
       "text": "#FFFFFF",
       "focus": "#F0E442",
@@ -565,7 +565,7 @@
   },
   "secondary_palette": {
    "group": "colour",
-   "description": "Supporting roles: secondary (labels, notes), surface (panel fill, used at low opacity), outline (dividers, panel borders), dim (de-emphasised items).",
+   "description": "The quieter colours: labels and notes, panel fills, dividers, and faded items.",
    "variants": [
     {
      "id": "neutral_grey",
@@ -683,7 +683,7 @@
   },
   "accent_color": {
    "group": "colour",
-   "description": "One brand/highlight colour (role 'accent'), also used for word highlighting unless the subtitle style says otherwise.",
+   "description": "One highlight colour. It also marks the spoken word in the subtitles, unless the subtitle style says otherwise.",
    "variants": [
     {
      "id": "amber",
@@ -759,7 +759,7 @@
   },
   "text_font": {
    "group": "type",
-   "description": "Google Fonts family rendered by Pango (Manim Text). install_fonts.py downloads all of them.",
+   "description": "The font used for words on screen. If a font is not installed on this computer, a plain default is shown in the preview.",
    "variants": [
     {
      "id": "inter",
@@ -907,7 +907,7 @@
   },
   "math_font": {
    "group": "type",
-   "description": "LaTeX preamble for MathTex/Tex. The kit test-compiles the chosen one at startup.",
+   "description": "The font used for equations.",
    "variants": [
     {
      "id": "computer_modern",
@@ -933,7 +933,7 @@
     },
     {
      "id": "times",
-     "label": "Times (mathptmx)",
+     "label": "Times",
      "preamble": "\\usepackage{mathptmx}",
      "tex_packages": [
       "psnfss"
@@ -941,7 +941,7 @@
     },
     {
      "id": "utopia",
-     "label": "Utopia (Fourier)",
+     "label": "Utopia",
      "preamble": "\\usepackage{fourier}",
      "tex_packages": [
       "fourier"
@@ -949,7 +949,7 @@
     },
     {
      "id": "euler",
-     "label": "Euler (hand-drawn feel)",
+     "label": "Euler (like handwriting)",
      "preamble": "\\usepackage{eulervm}",
      "tex_packages": [
       "eulervm"
@@ -957,7 +957,7 @@
     },
     {
      "id": "cm_bright",
-     "label": "CM Bright (sans maths)",
+     "label": "CM Bright (without serifs)",
      "preamble": "\\usepackage{cmbright}",
      "tex_packages": [
       "cmbright",
@@ -968,7 +968,7 @@
   },
   "typography": {
    "group": "type",
-   "description": "Type scale in Manim font_size units.",
+   "description": "How large the text is: compact, standard, comfortable or large.",
    "variants": [
     {
      "id": "compact",
@@ -1024,7 +1024,7 @@
     },
     {
      "id": "lecture_xl",
-     "label": "Lecture XL",
+     "label": "Extra large, for lectures",
      "sizes": {
       "title": 72,
       "heading": 56,
@@ -1039,7 +1039,7 @@
   },
   "border_style": {
    "group": "border",
-   "description": "Frame border drawn from Manim primitives; inset is how far content must stay inside it (Manim units).",
+   "description": "A border around the picture. Content stays inside it.",
    "variants": [
     {
      "id": "none",
@@ -1105,7 +1105,7 @@
   },
   "border_color": {
    "group": "border",
-   "description": "Palette role used for the border (letterbox bars use it as a fill).",
+   "description": "The colour of the border.",
    "variants": [
     {
      "id": "outline",
@@ -1129,14 +1129,14 @@
     },
     {
      "id": "background_shade",
-     "label": "Background shade",
+     "label": "A shade of the background",
      "role": "__shade__"
     }
    ]
   },
   "voice": {
    "group": "narration",
-   "description": "English narrator: the same person-type on both providers. Polly neural and Google Neural2 return exact word timings; Polly generative and Google Chirp 3 HD sound richer but highlighting is estimated.",
+   "description": "The English voice. Some voices sound richer, but word highlighting in the subtitles is then approximate.",
    "variants": [
     {
      "id": "us_female_warm",
@@ -1240,7 +1240,7 @@
   },
   "speaking_speed": {
    "group": "narration",
-   "description": "Rate (Polly prosody %, Google speaking_rate) and pause after each sentence.",
+   "description": "How fast the narrator speaks, and how long it pauses after each sentence.",
    "variants": [
     {
      "id": "slow",
@@ -1281,7 +1281,7 @@
   },
   "narration_tone": {
    "group": "narration",
-   "description": "How the script is written (rules for the script model; sentence length is enforced). Documentary/formal use Polly's newscaster style on voices that have it.",
+   "description": "How the script is worded: a friendly teacher, a calm documentary, an energetic host or a storyteller.",
    "variants": [
     {
      "id": "friendly_teacher",
@@ -1336,7 +1336,7 @@
   },
   "subtitles": {
    "group": "subtitles",
-   "description": "Burned-in subtitles on or off. An .srt sidecar is always written.",
+   "description": "Show subtitles on the video, or hide them. A separate subtitle file is always saved with the video.",
    "variants": [
     {
      "id": "on",
@@ -1345,14 +1345,14 @@
     },
     {
      "id": "off",
-     "label": "Off (sidecar .srt only)",
+     "label": "Off (the subtitle file is still saved)",
      "burn_in": false
     }
    ]
   },
   "subtitle_style": {
    "group": "subtitles",
-   "description": "Burned-in subtitle look. text_color 'auto' = the palette's text colour for the mode; outline 'auto' = black under light text, white under dark text. Boxes are fixed fills so they read on either mode.",
+   "description": "How the subtitles look: a bar, an outline, a pill, minimal, bold or high contrast. All stay readable on a dark or a light screen.",
    "variants": [
     {
      "id": "clean_bar",
@@ -1425,7 +1425,7 @@
     },
     {
      "id": "bold_social",
-     "label": "Bold social",
+     "label": "Bold, for phones",
      "font_size": 40,
      "weight": "BOLD",
      "text_color": "auto",
@@ -1481,7 +1481,7 @@
   },
   "caption_position": {
    "group": "subtitles",
-   "description": "Where burned-in subtitles sit. reserve = fraction of frame height kept clear of content.",
+   "description": "Where the subtitles sit. Pictures keep clear of that area.",
    "variants": [
     {
      "id": "bottom_center",
@@ -1494,7 +1494,7 @@
     },
     {
      "id": "bottom_raised",
-     "label": "Bottom, raised (player-safe)",
+     "label": "Bottom, raised above video player controls",
      "anchor": "bottom",
      "x_align": "center",
      "edge_offset": 0.6,
@@ -1530,7 +1530,7 @@
     },
     {
      "id": "adaptive",
-     "label": "Adaptive (avoid content)",
+     "label": "Adaptive, moves out of the way of the picture",
      "anchor": "bottom",
      "x_align": "center",
      "edge_offset": 0.25,
@@ -1542,7 +1542,7 @@
   },
   "word_highlighting": {
    "group": "subtitles",
-   "description": "How the spoken word is tracked in burned-in subtitles.",
+   "description": "How the word being spoken is marked in the subtitles.",
    "variants": [
     {
      "id": "none",

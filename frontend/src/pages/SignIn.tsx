@@ -5,34 +5,20 @@ import { afterSignIn, useSession } from "../app/session";
 import { Notice } from "../components/feedback/Notice";
 import { Logo } from "../components/layout/Logo";
 import { Page } from "../components/layout/Page";
-import { Said } from "../components/ui/Said";
+import { Said, usePick } from "../components/ui/Said";
+import { WithCode } from "../components/ui/text";
+import { TITLES } from "../config/titles";
 import { Button } from "../components/ui/Button";
 import { useAction } from "../hooks/useAction";
 import { ApiError, load, send } from "../services/http";
 import type { SessionView } from "../types/api";
 
-const TOKEN = "faraday.sign-in-token";
-
-/** The token in the link `text-2-shorts serve` printed (#/signin?token=…), kept for this tab and taken off the
- * address bar; only someone who can see that terminal can sign in. */
-function signInToken(): string {
-  const fromLink = new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("token");
-  try {
-    if (fromLink) {
-      sessionStorage.setItem(TOKEN, fromLink);
-      window.history.replaceState(null, "", "#/signin");
-    }
-    return sessionStorage.getItem(TOKEN) ?? fromLink ?? "";
-  } catch {
-    return fromLink ?? "";
-  }
-}
-
 export function SignInPage() {
-  const [token] = useState(signInToken);
   const { signIn } = useSession();
   const [codeSignedIn, setCodeSignedIn] = useState(true);
+  const [down, setDown] = useState<string | null>(null);  // the server did not answer: not the same as "Claude Code is not signed in"
   const { run, busy, note } = useAction();
+  const checking = usePick(TITLES.signingIn);
 
   useEffect(() => {
     load<SessionView>("/api/session")
@@ -42,14 +28,15 @@ export function SignInPage() {
           navigate(afterSignIn());
         } else setCodeSignedIn(Boolean(session.claude_code_signed_in));
       })
-      .catch(() => setCodeSignedIn(false));
+      .catch((error: Error) => (error instanceof ApiError && error.status === 0 ? setDown(error.message) : setCodeSignedIn(false)));
   }, [signIn]);
 
   const proceed = () =>
-    run("Checking Your Sign-In…", async () => {
-      const signed = await send<SessionView>("/api/session", null, "POST", { "X-Faraday-Token": token }).catch((error) => {
-        if (error instanceof ApiError && error.status === 403) throw error;  // no or wrong link: its message says so
-        setCodeSignedIn(false);
+    run(checking, async () => {
+      setDown(null);
+      const signed = await send<SessionView>("/api/session", null, "POST").catch((error) => {
+        if (error instanceof ApiError && error.status === 0) setDown(error.message);
+        else setCodeSignedIn(false);
         throw error;
       });
       if (signed.account) signIn(signed.account);
@@ -64,11 +51,11 @@ export function SignInPage() {
         <p className="page-header__lead">Uses the Claude Account Already on This Computer</p>
         <Said moment="welcome" block />
         <div className="card stack">
-          <Button onPress={proceed} isDisabled={busy}>Continue with Claude</Button>
-          <p className="note">No Password Needed: You Stay Signed In for 12 Hours</p>
-          <Notice note={note} />
+          <Button onPress={proceed} isDisabled={busy}>Continue</Button>
+          <p className="note">No Password Needed: You Stay Signed In for 24 Hours</p>
+          {down ? <p className="note" role="alert"><WithCode text={down} /> <Said moment="serverSilent" /></p> : <Notice note={note} />}
         </div>
-        {!codeSignedIn ? (
+        {!codeSignedIn && !down ? (
           <div className="card stack">
             <h2 className="section-header__title">Claude Code Is Not Signed In</h2>
             <ol className="steps-list">
@@ -76,6 +63,7 @@ export function SignInPage() {
               <li>Run <code>claude auth login</code>. It Opens claude.ai So You Can Sign In</li>
               <li>Come Back Here and Continue</li>
             </ol>
+            <p className="note"><Said moment="signInSteps" /></p>
           </div>
         ) : null}
       </div>

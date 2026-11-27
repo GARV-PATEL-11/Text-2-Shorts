@@ -11,6 +11,14 @@
       },
       "title": "Problems",
       "type": "array"
+    },
+    "people_problems": {
+      "description": "`problems` in plain words, same order",
+      "items": {
+        "type": "string"
+      },
+      "title": "People Problems",
+      "type": "array"
     }
   },
   "required": [

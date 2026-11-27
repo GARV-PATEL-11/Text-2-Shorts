@@ -10,5 +10,5 @@ export function Pill({ icon, children, status }: { icon: ReactNode; children: Re
 
 export function StatusPill({ value }: { value: Status }) {
   const state = STATES[value];
-  return <Pill icon={state?.icon} status={value}>{state?.label ?? value}</Pill>;
+  return <Pill icon={state?.icon} status={value}>{state?.label ?? "Unknown"}</Pill>;
 }

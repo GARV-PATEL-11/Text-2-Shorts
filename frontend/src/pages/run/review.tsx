@@ -7,7 +7,11 @@ import { ChevronDown, ChevronRight, RequestChange } from "../../components/ui/ic
 import { Markdown } from "../../components/ui/Markdown";
 import { titleCase, WithCode } from "../../components/ui/text";
 import { batchStage } from "../../config/stages";
+import type { Moment } from "../../config/voice";
+import { usePick } from "../../components/ui/Said";
 import { useRun } from "./context";
+import { targetName } from "./Overview";
+import { notYet, TITLES } from "./titles";
 
 /** What happens next, in a closed disclosure: it is the workflow's own instruction to Claude, there for the curious. */
 export function NextUp({ stage }: { stage: string }) {
@@ -28,7 +32,7 @@ export function NextUp({ stage }: { stage: string }) {
             <li key={index}>
               {action.agent ? <span className="badge">{titleCase(action.agent)}</span> : null}
               {action.target ? <span className="id">{action.target}: </span> : null}
-              <WithCode text={action.what} />
+              <WithCode text={action.user_text ?? action.what} />
             </li>
           ))}
         </ul>
@@ -48,7 +52,7 @@ export function Changes({ targets, defaultTarget }: { targets: (target: string) 
           {requests.map((request) => (
             <li key={request.id}>
               <Markdown text={request.text} compact />
-              <span className="list__meta">{`${request.id} · ${request.kind} on ${request.target} · ${request.status}${request.note ? ` (${request.note})` : ""}`}</span>
+              <span className="list__meta">{`Request ${request.id}: ${titleCase(request.kind)} on ${targetName(request.target)} (${titleCase(request.status)}${request.note ? `: ${request.note}` : ""})`}</span>
             </li>
           ))}
         </ul>
@@ -74,7 +78,7 @@ export function CritiqueRounds({ rounds, title }: { rounds: Round[]; title?: str
           {round.summary ? <p>{round.summary}</p> : null}
           {round.strengths?.length ? <p className="note">Keeps: {round.strengths.join(" · ")}</p> : null}
           {round.issues.length ? (
-            <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
+            <div className="table-wrap" tabIndex={0} role="region" aria-label="Critique Issues Table (Scrolls Sideways on Small Screens)">
               <table className="table table--compact">
                 <thead><tr><th scope="col">Rule</th><th scope="col">Where</th><th scope="col">Problem</th><th scope="col">Fix</th></tr></thead>
                 <tbody>
@@ -99,9 +103,9 @@ export function CritiqueRounds({ rounds, title }: { rounds: Round[]; title?: str
 export interface Finding { target: string; severity: string; kind: string; quote: string; why: string; fix: string }
 
 export function Findings({ findings }: { findings: Finding[] }) {
-  if (!findings.length) return <SystemMessage kind="success" title="No Accuracy Problems" />;
+  if (!findings.length) return <SystemMessage kind="success" title="No Accuracy Problems" said="checksPassed" />;
   return (
-    <div className="table-wrap" tabIndex={0} role="region" aria-label="Table (scrolls sideways on small screens)">
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Accuracy Findings Table (Scrolls Sideways on Small Screens)">
       <table className="table table--compact">
         <thead><tr><th scope="col">Severity</th><th scope="col">Where</th><th scope="col">Quote</th><th scope="col">Why</th><th scope="col">Fix</th></tr></thead>
         <tbody>
@@ -118,6 +122,8 @@ export function Findings({ findings }: { findings: Finding[] }) {
 }
 
 /** A file this stage has not produced yet. */
-export function NotYet({ what, children }: { what: string; children?: string }) {
-  return <SystemMessage kind="missing" title={`No ${what} Yet`}>{children ?? "Claude Writes It When the Run Gets Here"}</SystemMessage>;
+export function NotYet({ what, children, said = "notYet", verb }: { what: string; children?: string | readonly string[]; said?: Moment | false; verb?: string }) {
+  const title = usePick(notYet(what, verb));
+  const body = usePick(typeof children === "string" ? [children] : children ?? TITLES.notYetBody);
+  return <SystemMessage kind="missing" title={title} said={said}>{body}</SystemMessage>;
 }

@@ -198,6 +198,7 @@ def look_view(run: Path) -> LookView:
             for element, override in template.get("overrides", {}).items()
         },
         saved=(run / "template.json").exists(),
+        provider=brief.tts if (brief := load_brief(run)) else "polly",
     )
 
 

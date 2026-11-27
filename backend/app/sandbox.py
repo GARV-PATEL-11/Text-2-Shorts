@@ -3,7 +3,9 @@ Claude Code session command."""
 
 from __future__ import annotations
 
+import json
 import os
+import secrets
 import shutil
 import sys
 from pathlib import Path
@@ -153,11 +155,27 @@ def session_command() -> list[str]:
     return ["claude", *session_flags(), "--verbose", KICKOFF_PROMPT]
 
 
-def console_claude_arguments(message: str, session_id: str | None) -> list[str]:
-    """One turn of the run session from the website's console: the user's message, streamed back as JSON events,
-    resuming the same session each turn. With usage_check_arguments, the only places Python starts Claude Code with a
-    message: here the message is always the user's own (no prompts are written here)."""
-    arguments = ["claude", "-p", "--output-format", "stream-json", "--verbose", *session_flags()]
+def console_claude_arguments(message: str, session_id: str | None, options=None) -> list[str]:
+    """One turn of the run session from the website's console: the user's message, streamed back as JSON events (text
+    as it is written), resuming the same session each turn, with the console's model and permission mode, and its
+    permission prompts sent to Faraday (app/web/console_permissions.py). With usage_check_arguments, the only places
+    Python starts Claude Code with a message: here the message is always the user's own (no prompts are written here).
+    `options`: app.web.console.TurnOptions."""
+    flags = session_flags()
+    if options is not None and options.model:
+        flags[flags.index("--model") + 1] = options.model
+    arguments = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", *flags]
+    if options is not None and options.mode:
+        arguments += ["--permission-mode", options.mode]
+    if options is not None and options.permission_url and options.token and options.config_dir:
+        server = {"type": "http", "url": options.permission_url, "headers": {"X-Turn-Token": options.token}}
+        options.config_dir.mkdir(parents=True, exist_ok=True)  # outside the run folder: read-only inside the jail
+        options.config_file = options.config_dir / f".turn-{secrets.token_hex(8)}.mcp.json"
+        descriptor = os.open(options.config_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)  # owner only
+        with os.fdopen(descriptor, "w") as config:
+            json.dump({"mcpServers": {"faraday": server}}, config)
+        arguments += ["--mcp-config", str(options.config_file),  # the token never appears on a command line
+                      "--permission-prompt-tool", "mcp__faraday__permission"]  # fmt: skip
     resume = ["--resume", session_id] if session_id else []
     return [*arguments, *resume, "--", message]  # "--": a message starting with "-" is never read as an option
 

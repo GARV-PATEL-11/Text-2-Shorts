@@ -7,6 +7,7 @@ import { Done, Empty, Error, Film, Lock, Offline, Pending, Unavailable, Unsuppor
 import { ProgressBar } from "./ProgressBar";
 import type { Moment } from "../../config/voice";
 import { Said } from "../ui/Said";
+import { WithCode } from "../ui/text";
 
 export type MessageKind =
   | "loading" | "processing" | "pending" | "empty" | "missing" | "unavailable" | "offline" | "unsupported"
@@ -31,7 +32,7 @@ const KINDS: Record<MessageKind, { label: string; icon: ReactNode; urgent: boole
 /** The line each kind carries (config/voice.ts), under its own text, when the message is not compact. */
 const SAID: Partial<Record<MessageKind, Moment>> = {
   loading: "loading", processing: "processing", pending: "pending", offline: "offline", restricted: "restricted",
-  unavailable: "failed", error: "failed", unsupported: "lost", success: "approved",
+  unavailable: "loadFailed", error: "loadFailed", unsupported: "lost", success: "approved",
 };
 
 export function SystemMessage({ kind, title, children, action, progress, compact, said }: {
@@ -49,7 +50,7 @@ export function SystemMessage({ kind, title, children, action, progress, compact
       <div className="sysmsg__body">
         <span className="sr-only">{spec.label}: </span>
         <p className="sysmsg__title">{title}</p>
-        {children ? <p className="sysmsg__text">{children}</p> : null}
+        {children ? <p className="sysmsg__text">{typeof children === "string" ? <WithCode text={children} /> : children}</p> : null}
         {moment ? <p className="sysmsg__said"><Said moment={moment} /></p> : null}
         {action ? <div className="sysmsg__action">{action}</div> : null}
         {progress !== undefined ? (

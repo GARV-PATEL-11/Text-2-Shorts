@@ -15,7 +15,8 @@ import { Field, FormRow, MarkdownField, RadioCards } from "../components/ui/fiel
 import { ArrowLeft, ArrowRight } from "../components/ui/icons";
 import { Markdown } from "../components/ui/Markdown";
 import { titleCase } from "../components/ui/text";
-import { Said } from "../components/ui/Said";
+import { Said, usePick } from "../components/ui/Said";
+import { TITLES } from "../config/titles";
 import { useAction } from "../hooks/useAction";
 import { STAGE_STEPS } from "../config/stages";
 import { useApi } from "../hooks/useApi";
@@ -26,16 +27,16 @@ import { runHash } from "../services/runs";
 import type { Draft, LookCatalogue, LookChoice, RunSummary } from "../types/api";
 import { starterChoice, useTemplateEditor } from "./run/stages/look/useTemplateEditor";
 
-const PROVIDERS = [
-  { id: "polly", label: "AWS Polly", hint: "Uses Your ~/.aws Credentials" },
-  { id: "google", label: "Google Cloud", hint: "Uses Your gcloud Application-Default Login" },
+const PROVIDERS = [  // chosen in the Audio & Subtitles tab; Google Cloud TTS is not offered yet
+  { id: "polly", label: "Amazon Polly" },
+  { id: "google", label: "Google Cloud TTS" },
 ];
 const MAX_OBJECTIVES = 8;  // NewRunInput.objectives in backend/schemas/api.py
 
 /** The steps of Start a Run, in order: the template stage's, then the requirements stage's. */
 const STEPS = [
   { id: "starters", stage: "template", label: "Starter Templates" },
-  { id: "sound", stage: "template", label: "Audio & Subtitles" },
+  { id: "sound", stage: "template", label: "Voice Studio" },
   { id: "whole", stage: "template", label: "Whole Look" },
   { id: "question", stage: "requirements", label: "The Question" },
   { id: "audience", stage: "requirements", label: "Audience & Length" },
@@ -66,11 +67,14 @@ export function NewRunPage() {
   const [notes, setNotes] = useState("");
   const [minutes, setMinutes] = useState("4");
   const [audience, setAudience] = useState("curious beginners");
-  const [tts, setTts] = useState("polly");
+  const [tts, setTts] = useState("polly");  // Amazon Polly until Google Cloud TTS is ready (ProviderSwitch)
   const [name, setName] = useState("");
   const [typed, setTyped] = useState("");  // the name pop-up's field, applied with Enter
   const [naming, setNaming] = useState(!window.location.hash.includes("draft="));  // a new run asks for its name first
   const { run, busy, note } = useAction();
+  const loadingTemplates = usePick(TITLES.loadingTemplates);
+  const startingTitle = usePick(TITLES.startingRun);
+  const [missingDraft, setMissingDraft] = useState(false);  // the address names a draft that no longer exists
 
   // the draft: restored when the address names one, then saved (debounced) on every change after the first
   const [draftId] = useState(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("draft") ?? crypto.randomUUID());
@@ -88,8 +92,9 @@ export function NewRunPage() {
       if (draft) {
         setName(draft.name); setStep(draft.step); setChoice(draft.look); setTopic(draft.requirement);
         setObjectives(draft.objectives); setApproach(draft.approach); setMinutes(draft.minutes); setAudience(draft.audience);
-        setTts(draft.tts); setNotes(draft.notes); setSaving("saved"); setSavedAt(draft.updated.slice(11, 16));
-      }
+        setTts(draft.tts === "google" ? "polly" : draft.tts);  // Google Cloud TTS is coming soon: drafts speak with Polly
+        setNotes(draft.notes); setSaving("saved"); setSavedAt(draft.updated.slice(11, 16));
+      } else setMissingDraft(true);
       setRestored(true);
     }).catch((error: Error) => {  // not restored: saving stays off, so blank fields never overwrite the draft (M21)
       fail(error);
@@ -120,7 +125,7 @@ export function NewRunPage() {
     }, 600);
     return () => window.clearTimeout(timer);
   }, [snapshot, restored, choice, draftId, fail]);
-  const saveState = { idle: "", saving: "Saving…", saved: `All Changes Saved${savedAt ? ` · ${savedAt}` : ""}`, failed: "Not Saved: Trying Again on Your Next Change" }[saving];
+  const saveState = { idle: "Nothing Saved Yet", saving: "Saving…", saved: `All Changes Saved${savedAt ? ` · ${savedAt}` : ""}`, failed: "Not Saved: Retrying on Your Next Change" }[saving];
 
   const goals = objectives.split("\n").map((line) => line.trim()).filter(Boolean);
   const ready: Record<string, boolean> = {
@@ -134,7 +139,7 @@ export function NewRunPage() {
     ? Object.entries(choice.elements).filter(([element, value]) => starterChoice(catalogue.data!, choice.template)?.elements[element] !== value).length + Object.keys(choice.custom).length
     : 0;
   const start = () =>
-    run("Checking Manim, LaTeX, ffmpeg and Voice Credentials, Then Creating the Run…", async () => {
+    run(startingTitle, async () => {
       const created = await send<RunSummary>("/api/runs", {
         requirement: topic.trim(), objectives: goals, approach, minutes: Number(minutes), audience: audience.trim(), tts, look: choice, notes: notes.trim(),
         name: name.trim(),
@@ -144,11 +149,11 @@ export function NewRunPage() {
     });
 
   const summary = (
-    <aside className="card summary" aria-label="Your run so far">
-      <h2 className="section-header__title">Your Run</h2>
+    <aside className="card summary" aria-label="Your Run So Far">
+      <h2 className="section-header__title">Your Run So Far</h2>
       <dl className="facts">
         <div><dt>Template</dt><dd>{choice ? `${titleCase(choice.template)}${changed ? ` · ${changed} Changed` : ""}` : "—"}</dd></div>
-        <div><dt>Explain</dt><dd>{topic.trim() ? <Markdown text={topic} compact /> : "—"}</dd></div>
+        <div><dt>Question</dt><dd>{topic.trim() ? <Markdown text={topic} compact /> : "—"}</dd></div>
         <div><dt>Objectives</dt><dd>{goals.length ? <ul>{goals.map((goal) => <li key={goal}>{goal}</li>)}</ul> : "Claude Suggests Some"}</dd></div>
         <div><dt>Approach</dt><dd>{APPROACHES.find((candidate) => candidate.id === approach)?.label}</dd></div>
         <div><dt>Length</dt><dd>{minutes} Min</dd></div>
@@ -160,8 +165,10 @@ export function NewRunPage() {
   const next = step < STEPS.length - 1
     ? <Button onPress={() => setStep(step + 1)} isDisabled={!ready[at.id]} icon={<ArrowRight />}>{`Continue: ${STEPS[step + 1].label}`}</Button>
     : <Button icon={<ArrowRight />} onPress={start} isDisabled={busy}>Start the Run</Button>;
+  const why = at.id === "question" && topic.trim().length < 3 ? "Type at Least 3 Characters" : at.id === "audience" && !ready.audience ? "Set a Length of 3–20 Minutes and an Audience" : "";
   const foot = (
     <div className="form-foot">
+      {why ? <span className="note" role="status">{why}</span> : null}
       {step > 0 ? <Button variant="secondary" icon={<ArrowLeft />} onPress={() => setStep(step - 1)} isDisabled={busy}>Back</Button> : <span />}
       {next}
     </div>
@@ -175,8 +182,8 @@ export function NewRunPage() {
       </SystemMessage>
     );
   } else if (at.stage === "template") {
-    body = catalogue.error ? <SystemMessage kind="unavailable" title="Could Not Load Templates">{catalogue.error.message}</SystemMessage>
-      : !catalogue.data || !choice ? <SystemMessage kind="loading" title="Loading Templates" />
+    body = catalogue.error ? <SystemMessage kind="unavailable" title="Could Not Load Templates" action={<Button variant="secondary" size="sm" onPress={catalogue.reload}>Try Again</Button>}>{catalogue.error.message}</SystemMessage>
+      : !catalogue.data || !choice ? <SystemMessage kind="loading" title={loadingTemplates} />
       : <div className="stack"><TemplateStep catalogue={catalogue.data} choice={choice} setChoice={setChoice} step={at.id} next={next} />{step ? foot : null}</div>;
   } else {
     body = (
@@ -185,6 +192,7 @@ export function NewRunPage() {
           {at.id === "question" ? (
             <>
               <p className="note"><Said moment="question" /></p>
+              <p className="note">* Required</p>
               <MarkdownField label="What Should the Video Explain?" value={topic} onChange={setTopic} rows={5} isRequired maxLength={2000}
                 placeholder="Why is the sky blue, and why are sunsets red?" hint="A Question Works Best" />
               <Field label="Objectives" value={objectives} onChange={setObjectives} multiline rows={4} maxLength={4000}
@@ -195,15 +203,19 @@ export function NewRunPage() {
           {at.id === "audience" ? (
             <>
               <p className="note"><Said moment="audience" /></p>
+              <p className="note">* Required</p>
               <div className="field">
                 <span className="field__label">How Should It Be Told?</span>
-                <RadioCards label="Approach" value={approach} options={APPROACHES} onChange={(id) => {
+                <RadioCards label="How Should It Be Told?" value={approach} options={APPROACHES} onChange={(id) => {
+                  // a typed length is the user's: only a length the old pick suggested follows the new pick
+                  if (Number(minutes) === APPROACHES.find((candidate) => candidate.id === approach)?.minutes) {
+                    setMinutes(String(APPROACHES.find((candidate) => candidate.id === id)?.minutes ?? 4));
+                  }
                   setApproach(id);
-                  setMinutes(String(APPROACHES.find((candidate) => candidate.id === id)?.minutes ?? 4));
                 }} />
               </div>
               {approach === "custom" ? (
-                <Field label="How Should It Be Taught?" value={notes} onChange={setNotes} multiline rows={4} maxLength={2000}
+                <Field label="How Should It Be Taught? (Optional)" value={notes} onChange={setNotes} multiline rows={4} maxLength={2000}
                   placeholder={"conversational, with everyday examples\nstart from a question, end with a challenge"}
                   hint="Teaching Style, Depth, Examples, Pacing, Visuals or Your Own Scene Order" />
               ) : null}
@@ -211,15 +223,12 @@ export function NewRunPage() {
                 <Field label="Length (Minutes)" type="number" value={minutes} onChange={setMinutes} min={3} max={20} step={0.5} isRequired hint="3–20 of Teaching; Intro and Closing Are Extra" />
                 <Field label="Audience" value={audience} onChange={setAudience} maxLength={300} isRequired hint="For Example: Curious Beginners, Students" />
               </FormRow>
-              <div className="field">
-                <span className="field__label">Voice Provider</span>
-                <RadioCards label="Voice Provider" value={tts} onChange={setTts} options={PROVIDERS} />
-              </div>
             </>
           ) : null}
           {at.id === "review" ? <><p className="note"><Said moment="review" /></p><p className="note">Starting Checks This Computer, Saves Your Template and Opens the Run</p></> : null}
           {foot}
           <Notice note={note} />
+          {note?.text === startingTitle ? <p className="note"><Said moment="startingRun" /></p> : null}
         </div>
         {summary}
       </div>
@@ -240,14 +249,14 @@ export function NewRunPage() {
         onStep={(id) => {
           const target = STEPS.findIndex((candidate) => candidate.id === id);
           if (canReach(target)) setStep(target);
-        }} />
-      <p className="save-state note" role="status" aria-live="polite">{saveState}</p>
+        }} aside={<span role="status" aria-live="polite">{saveState}</span>} />
+      {missingDraft && saving === "idle" ? <SystemMessage kind="empty" title="Draft Not Found: Starting a New One" said="notFound" /> : null}
       {body}
       <Modal isOpen={naming} onOpenChange={setNaming} title="Name Your Run" description="Optional: Skip It and the Run Is Named From Its Topic and Date"
-        footer={<Button icon={<ArrowRight />} onPress={() => { setName(typed.trim()); setNaming(false); }}>{typed.trim() ? "Enter" : "Skip"}</Button>}>
+        footer={<Button icon={<ArrowRight />} onPress={() => { setName(typed.trim()); setNaming(false); }}>{typed.trim() ? "Use This Name" : "Skip"}</Button>}>
         <form onSubmit={(event) => { event.preventDefault(); setName(typed.trim()); setNaming(false); }}>
           <Field label="Run Name" value={typed} onChange={setTyped} maxLength={120}
-            placeholder={`Untitled Run — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`} />
+            placeholder="Optional Name" />
         </form>
       </Modal>
     </Page>

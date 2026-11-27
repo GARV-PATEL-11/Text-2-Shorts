@@ -11,7 +11,7 @@
 .header__account { margin-left: auto; display: flex; align-items: center; gap: var(--s-3); }
 .header__user { display: inline-flex; align-items: center; gap: var(--s-2); height: var(--h-sm); padding: 0 var(--s-2) 0 var(--s-1); border: 0; border-radius: var(--r-pill); background: none; color: var(--fg-2); font: var(--fw-medium) var(--fs-small) / 1 var(--sans); cursor: pointer; }
 .header__user:hover { background: var(--night-2); color: var(--fg); }
-.header__avatar { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--r-round); background: var(--fg); color: var(--night); font-weight: var(--fw-semibold); font-size: var(--fs-note); }
+.header__avatar { display: grid; place-items: center; width: var(--h-xs); height: var(--h-xs); border-radius: var(--r-round); background: var(--fg); color: var(--night); font-weight: var(--fw-semibold); font-size: var(--fs-note); }
 
 .page { width: 100%; max-width: var(--max); margin: 0 auto; padding: var(--s-6) var(--gut) var(--s-12); display: grid; gap: var(--s-6); align-content: start; }
 .page--form { max-width: 560px; }
@@ -36,7 +36,7 @@
 .fieldset > legend { padding: 0; margin-bottom: var(--s-3); }
 .seed { display: flex; align-items: flex-start; gap: var(--s-3); }
 .seed .field { flex: 1; }
-.seed > .button { margin-top: calc(var(--fs-small) * 1.45 + var(--s-2)); }
+.seed > .button { margin-top: calc(var(--fs-small) * var(--lh-small) + var(--s-2)); }
 .form-foot { display: flex; justify-content: space-between; gap: var(--s-3); padding-top: var(--s-4); border-top: var(--bw) solid var(--rule); }
 
 /* home */

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import {
   ColorArea, ColorField, ColorPicker as AriaColorPicker, ColorSlider, ColorSwatch, ColorSwatchPicker,
-  ColorSwatchPickerItem, ColorThumb, Input, Label, parseColor, SliderTrack,
+  ColorSwatchPickerItem, ColorThumb, FieldError, Input, Label, parseColor, SliderTrack,
 } from "react-aria-components";
 import { Button } from "./Button";
 import { Swap } from "./icons";
@@ -38,11 +38,12 @@ export function ColorPicker({ label, value, onChange, swatches = [] }: {
             <ColorSwatch className="color-swatch" />
             <Input className="field__control" />
           </span>
+          <FieldError className="field__error">Not a Hex Color</FieldError>
         </ColorField>
         {swatches.length ? (
           <div className="color-picker__saved">
             <span className="field__label">From This Template</span>
-            <ColorSwatchPicker className="swatches" aria-label="Template colors">
+            <ColorSwatchPicker className="swatches" aria-label="From This Template">
               {swatches.map((swatch) => (
                 <ColorSwatchPickerItem key={swatch} color={swatch} className="swatches__item">
                   <ColorSwatch className="color-swatch color-swatch--round" />
@@ -67,9 +68,9 @@ export function GradientPicker({ value, onChange, swatches = [] }: {
     <div className="gradient-picker">
       <div className="gradient-picker__preview" style={{ background: `linear-gradient(to bottom, ${top}, ${bottom})` }}>
         <button type="button" className={`gradient-picker__stop gradient-picker__stop--top${stop === "top" ? " is-active" : ""}`}
-          style={{ background: top }} onClick={() => setStop("top")} aria-label="Edit the top color" />
+          style={{ background: top }} onClick={() => setStop("top")} aria-label="Edit Top Color" aria-pressed={stop === "top"} />
         <button type="button" className={`gradient-picker__stop gradient-picker__stop--bottom${stop === "bottom" ? " is-active" : ""}`}
-          style={{ background: bottom }} onClick={() => setStop("bottom")} aria-label="Edit the bottom color" />
+          style={{ background: bottom }} onClick={() => setStop("bottom")} aria-label="Edit Bottom Color" aria-pressed={stop === "bottom"} />
       </div>
       <div className="gradient-picker__stops">
         <span className="field__label">Linear, Top to Bottom</span>

@@ -7,6 +7,7 @@ import { Checkbox, MarkdownField } from "../../components/ui/fields";
 import { Check } from "../../components/ui/icons";
 import { Markdown } from "../../components/ui/Markdown";
 import { titleCase, WithCode } from "../../components/ui/text";
+import { usePick } from "../../components/ui/Said";
 import { navigate } from "../../app/routes";
 import { REQUIRED_STEPS, STAGE_STEPS, stageStatuses } from "../../config/stages";
 import { useAction } from "../../hooks/useAction";
@@ -15,6 +16,8 @@ import { runHash, runPath } from "../../services/runs";
 import type { Decision } from "../../types/api";
 import { NO_REQUESTS } from "./ChangeModal";
 import { useRun } from "./context";
+import { when } from "./Overview";
+import { TITLES } from "./titles";
 
 export function CheckpointPanel({ target }: { target: string }) {
   const { run, refresh, ask } = useRun();
@@ -25,6 +28,8 @@ export function CheckpointPanel({ target }: { target: string }) {
   const accepted = acceptedFor === problemsKey;  // new or changed problems clear the tick: they were never seen
   const [approvedVersion, setApprovedVersion] = useState<string | null>(null);  // sent: wait for the reload, never twice
   const action = useAction();
+  const noDecision = usePick(TITLES.noDecision);
+  const noDecisionBody = usePick(TITLES.noDecisionBody);
   const decisions = run.decisions.filter((decision) => decision.checkpoint === target);
   const approved = stageStatuses(run)[target] === "approved";
 
@@ -35,7 +40,7 @@ export function CheckpointPanel({ target }: { target: string }) {
         {decisions.map((decision, index) => (
           <li key={index}>
             <span>{`${titleCase(decision.decision)}${decision.forced ? " (Accepted With Open Problems)" : ""}`}</span>
-            <span className="list__meta">{decision.decided_at.replace("T", " ")}{decision.by ? ` · ${decision.by}` : ""}</span>
+            <span className="list__meta">{when(decision.decided_at)}{decision.by ? ` · ${decision.by}` : ""}</span>
             {decision.notes ? <Markdown text={decision.notes} compact /> : null}
           </li>
         ))}
@@ -47,7 +52,7 @@ export function CheckpointPanel({ target }: { target: string }) {
       <div className="stack">
         {approved
           ? <SystemMessage kind="success" title="You Approved This Checkpoint">Changing What It Covers Asks You Again</SystemMessage>
-          : <SystemMessage kind="pending" title="Nothing to Decide Yet" said="nothingToDecide">Claude Asks When This Stage Is Ready</SystemMessage>}
+          : <SystemMessage kind="pending" title={noDecision} said="nothingToDecide">{noDecisionBody}</SystemMessage>}
         {history}
       </div>
     );
@@ -60,7 +65,7 @@ export function CheckpointPanel({ target }: { target: string }) {
       const index = REQUIRED_STEPS.findIndex((step) => step.id === target);  // -1 for a scene's checkpoint: stay on it
       const next = index >= 0 ? REQUIRED_STEPS[index + 1] : undefined;
       const after = target === "final" ? STAGE_STEPS.find((step) => step.optional) : next;  // stages follow one after the other
-      refresh(`${checkpoint.label} Approved${decision.forced ? " With Its Open Problems" : ""}${after ? `: Next, ${after.label}` : ""}`);
+      refresh(`${checkpoint.label} Approved${decision.forced ? " With Its Open Problems" : ""}${after ? `: ${after.optional ? "Optional Next Step, " : "Next, "}${after.label}` : ""}`);
       if (after) navigate(runHash(run.summary.id, after.id));
     });
   return (
@@ -70,16 +75,16 @@ export function CheckpointPanel({ target }: { target: string }) {
         {blocked ? (
           <>
             <p className="subhead">Open Problems</p>
-            <ul className="points">{checkpoint.problems.map((problem) => <li key={problem}><WithCode text={problem} /></li>)}</ul>
+            <ul className="points">{checkpoint.problems.map((problem, i) => <li key={problem}><WithCode text={checkpoint.people?.[i] ?? problem} /></li>)}</ul>
             <Checkbox label="Approve with Open Problems" hint="Approving Records These as Open" isSelected={accepted} onChange={(on) => setAcceptedFor(on ? problemsKey : null)} />
           </>
         ) : <p className="note">Nothing Blocks This Checkpoint</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />
         <div className="row">
-          <Button onPress={approve} isDisabled={action.busy || approvedVersion === (checkpoint.fingerprint ?? target) || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>Approve & Continue</Button>
+          <Button onPress={approve} isDisabled={action.busy || approvedVersion === (checkpoint.fingerprint ?? target) || (blocked && !accepted)} icon={<Check />} describedBy={blocked && !accepted ? `why-${target}` : undefined}>{target.startsWith("start:") ? "Start This Scene" : "Approve and Continue"}</Button>
           {NO_REQUESTS.includes(target) ? null : <Button variant="secondary" onPress={() => ask({ target, checkpoint: target })}>Request a Change</Button>}
         </div>
-        {blocked && !accepted ? <p className="note" id={`why-${target}`}>Tick Approve with Open Problems to Approve Anyway, or {NO_REQUESTS.includes(target) ? "Ask Claude in the Console" : "Request a Change"}</p> : null}
+        {blocked && !accepted ? <p className="note" id={`why-${target}`}>To Approve Anyway, Tick Approve with Open Problems. Otherwise {NO_REQUESTS.includes(target) ? "Ask Claude in the Console" : "Request a Change"}</p> : null}
         <Notice note={action.note} />
       </div>
       {history}

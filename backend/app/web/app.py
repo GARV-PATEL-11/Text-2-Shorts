@@ -40,7 +40,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import secrets
 import shutil
 import subprocess
 import time
@@ -60,6 +59,7 @@ from schemas.api import (
     ChangeRequestInput,
     ClaudeAccount,
     ConsoleInput,
+    ConsoleSettingsInput,
     ConsoleView,
     Draft,
     DraftInput,
@@ -71,6 +71,8 @@ from schemas.api import (
     LookStill,
     LookView,
     NewRunInput,
+    PermissionAnswer,
+    PollyVoice,
     ProfileInput,
     ProfileView,
     RenameInput,
@@ -82,21 +84,26 @@ from schemas.api import (
     RunSummary,
     SessionView,
     UsageView,
+    VoiceList,
+    VoicePreviewInput,
     VoiceSample,
 )
 from schemas.interaction import CheckpointDecision, TrackedRequest
 from schemas.requirements import Brief
+from schemas.run_state import ConsoleSettings
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.config import REPOSITORY_ROOT, RUNS_DIRECTORY
+from app.config import REPOSITORY_ROOT, RUN_ENVIRONMENT, RUNS_DIRECTORY, SESSION_MODEL
 from app.sandbox import KICKOFF_PROMPT
-from app.utilities import content_hash, format_validation_errors, now_text, write_atomic
-from app.web import auth, console, usage
+from app.utilities import content_hash, format_validation_errors, now_text, read_json, write_atomic
+from app.web import auth, console, console_permissions, usage, voices
 from app.workflow import reshuffle, run_workspace, templates
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint
 from app.workflow.artifacts import load_brief
 from app.workflow.change_requests import load_requests, record_change_request, resolve_request
 from app.workflow.ledger import load_state, update_state
+from app.workflow.people_wording import people_text
 from app.workflow.run_views import run_detail, run_summary
 
 FRONTEND_DIRECTORY = REPOSITORY_ROOT / "frontend" / "dist"  # the React build: `npm ci && npm run build` in frontend/
@@ -131,12 +138,11 @@ def kept_only_if_set_up(folder: Path):
     except (Exception, SystemExit) as error:
         shutil.rmtree(folder, ignore_errors=True)
         log.exception("run %s removed: setting it up failed", folder.name)
-        raise ApiProblem(500, f"the run could not be set up, so it was not kept: {error}") from error
+        raise ApiProblem(500, "The run could not be set up, so nothing was kept. Try again.") from error
 
 
-def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None = None) -> FastAPI:
-    """The website and its API. With `sign_in_token` (what `serve` prints), signing in needs it: another user or
-    program on this machine cannot open a session on the owner's Claude account (H6)."""
+def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
+    """The website and its API. Signing in uses the Claude account Claude Code is signed in to on this computer."""
     app = FastAPI(title="Text-2-Shorts", docs_url=None, redoc_url=None, openapi_url=None)
     sessions = auth.Sessions()
     browser = faraday_logging.channel("frontend")
@@ -163,7 +169,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         if request.method in UNSAFE_METHODS:
             origin, host = request.headers.get("origin"), request.headers.get("host")
             if origin and origin != f"{request.url.scheme}://{host}":
-                return problem_response(ApiProblem(403, "changes come only from this page"))
+                return problem_response(
+                    ApiProblem(403, "This request did not come from the Faraday page. Reload the page and try again.")
+                )
             has_body = request.headers.get("content-length", "0") != "0"
             content_type = request.headers.get("content-type", "").split(";")[0].strip()
             if has_body and content_type != "application/json":
@@ -177,36 +185,43 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         (log.error if problem.status >= 500 else log.warning)(
             "%s %s: %s %s%s", request.method, request.url.path, problem.status, problem.error,
             f" — {'; '.join(problem.problems)[:1500]}" if problem.problems else "",
+            exc_info=problem.__cause__,  # the raw reason behind the plain sentence the site shows
         )  # fmt: skip
         return problem_response(problem)
 
     @app.exception_handler(RequestValidationError)
-    async def on_invalid_request(_: Request, invalid: RequestValidationError):
-        messages = [f"{'.'.join(str(part) for part in error['loc'][1:])}: {error['msg']}" for error in invalid.errors()]
-        return problem_response(ApiProblem(400, "; ".join(messages)))
+    async def on_invalid_request(request: Request, invalid: RequestValidationError):
+        log.warning(
+            "%s %s: 400 %s", request.method, request.url.path, invalid.errors()[:5]
+        )  # the raw form, for the log
+        return problem_response(ApiProblem(400, plain_field_errors(invalid.errors(), skip=1)))
 
     @app.exception_handler(ValidationError)
     async def on_invalid_contract(request: Request, invalid: ValidationError):
         message = "; ".join(format_validation_errors(invalid))
         log.warning("%s %s: 400 %s", request.method, request.url.path, message[:1500], exc_info=invalid)  # M16
-        return problem_response(ApiProblem(400, message))
+        return problem_response(ApiProblem(400, plain_field_errors(invalid.errors())))
 
     @app.exception_handler(Exception)
     async def on_unexpected(_: Request, error: Exception):
-        """Anything else: a JSON answer naming the cause (the request log already holds the traceback) (M16)."""
-        return problem_response(ApiProblem(500, f"{type(error).__name__}: {error}"))
+        """Anything else: a plain answer; the type, message and traceback are in the request log, never sent (M16)."""
+        return problem_response(
+            ApiProblem(
+                500, "Something went wrong on this computer. Try again; if it keeps happening, see the log file."
+            )
+        )
 
     # ── who is signed in ───────────────────────────────────────────────────────────────────────────────────
     def signed_in_account(request: Request) -> ClaudeAccount:
         account = sessions.account(request.cookies.get(auth.SESSION_COOKIE))
         if account is None:
-            raise ApiProblem(401, "sign in first")
+            raise ApiProblem(401, "Sign in to continue. Your sign-in may have expired or Faraday may have restarted.")
         return account
 
     def run_folder(run: str) -> Path:
         folder = runs_directory / run
         if not RUN_NAME.match(run) or ".." in run or not folder.is_dir():
-            raise ApiProblem(404, f"no run {run}")
+            raise ApiProblem(404, "This run no longer exists. It may have been deleted.")
         return folder
 
     log_budget = {"minute": 0, "left": 0}
@@ -247,15 +262,11 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
 
     @app.post("/api/session", response_model=SessionView)
     def sign_in(request: Request, response: Response) -> SessionView:
-        given = request.headers.get("X-Faraday-Token", "")
-        if sign_in_token is not None and not secrets.compare_digest(given, sign_in_token):
-            raise ApiProblem(403, "Open the sign-in link `text-2-shorts serve` printed in its terminal.")
         account = auth.claude_code_account()
         if account is None:
             raise ApiProblem(
                 401,
-                "Claude Code on this machine is not signed in. Run `claude auth login` in a terminal, sign in on "
-                "claude.ai, then continue here.",
+                "Claude Code Is Not Signed In. Sign in through Claude Code on this computer, then try again.",
             )
         response.set_cookie(
             auth.SESSION_COOKIE,
@@ -311,9 +322,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
             try:
                 template = templates.build_template(new.look.template, new.look.elements, new.look.custom, {})
             except FileNotFoundError as unknown:
-                raise ApiProblem(404, f"no starter template {new.look.template}") from unknown
+                raise ApiProblem(404, "That starter look is not available. Choose another.") from unknown
             if problems := templates.video_settings.problems(template):
-                raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+                raise ApiProblem(409, "This Look and Sound cannot be used yet.", problems)
         try:
             folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
@@ -338,7 +349,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         source = run_folder(run)
         brief = load_brief(source)
         if brief is None:
-            raise ApiProblem(409, "this run has no readable brief to copy")
+            raise ApiProblem(409, "This run cannot be duplicated because its Requirements cannot be read.")
         try:
             folder = run_workspace.create_run(brief, runs_directory)
         except run_workspace.RunNotCreated as problem:
@@ -359,7 +370,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         folder = run_folder(run)
         with console.turn_lock(folder) as free:  # held during the move: no turn can start on a run being moved
             if not free:
-                raise ApiProblem(409, "Claude is working on this run: wait for the turn to end")
+                raise ApiProblem(409, "Claude is still working on this run. Wait for it to finish, then delete it.")
             trash = runs_directory / ".trash"
             trash.mkdir(exist_ok=True)
             target, copy = trash / folder.name, 1
@@ -393,7 +404,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
 
     def draft_path(draft: str) -> Path:
         if not DRAFT_ID.match(draft):
-            raise ApiProblem(404, f"no draft {draft}")
+            raise ApiProblem(404, "This draft no longer exists.")
         return runs_directory / ".drafts" / f"{draft}.json"
 
     @app.get("/api/drafts", response_model=list[Draft], dependencies=[Depends(signed_in_account)])
@@ -417,16 +428,125 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
     @app.get("/api/runs/{run}/console", response_model=ConsoleView, dependencies=[Depends(signed_in_account)])
     def console_view(run: str) -> ConsoleView:
         folder = run_folder(run)
-        return ConsoleView(busy=console.is_busy(folder), entries=console.history(folder), kickoff=KICKOFF_PROMPT)
+        settings = read_json(RUN_ENVIRONMENT / "settings.json") or {}
+        rules = {key: list(settings.get("permissions", {}).get(key, [])) for key in ("allow", "deny")}
+        return ConsoleView(
+            busy=console.is_busy(folder),
+            entries=console.history(folder),
+            kickoff=KICKOFF_PROMPT,
+            settings=console.load_settings(folder).model_copy(update={"allowed": console_permissions.allowed(folder)}),
+            session=console.session_info(folder),
+            pending=console_permissions.pending(folder),
+            rules=rules,
+            default_model=SESSION_MODEL,
+            spend_usd=load_state(folder).spend_usd,
+        )
 
     @app.post("/api/runs/{run}/console", dependencies=[Depends(signed_in_account)])
-    def console_turn(run: str, turn: ConsoleInput) -> StreamingResponse:
+    def console_turn(run: str, turn: ConsoleInput, request: Request) -> StreamingResponse:
         folder = run_folder(run)
-        running = console.start_turn(folder, turn.message)  # the server owns the turn; this response follows it
+        running = console.start_turn(folder, turn.message, str(request.base_url))  # the server owns the turn
         if running is None:
             raise ApiProblem(409, "Claude is still working on the previous message")
-        lines = (entry.model_dump_json() + "\n" for entry in console.follow(running))
-        return StreamingResponse(lines, media_type="application/x-ndjson")
+        return StreamingResponse(console.follow_lines(running), media_type="application/x-ndjson")
+
+    @app.get("/api/runs/{run}/console/follow", dependencies=[Depends(signed_in_account)])
+    def console_follow(run: str) -> StreamingResponse:
+        """A page that opens while a turn runs follows it: the whole turn so far (its prompt first, live text
+        included), then what comes, until it ends."""
+        running = console.running(run_folder(run))
+        if running is None:
+            raise ApiProblem(409, "No turn is running")
+        return StreamingResponse(console.follow_lines(running), media_type="application/x-ndjson")
+
+    @app.post("/api/runs/{run}/console/stop", status_code=204, dependencies=[Depends(signed_in_account)])
+    def console_stop(run: str) -> Response:
+        if not console.stop_turn(run_folder(run)):
+            raise ApiProblem(409, "Nothing is running")
+        return Response(status_code=204)
+
+    @app.post("/api/runs/{run}/console/clear", status_code=204, dependencies=[Depends(signed_in_account)])
+    def console_clear(run: str) -> Response:
+        folder = run_folder(run)
+        with console.turn_lock(folder) as free:
+            if not free:
+                raise ApiProblem(409, "Claude is still working: stop it first, then start a new conversation")
+            console.clear(folder)
+        return Response(status_code=204)
+
+    @app.put(
+        "/api/runs/{run}/console/settings", response_model=ConsoleSettings, dependencies=[Depends(signed_in_account)]
+    )
+    def console_settings(run: str, change: ConsoleSettingsInput) -> ConsoleSettings:
+        folder = run_folder(run)
+        settings = console.load_settings(folder)
+        if change.model is not None:
+            settings.model = change.model
+        if change.mode is not None:
+            settings.mode = change.mode
+        console.save_settings(folder, settings)
+        return settings.model_copy(update={"allowed": console_permissions.allowed(folder)})
+
+    @app.post(
+        "/api/runs/{run}/console/permissions/{prompt}", status_code=204, dependencies=[Depends(signed_in_account)]
+    )
+    def console_permission_answer(run: str, prompt: str, decision: PermissionAnswer) -> Response:
+        try:
+            console_permissions.answer(run_folder(run), prompt, decision.decision, decision.note.strip())
+        except KeyError as missing:
+            raise ApiProblem(404, "This permission prompt was already answered or has ended") from missing
+        except ValueError as refused:
+            raise ApiProblem(409, str(refused)) from refused
+        return Response(status_code=204)
+
+    @app.get("/api/voices", response_model=VoiceList, dependencies=[Depends(signed_in_account)])
+    def voice_list() -> VoiceList:
+        try:
+            listed = voices.voice_list()
+        except voices.VoicesUnavailable as unavailable:
+            raise ApiProblem(503, str(unavailable)) from unavailable
+        curated = {
+            f"{variant['polly']['voice_id']}:{variant['polly'].get('engine', 'neural')}": option
+            for option, variant in templates.video_settings.library()["voice"]["variants"].items()
+        }
+        return VoiceList(provider=voices.PROVIDER, template=voices.TEMPLATE,
+                         voices=[PollyVoice(**voice) for voice in listed], curated=curated)  # fmt: skip
+
+    @app.post("/api/voices/preview", dependencies=[Depends(signed_in_account)])
+    def voice_preview(asked: VoicePreviewInput) -> Response:
+        """A few seconds of one narrator: the preview sentence with this voice, engine and speed."""
+        library = templates.video_settings.library()
+        speed = library["speaking_speed"]["variants"].get(asked.speed)
+        if speed is None:
+            raise ApiProblem(400, "Choose a speed from the list.")
+        try:
+            audio = voices.preview(asked.voice, asked.engine, speed)
+        except voices.VoicesUnavailable as unavailable:
+            raise ApiProblem(503, str(unavailable)) from unavailable
+        except ValueError as refused:
+            raise ApiProblem(400, "This voice is not available with that engine. Choose another.") from refused
+        return Response(audio, media_type="audio/mpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/api/runs/{run}/console/files", response_model=list[str], dependencies=[Depends(signed_in_account)])
+    def console_files(run: str, q: str = "") -> list[str]:
+        return console.run_files(run_folder(run), q)
+
+    @app.post("/api/console-permission/{run}")
+    async def console_permission_tool(run: str, request: Request) -> Response:
+        """The run's Claude Code asks here (MCP over HTTP) whether a tool call may run; authorised by the running
+        turn's token, never by the session cookie. The answer comes from the signed-in page."""
+        try:
+            message = await request.json()
+            folder = run_folder(run)
+            answered = await run_in_threadpool(console_permissions.handle, folder, request.headers.get("x-turn-token"),
+                                               message)  # fmt: skip
+        except PermissionError:
+            return Response(status_code=403)
+        except (ValueError, ApiProblem):
+            return Response(status_code=400)
+        if answered is None:
+            return Response(status_code=202)
+        return JSONResponse(answered)
 
     @app.get("/api/runs/{run}", response_model=RunDetail, dependencies=[Depends(signed_in_account)])
     def run(run: str) -> RunDetail:
@@ -469,7 +589,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         try:
             resolve_request(folder, request_id, resolution.status, resolution.note)
         except LookupError as missing:
-            raise ApiProblem(404, str(missing)) from missing
+            raise ApiProblem(404, "That change request no longer exists.") from missing
         return next(request for request in load_requests(folder) if request.id == request_id)
 
     # ── look & sound: the template tree ────────────────────────────────────────────────────────────────────
@@ -485,19 +605,19 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         try:
             return templates.chosen_template(folder, look.template, look.elements, look.custom)
         except ValueError as unknown:
-            raise ApiProblem(404, str(unknown)) from unknown
+            raise ApiProblem(404, "That starter look is not available. Choose another.") from unknown
 
     def usable(folder: Path, look: LookInput) -> dict:
         template = chosen(folder, look)
         if problems := templates.template_problems(template, folder):
-            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+            raise ApiProblem(409, "This Look and Sound cannot be used yet.", problems)
         return template
 
     @app.post("/api/runs/{run}/look", response_model=LookView, dependencies=[Depends(signed_in_account)])
     def save_look(run: str, look: LookInput) -> LookView:
         folder = run_folder(run)
         if problems := templates.save_template(folder, chosen(folder, look)):
-            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+            raise ApiProblem(409, "This Look and Sound cannot be used yet.", problems)
         return templates.look_view(folder)
 
     @app.post("/api/runs/{run}/look/voice", response_model=VoiceSample, dependencies=[Depends(signed_in_account)])
@@ -509,7 +629,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         try:
             generate_preview.voice_sample(template, brief.tts if brief else "polly", folder / "look_voice_sample.mp3")
         except Exception as failed:  # credentials, network, an unknown voice id: say which
-            raise ApiProblem(502, f"the voice could not be synthesised: {failed}") from failed
+            raise ApiProblem(
+                502, "The voice sample could not be made. Check your voice account and try again."
+            ) from failed
         return VoiceSample(url=f"/media/{run}/look_voice_sample.mp3?v={content_hash(template)[:8]}")
 
     @app.post("/api/runs/{run}/look/still", response_model=LookStill, dependencies=[Depends(signed_in_account)])
@@ -523,7 +645,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
                 ["still", str(folder / "look_preview.json"), str(folder / "look_preview.webp")]
             )
         except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
-            raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
+            raise ApiProblem(
+                502, "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+            ) from failed
         return LookStill(
             url=f"/media/{run}/look_preview.webp?v={content_hash(template)[:8]}",
             note=generate_preview.font_note(template),
@@ -534,10 +658,10 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         """A deterministic reshuffle of the saved look: shown (apply=False) or saved, clips recoloured (apply=True)."""
         folder = run_folder(run)
         if not (folder / "template.json").exists():
-            raise ApiProblem(409, "choose the look and sound first: there is nothing to reshuffle")
+            raise ApiProblem(409, "Choose a Look and Sound first. There is nothing to reshuffle yet.")
         before = templates.current_template(folder)
         if wanted.apply and (problems := reshuffle.apply(folder, wanted.seed, list(wanted.groups))):
-            raise ApiProblem(409, "this reshuffle cannot be used", problems)
+            raise ApiProblem(409, "This reshuffle cannot be used. Try another.", problems)
         after = (
             templates.current_template(folder)
             if wanted.apply
@@ -569,9 +693,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
                 look.template, look.elements, {k: v for k, v in look.custom.items() if v.strip()}, {}
             )
         except FileNotFoundError as unknown:
-            raise ApiProblem(404, f"no starter template {look.template}") from unknown
+            raise ApiProblem(404, "That starter look is not available. Choose another.") from unknown
         if problems := templates.video_settings.problems(template):
-            raise ApiProblem(409, "this look and sound cannot be used yet", problems)
+            raise ApiProblem(409, "This Look and Sound cannot be used yet.", problems)
         path = generate_preview.still_path(template)
         if not path.exists():
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -579,7 +703,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
             try:
                 generate_preview.render_in_subprocess(["still", str(path.parent / f"{path.stem}.json"), str(path)])
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
-                raise ApiProblem(502, f"the still could not be rendered: {failed}") from failed
+                raise ApiProblem(
+                    502, "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+                ) from failed
         return LookStill(url=f"/previews/custom/{path.name}", note=generate_preview.font_note(template))
 
     @app.get("/previews/starters/{name}.webp", dependencies=[Depends(signed_in_account)])
@@ -587,13 +713,15 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         """A starter template, in its own mode, as one frame at 2560×1440 (generate_preview.py starters), rendered now
         if missing; `?card=true`: the 1280×720 copy its gallery card shows."""
         if name not in templates.template_names():
-            raise ApiProblem(404, f"no starter template {name}")
+            raise ApiProblem(404, "That starter look is not available. Choose another.")
         path = generate_preview.starter_path(name)
         if not path.exists():
             try:
                 generate_preview.render_in_subprocess(["starters", "--only", name])
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
-                raise ApiProblem(502, f"the starter could not be rendered: {failed}") from failed
+                raise ApiProblem(
+                    502, "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+                ) from failed
         return FileResponse(generate_preview.starter_card(name) if card else path, media_type="image/webp")
 
     @app.post("/api/look/options", response_model=LookOptionPictures, dependencies=[Depends(signed_in_account)])
@@ -602,13 +730,13 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         see is what their video gets. Rendered once per look in one process; the 2560×1440 ones when opened."""
         library = templates.video_settings.library()
         if wanted.element not in generate_preview.PREVIEWED:
-            raise ApiProblem(404, f"{wanted.element} has no picture")
+            raise ApiProblem(404, "This option has no preview picture.")
         look = wanted.look
         custom = {element: value for element, value in look.custom.items() if value.strip()}
         try:
             base = templates.build_template(look.template, look.elements, custom, {})
         except FileNotFoundError as unknown:
-            raise ApiProblem(404, f"no starter template {look.template}") from unknown
+            raise ApiProblem(404, "That starter look is not available. Choose another.") from unknown
         candidates = [(variant, {"variant": variant}) for variant in library[wanted.element]["variants"]]
         if custom.get(wanted.element):
             candidates.append(("__custom__", {"custom": custom[wanted.element]}))
@@ -635,7 +763,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
             try:
                 generate_preview.render_in_subprocess(["batch", str(jobs_file)])
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
-                raise ApiProblem(502, f"the previews could not be rendered: {failed}") from failed
+                raise ApiProblem(
+                    502, "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+                ) from failed
             finally:
                 jobs_file.unlink(missing_ok=True)
         return LookOptionPictures(pictures=pictures)
@@ -650,7 +780,9 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
             try:
                 generate_preview.render_in_subprocess(["still", str(recipe), str(path)])
             except (RuntimeError, OSError, subprocess.TimeoutExpired) as failed:
-                raise ApiProblem(502, f"the preview could not be rendered: {failed}") from failed
+                raise ApiProblem(
+                    502, "The preview could not be drawn. Try again; if it keeps failing, see the log file."
+                ) from failed
         if not path.is_file():
             raise ApiProblem(404, "no such preview")
         return FileResponse(path, media_type="image/webp")
@@ -669,7 +801,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         index = FRONTEND_DIRECTORY / "index.html"
         if not index.is_file():
             return Response(
-                "The website is not built yet: run `npm ci && npm run build` in frontend/, then reload.",
+                "Faraday's website has not been built yet. Build it once (see the README), then reload this page.",
                 status_code=503,
                 media_type="text/plain",
             )
@@ -685,7 +817,24 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
     return app
 
 
+FIELD_LABELS = {"objectives": "Objectives", "requirement": "Topic", "minutes": "Length", "approach": "Approach"}
+
+
+def plain_field_errors(errors, skip: int = 0) -> str:
+    """'Topic is too short. Objectives needs a value.': the fields a form got wrong, in the site's words (C3)."""
+    sentences = []
+    for error in errors:
+        field = next((str(part) for part in error["loc"][skip:] if not isinstance(part, int)), "details")
+        label = FIELD_LABELS.get(field, field.replace("_", " ").capitalize())
+        what = {"missing": "needs a value", "string_too_short": "is too short"}.get(error["type"], "is not valid")
+        sentences.append(f"{label} {what}.")
+    return " ".join(dict.fromkeys(sentences))
+
+
 def problem_response(problem: ApiProblem) -> JSONResponse:
     return JSONResponse(
-        ApiError(error=problem.error, problems=problem.problems).model_dump(), status_code=problem.status
+        ApiError(
+            error=problem.error, problems=problem.problems, people_problems=[people_text(p) for p in problem.problems]
+        ).model_dump(),
+        status_code=problem.status,
     )

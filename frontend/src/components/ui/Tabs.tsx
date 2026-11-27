@@ -14,7 +14,7 @@ export function Tabs({ label, selected, onChange, tabs, toolbar }: {
           {tabs.map((tab) => (
             <Tab key={tab.id} id={tab.id} className="tabs__tab">
               {tab.label}
-              {tab.count ? <span className="badge badge--count" aria-label={`${tab.count} waiting`}>{tab.count}</span> : null}
+              {tab.count ? <span className="badge badge--count" aria-label={tab.id === "checkpoint" || tab.id === "approval" ? `${tab.count} Waiting for You` : String(tab.count)}>{tab.count}</span> : null}
             </Tab>
           ))}
         </TabList>

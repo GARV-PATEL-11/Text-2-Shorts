@@ -78,7 +78,7 @@ def test_polly_sends_ssml_falls_back_to_text_and_returns_word_marks(monkeypatch)
     ssml = '<speak>Look <emphasis>here</emphasis>. <break time="600ms"/> Done.</speak>'
     audio, marks = narration.create_polly_synthesizer("Matthew", "neural")(ssml)
     assert audio == b"mp3" and marks == [("Look", 0.0), ("here", 0.45)]
-    assert calls[0]["Text"] == '<speak>Look here. <break time="600ms"/> Done.</speak>'  # neural: no <emphasis>
+    assert calls[0]["Text"] == '<speak>Look <prosody volume="+2dB">here</prosody>. <break time="600ms"/> Done.</speak>'
     assert calls[1]["Text"] == "Look here. … Done."  # the engine rejected the SSML → plain text
     assert calls[2]["SpeechMarkTypes"] == ["word"] and calls[2]["TextType"] == "ssml"
 
@@ -126,3 +126,25 @@ def test_google_maps_timepoints_to_words_and_falls_back_to_text(monkeypatch):
     assert narration.create_speech_synthesizer(
         {"provider": "google", "voice": "en-US-Neural2-D"}
     ).__qualname__.startswith("create_google_synthesizer")
+
+
+def test_polly_ssml_keeps_the_delivery_each_engine_can_speak():
+    from app.narration import polly_ssml
+
+    planned = (
+        '<speak><s>So <emphasis level="strong">this</emphasis> is it.</s> '
+        '<prosody rate="92%" pitch="-5%">A <emphasis>key</emphasis> idea.</prosody> '
+        "<prosody pitch='+5%'>Up.</prosody> <emphasis level=\"reduced\">aside</emphasis></speak>"
+    )
+    # standard takes everything, and breathes between phrases
+    assert polly_ssml(planned, "standard") == planned.replace("<speak>", "<speak><amazon:auto-breaths>").replace(
+        "</speak>", "</amazon:auto-breaths></speak>"
+    )
+    # neural, long-form, generative: no <emphasis> or pitch (Polly rejects them): louder words, pitch dropped
+    expected = (
+        '<speak><s>So <prosody volume="+4dB">this</prosody> is it.</s> '
+        '<prosody rate="92%">A <prosody volume="+2dB">key</prosody> idea.</prosody> '
+        '<prosody volume="medium">Up.</prosody> <prosody volume="-3dB">aside</prosody></speak>'
+    )
+    for engine in ("neural", "long-form", "generative"):
+        assert polly_ssml(planned, engine) == expected

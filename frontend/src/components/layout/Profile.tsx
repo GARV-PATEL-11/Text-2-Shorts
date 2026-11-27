@@ -9,6 +9,7 @@ import { Modal } from "../feedback/Overlay";
 import { Notice } from "../feedback/Notice";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/fields";
+import { Said } from "../ui/Said";
 import { titleCase } from "../ui/text";
 
 export function ProfileDialog({ profile, isOpen, onOpenChange, onSaved }: {
@@ -29,7 +30,7 @@ export function ProfileDialog({ profile, isOpen, onOpenChange, onSaved }: {
   });
   const who = profile?.account ?? account;
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} title="Your Profile" description={who?.email}
+    <Modal isOpen={isOpen} onOpenChange={(open) => { if (!open) action.setNote(null); onOpenChange(open); }} title="Your Profile" description={who?.email}
       footer={<>
         <Button variant="secondary" onPress={leave} isDisabled={action.busy}>Sign Out</Button>
         <Button onPress={save} isDisabled={action.busy || name.trim() === (profile?.name ?? "")}>Save</Button>
@@ -41,11 +42,12 @@ export function ProfileDialog({ profile, isOpen, onOpenChange, onSaved }: {
           <div><dt>Organization</dt><dd>{who?.organization || "—"}</dd></div>
           <div><dt>Plan</dt><dd>{who?.plan ? titleCase(who.plan) : "—"}</dd></div>
           <div><dt>Signed In With</dt><dd>{who?.method || "—"}</dd></div>
-          <div><dt>Runs Here</dt><dd>{profile ? profile.runs : "—"}</dd></div>
-          <div><dt>Net Spend</dt><dd>{profile ? `$${profile.spend_usd.toFixed(2)}` : "—"}</dd></div>
+          <div><dt>Runs on This Computer</dt><dd>{profile ? profile.runs : "—"}</dd></div>
+          <div><dt>Estimated Cost</dt><dd>{profile ? `$${profile.spend_usd.toFixed(2)}` : "—"}</dd></div>
         </dl>
-        <p className="note">Net Spend Adds Up the Cost Claude Code Reports for Every Console Turn; on a Subscription It Is What the Same Use Would Cost at API Prices</p>
+        <p className="note">Estimated Cost Adds Up What Claude Code Reports for Every Console Turn; on a Subscription, It Is the Same Use at API Prices.</p>
         <Notice note={action.note} />
+        {action.note?.text === "Saved" ? <p className="note"><Said moment="saved" /></p> : null}
       </div>
     </Modal>
   );

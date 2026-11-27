@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { type Ratio, RATIOS } from "../../config/media";
 import { Button } from "../ui/Button";
 import { Expand, Film, Play, Shrink } from "../ui/icons";
+import { Said } from "../ui/Said";
 import { useFullScreen } from "./ImagePreview";
 
 const clock = (seconds: number) =>
@@ -30,7 +31,7 @@ export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet
       <div className="player player--empty">
         <Film />
         <strong className="player__empty-title">{empty}</strong>
-        {emptyHint ? <span>{emptyHint}</span> : null}
+        {emptyHint ? <span>{emptyHint}</span> : <span><Said moment="notYet" /></span>}
       </div>
     );
   }
@@ -46,7 +47,7 @@ export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet
         onPlaying={() => setState("playing")} onWaiting={() => setState("buffering")} onPause={() => setState((s) => (s === "ended" ? s : "ready"))}
         onEnded={() => setState("ended")} onError={() => setState("failed")}
       />
-      {state === "loading" || state === "buffering" ? <span className="spinner player__spinner" role="status" aria-label="Loading the video" /> : null}
+      {state === "loading" || state === "buffering" ? <span className="spinner player__spinner" role="status" aria-label="Loading the Video" /> : null}
       {(!started || state === "ended") && state !== "failed" && state !== "loading" ? (
         <button className="player__play" type="button" onClick={play} aria-label={`${state === "ended" ? "Play again" : "Play"}: ${label}`}>
           <Play />
@@ -55,13 +56,13 @@ export function VideoPreview({ src, label, ratio = "16/9", empty = "No Video Yet
       {Number.isFinite(duration) && !started ? <span className="player__duration">{clock(duration)}</span> : null}
       {screen.supported && state !== "failed" ? (
         <button className="media__expand media__expand--top" type="button" onClick={() => screen.toggle(box.current)}
-          aria-label={`${screen.on ? "Exit full screen" : "Full screen"}: ${label}`} title={screen.on ? "Exit Full Screen" : "Full Screen"}>
+          aria-label={`${screen.on ? "Exit Full Screen" : "Full Screen"}: ${label}`} title={screen.on ? "Exit Full Screen" : "Full Screen"}>
           {screen.on ? <Shrink /> : <Expand />}
         </button>
       ) : null}
       {state === "failed" ? (
         <div className="player__failed" role="alert">
-          <span>Could Not Play This Video</span>
+          <span>Could Not Play This Video <Said moment="loadFailed" /></span>
           <Button variant="secondary" size="sm" onPress={() => { setState("loading"); video.current?.load(); }}>Try Again</Button>
         </div>
       ) : null}

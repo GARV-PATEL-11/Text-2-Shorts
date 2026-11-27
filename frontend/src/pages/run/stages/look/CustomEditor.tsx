@@ -37,7 +37,7 @@ export function CustomEditor({ element, value, onApply, onClose }: {
         ]} />
     );
   } else if (!color) {
-    editor = <Field label={titleCase(element.label)} value={draft} onChange={setDraft} hint={element.custom ?? ""}
+    editor = <Field label={titleCase(element.label)} value={draft} onChange={setDraft} hint={titleCase(element.custom ?? "")}
       type={element.id === "speaking_speed" ? "number" : "text"} min={0.8} max={1.2} step={0.05} />;
   }
   return (
@@ -48,6 +48,7 @@ export function CustomEditor({ element, value, onApply, onClose }: {
         <Button icon={<Check />} onPress={() => onApply(draft.trim())} isDisabled={!draft.trim()}>Apply</Button>
       </>}>
       {editor}
+      {!draft.trim() ? <p className="note">{color || element.custom === "color or gradient" ? "Enter a Valid Color First" : "Enter a Value First"}</p> : null}
     </Modal>
   );
 }

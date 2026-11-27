@@ -13,6 +13,7 @@ async function computePeaks(src: string, signal: AbortSignal): Promise<number[]>
   const cached = peaksCache.get(src);
   if (cached) return cached;
   const response = await fetch(src, { signal });
+  if (!response.ok) throw new Error("missing");  // the file itself is not there, not just a waveform that cannot be drawn
   const bytes = await response.arrayBuffer();
   if (bytes.byteLength > WAVEFORM_MAX_BYTES) throw new Error("too large for a waveform");
   decoder = decoder ?? new AudioContext();
@@ -41,6 +42,7 @@ export function AudioPreview({ src, label }: { src: string; label: string }) {
   const [length, setLength] = useState(0);
   const [volume, setVolume] = useState(1);
   const [peaks, setPeaks] = useState<number[] | "loading" | "unavailable">("loading");
+  const [missing, setMissing] = useState(false);
   const clipId = `played-${useId().replace(/:/g, "")}`;
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export function AudioPreview({ src, label }: { src: string; label: string }) {
     setPlaying(false);
     setTime(0);
     if (audio.current) audio.current.currentTime = 0;
-    computePeaks(src, controller.signal).then(setPeaks).catch((error: Error) => error.name !== "AbortError" && setPeaks("unavailable"));
+    computePeaks(src, controller.signal).then(setPeaks).catch((error: Error) => { if (error.name === "AbortError") return; setMissing(error.message === "missing"); setPeaks("unavailable"); });
     return () => controller.abort();
   }, [src]);
   useEffect(() => {  // smooth playhead while playing (timeupdate alone is ~4 times a second)
@@ -114,7 +116,7 @@ export function AudioPreview({ src, label }: { src: string; label: string }) {
         <input type="range" min={0} max={1} step={0.05} value={volume} aria-label="Volume"
           onChange={(event) => { const next = Number(event.target.value); setVolume(next); if (audio.current) audio.current.volume = next; }} />
       </label>
-      {peaks === "unavailable" ? <span className="audio__note">Waveform Unavailable</span> : null}
+      {peaks === "unavailable" ? <span className="audio__note">{missing ? "Could Not Load This Audio" : "Waveform Unavailable"}</span> : null}
     </div>
   );
 }

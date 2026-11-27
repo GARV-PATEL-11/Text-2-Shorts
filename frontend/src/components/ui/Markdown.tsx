@@ -9,7 +9,7 @@ export function Markdown({ text, compact }: { text: string; compact?: boolean })
   return (
     <div className={`md${compact ? " md--compact" : ""}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}
-        components={{ a: ({ node: _, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" /> }}>
+        components={{ a: ({ node: _, children, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer">{children}<span className="sr-only"> (Opens in a New Tab)</span></a> }}>
         {text}
       </ReactMarkdown>
     </div>

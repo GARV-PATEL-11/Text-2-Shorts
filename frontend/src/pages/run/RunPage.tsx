@@ -16,21 +16,25 @@ import { Button } from "../../components/ui/Button";
 import { RequestChange, Terminal } from "../../components/ui/icons";
 import { runTitle } from "../../components/ui/Markdown";
 import { WithCode } from "../../components/ui/text";
+import { ApiError } from "../../services/http";
 import { currentStage, isFinished, REQUIRED_STEPS, STAGE_STEPS, stageStatuses, stepState } from "../../config/stages";
 import type { Note } from "../../hooks/useAction";
 import { useApi } from "../../hooks/useApi";
 import { usePolling } from "../../hooks/usePolling";
+import { Said, usePick } from "../../components/ui/Said";
+import type { Moment } from "../../config/voice";
 import { runHash, runPath } from "../../services/runs";
 import type { RunDetail } from "../../types/api";
 import { ChangeModal, NO_REQUESTS } from "./ChangeModal";
 import { ClaudePanel } from "./ClaudePanel";
-import { Console } from "./Console";
+import { Console } from "./console/Console";
 import { type Ask, RunContext } from "./context";
 import { Overview } from "./Overview";
 import { NextUp } from "./review";
 import { LookSound } from "./stages/look/LookSound";
 import { Final, Plans, Scenes } from "./stages/Production";
 import { Requirements } from "./stages/Requirements";
+import { TITLES } from "./titles";
 import { Reshuffle } from "./stages/Reshuffle";
 import { Outline, Script } from "./stages/Writing";
 import type { StageProps } from "./stages/StageTabs";
@@ -50,21 +54,39 @@ function waitingTab(run: RunDetail, stage: string): string | null {
   return run.awaiting.some((checkpoint) => checkpoint.target === stage) ? "checkpoint" : null;
 }
 
+/** sessionStorage: the run whose console opens when its page loads (set by Home's Open Console). */
+export const OPEN_CONSOLE = "faraday:open-console";
+
 export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; tab?: string }) {
   const detail = useApi<RunDetail>(runPath(id));
   const [notice, setNotice] = useState<Note | null>(null);
-  const [consoleOpen, setConsoleOpen] = useState(false);
+  const [noticeSaid, setNoticeSaid] = useState<Moment | null>(null);  // a quote beside the notice, once it is true
+  const [consoleOpen, setConsoleOpen] = useState(() => {  // Home's "Open Console" lands here with it open
+    try { return sessionStorage.getItem(OPEN_CONSOLE) === id && (sessionStorage.removeItem(OPEN_CONSOLE), true); } catch { return false; }
+  });
+  useEffect(() => {  // Ctrl+` opens or closes the console from anywhere on the run page, as in a code editor
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.ctrlKey && event.key === "`") { event.preventDefault(); setConsoleOpen((open) => !open); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [claudeAsks, setClaudeAsks] = useState(false);  // while Claude asks, its panel leads and the approval bar steps back
   const { reload } = detail;
   // Claude works between the user's clicks: statuses, scenes and new checkpoints appear without a reload (H4)
   usePolling(() => { if (detail.data && !detail.data.problem && detail.data.summary.status !== "completed") reload(); });
-  const refresh = useCallback((message: string) => {
+  const refresh = useCallback((message: string, said?: Moment) => {
     setNotice({ text: message });
+    setNoticeSaid(said ?? null);
     reload();
   }, [reload]);
   const run = detail.data;
   const context = useMemo(() => (run ? { run, refresh, ask: setAsk } : null), [run, refresh]);
+  const openingTitle = usePick(TITLES.openingRun);
+  const decisionTitle = usePick(TITLES.decision);
+  const noFinalVideo = usePick(TITLES.noFinalVideo);
+  const staleTitle = usePick(TITLES.stale);
   const heading = useRef<HTMLHeadingElement>(null);
   const firstStage = useRef(true);
   useEffect(() => {  // a new stage was chosen in the rail: move focus to its heading (the page itself did not change)
@@ -76,18 +98,19 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
   }, [stage]);
 
   if (detail.error && !run) {
+    const missing = detail.error instanceof ApiError && detail.error.status === 404;
     return (
       <Page title="Run">
-        <SystemMessage kind="unavailable" title="Could Not Load This Run" action={<>
+        <SystemMessage kind="unavailable" title={missing ? "This Run Does Not Exist" : "Could Not Load This Run"} said={missing ? "notFound" : undefined} action={<>
           <Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>
-          <Button variant="secondary" size="sm" onPress={() => navigate("#/ongoing")}>All Runs</Button>
+          <Button variant="secondary" size="sm" onPress={() => navigate("#/ongoing")}>Ongoing Runs</Button>
         </>}>
           {detail.error.message}
         </SystemMessage>
       </Page>
     );
   }
-  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title="Opening the Run" said="openingRun" /></Page>;
+  if (!run || !context) return <Page title="Run"><SystemMessage kind="loading" title={openingTitle} said="openingRun" /></Page>;
 
   const finished = isFinished(run.summary);
   const list = finished ? { label: "Previous Runs", href: "#/previous" } : { label: "Ongoing Runs", href: "#/ongoing" };
@@ -102,13 +125,13 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
       <Page title={`${step.label} · ${run.summary.name || runTitle(run.summary.topic)}`}>
         <div className={run.problem ? "run run--solo" : "run"}>
           {run.problem ? null : (  /* an older version's run: nothing to approve, ask or change, only its final video */
-            <aside className="run__rail" aria-label="Run">
+            <aside className="run__rail" aria-label="Run Progress and Stages">
               <ProgressBar label="Stages Approved" value={approved} max={REQUIRED_STEPS.length} valueLabel={`${approved} of ${REQUIRED_STEPS.length}`} />
               <ProgressSteps label="Stages of This Run" current={open}
                 onSelect={(next) => navigate(runHash(id, next))}
                 steps={STAGE_STEPS.map((candidate) => ({ ...candidate, state: stepState(run, candidate.id) }))} />
               <div className="run__actions">
-                <Button variant="secondary" size="sm" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Open Console</Button>
+                <span className="run__console"><Button variant="secondary" size="sm" icon={<Terminal />} onPress={() => setConsoleOpen(true)}>Console <kbd className="console-dock__key">Ctrl `</kbd></Button></span>
                 {NO_REQUESTS.includes(open) ? null : <Button variant="secondary" size="sm" icon={<RequestChange />} onPress={() => setAsk({ target: open, checkpoint: null })}>Request a Change</Button>}
               </div>
             </aside>
@@ -120,8 +143,9 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
               <Overview />
             </header>
             <Notice note={notice} />
+            {noticeSaid && notice ? <p className="note" key={notice.text}><Said moment={noticeSaid} /></p> : null}
             {detail.error ? (
-              <SystemMessage kind="offline" title="Not Up to Date" compact
+              <SystemMessage kind="offline" title={staleTitle} compact said="stalePage"
                 action={<Button variant="secondary" size="sm" onPress={detail.reload}>Try Again</Button>}>
                 {detail.error.message}
               </SystemMessage>
@@ -130,7 +154,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             {run.problem ? (
               <>
                 <SystemMessage kind="unsupported" title={run.problem.startsWith("This run cannot be read") ? "This Run Cannot Be Read Right Now" : "This Run Was Made by an Older Version"}><WithCode text={run.problem} /></SystemMessage>
-                <VideoPreview src={run.final_video} label={`Final Video: ${run.summary.name || runTitle(run.summary.topic)}`} empty="No Final Video" />
+                <VideoPreview src={run.final_video} label={`Final Video: ${run.summary.name || runTitle(run.summary.topic)}`} empty={noFinalVideo} />
               </>
             ) : (
               <section className="stage" aria-labelledby="stage-title">
@@ -140,7 +164,7 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
                 </div>
                 {waitingIn && tab !== waitingIn ? (
                   <div className={`approval-bar${claudeAsks ? " approval-bar--quiet" : ""}`} role="status">
-                    <span><strong>{step.label}</strong> Is Waiting for Your Decision</span>
+                    <span>{decisionTitle.split("{step}").flatMap((part, index) => (index ? [<strong key={index}>{step.label}</strong>, part] : [part]))}</span>
                     <Button size="sm" variant={claudeAsks ? "secondary" : "primary"} onPress={() => navigate(runHash(id, open, waitingIn))}>Decide</Button>
                   </div>
                 ) : null}
@@ -150,7 +174,12 @@ export function RunPage({ run: id, stage, tab }: { run: string; stage?: string; 
             )}
           </div>
         </div>
-        <Drawer isOpen={consoleOpen} onOpenChange={setConsoleOpen} title="Console">
+        {!consoleOpen ? (
+          <div className="console-dock" title="Console (Ctrl+`)">
+            <Button variant="secondary" icon={<Terminal />} onPress={() => setConsoleOpen(true)} label="Console"><span className="console-dock__text">Console</span> <kbd className="console-dock__key">Ctrl `</kbd></Button>
+          </div>
+        ) : null}
+        <Drawer isOpen={consoleOpen} onOpenChange={setConsoleOpen} title="Console" terminal>
           <Console />
         </Drawer>
         <ChangeModal ask={ask} onClose={() => setAsk(null)} />

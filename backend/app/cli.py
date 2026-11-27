@@ -32,11 +32,30 @@ from app.commands.workflow_commands import (
     handle_validate_command,
 )
 from app.config import DEFAULT_TTS, REPORTS_DIRECTORY, RUNS_DIRECTORY
+from app.utilities import cli_quote
 from app.workflow import visual_director
 from app.workflow.mistakes import write_report
 from app.workflow.run_workspace import resolve_run_path
 from app.workflow.scene_code import prepare_scene
 from app.workflow.templates import choose_template, starter_templates
+
+COMMAND_HELP = {
+    "new": "start a new run from a topic",
+    "open": "open Claude Code in a run's isolated workspace",
+    "voice": "make the narration audio for a run",
+    "template": "choose the look and sound of a run",
+    "final": "assemble the final video",
+    "status": "show where a run stands",
+    "report": "show the Claude usage of a run",
+    "validate": "check a file Claude wrote",
+    "next": "show what happens next in a run",
+    "preview": "make a preview of one scene",
+    "hash": "show the version marker of a script, plan or scene",
+    "task": "show the instructions for building one scene",
+    "accept": "check a built scene",
+    "usage-ok": "continue one step although Claude usage is high",
+    "resolve": "mark a change request as applied or declined",
+}
 
 
 def video_minutes(text: str) -> float:
@@ -48,10 +67,10 @@ def video_minutes(text: str) -> float:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="text-2-shorts")
+    parser = argparse.ArgumentParser(prog="text-2-shorts", epilog=cli_quote("help"))
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
-    command_parser = subparsers.add_parser("new")
+    command_parser = subparsers.add_parser("new", help=COMMAND_HELP["new"])
     command_parser.add_argument("requirement")
     command_parser.add_argument(
         "--objective",
@@ -81,10 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     command_parser.set_defaults(handler=handle_new_command)
 
-    command_parser = subparsers.add_parser("open")
+    command_parser = subparsers.add_parser("open", help=COMMAND_HELP["open"])
     command_parser.add_argument("run")
     command_parser.add_argument(
-        "command", nargs=argparse.REMAINDER, help="-- CMD…: run CMD instead of claude in the jail (debugging)"
+        "command",
+        nargs=argparse.REMAINDER,
+        help="-- CMD…: run CMD instead of Claude Code in the isolated workspace (for debugging)",
     )
     command_parser.set_defaults(handler=handle_open_command)
 
@@ -116,7 +137,7 @@ def main() -> None:
 
 def register_subcommands(subparsers) -> None:
     def add_subcommand(name, handler, *, scenes=False, clips=False, feedback=False, force=False):
-        command_parser = subparsers.add_parser(name)
+        command_parser = subparsers.add_parser(name, help=COMMAND_HELP.get(name))
         command_parser.add_argument("run")
         if scenes:
             command_parser.add_argument("--scenes", help="comma-separated scene numbers")
@@ -154,7 +175,7 @@ def register_subcommands(subparsers) -> None:
     add_subcommand("status", handle_status_command)
     add_subcommand("report", handle_report_command)
     mistakes_parser = subparsers.add_parser(
-        "mistakes", help="what each agent gets wrong, over every run → artifacts/reports/mistakes.json and .md"
+        "mistakes", help="which mistakes each helper makes, across all runs; written to artifacts/reports/"
     )
     mistakes_parser.add_argument("--runs", default=str(RUNS_DIRECTORY), help="the runs folder to read")
     mistakes_parser.add_argument("--out", default=str(REPORTS_DIRECTORY), help="where to write the report")

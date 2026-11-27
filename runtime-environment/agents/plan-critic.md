@@ -40,7 +40,7 @@ guessing. You review; the scene-planner refactors, so never edit either file. Fo
 | P-G3 | design | Clip-to-clip moves stay simple. A continuing object never fades out and back in. |
 | P-G4 | clarity | What the narration is talking about is the most prominent thing on screen at that moment. |
 | P-G5 | clarity | On-screen text reinforces the narration (terms, formulas, captions) instead of transcribing it. |
-| P-G6 | sync | Prosody and breaks follow audio-ssml.md (key results slower, then a break). |
+| P-G6 | sync | Delivery per audio-ssml.md (`<s>`/`<p>`, one stress per sentence, key result slower). |
 
 **Great if followed (X): polish.**
 | Id | Aspect | The need |

@@ -2,11 +2,18 @@
 // with several lines shows one, chosen once per visit (like a game's splash text), so the page never flickers.
 import { useState } from "react";
 import { type Line, type Moment, VOICE } from "../../config/voice";
+import { titleCase } from "./text";
 
+/** One of several equal-meaning items, chosen once per visit so the page never flickers. */
+export function usePick<T>(items: readonly T[]): T {
+  const [index] = useState(() => Math.floor(Math.random() * items.length));
+  return items[index] ?? items[0];
+}
+
+/** The line in Title Case, the house rule for everything shown (config/voice.ts keeps the words as their source wrote them). */
 export function useLine(moment: Moment): Line {
-  const lines = VOICE[moment];
-  const [index] = useState(() => Math.floor(Math.random() * lines.length));
-  return lines[index] ?? lines[0];
+  const line = usePick(VOICE[moment]);
+  return { ...line, text: titleCase(line.text) };
 }
 
 /** The line, quoted when it is a quotation, with its credit. `block` sets it apart as an epigraph; `lead` sets it as

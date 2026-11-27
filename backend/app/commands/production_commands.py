@@ -14,7 +14,7 @@ from schemas.reviews import MistakeIssue
 
 from app import narration
 from app.config import DRAFT_QUALITY, FINAL_FRAME_RATE, TOOLS_DIRECTORY
-from app.utilities import probe_duration_seconds, run_in_parallel, write_atomic
+from app.utilities import cli_quote, probe_duration_seconds, run_in_parallel, write_atomic
 from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_brief, load_scene_plans, save_audio_index
 from app.workflow.checkpoints import require_approval
@@ -138,6 +138,7 @@ def handle_final_command(arguments) -> None:
     print(f"{run / 'final.mp4'}\nduration: {report.final_s}s · clips: {len(report.clips)}")
     for finding in report.checks:
         print(f"{finding.severity} {finding.code}: {finding.message}")
+    print(cli_quote("final"))
 
 
 def contact_sheet_filter(seconds: float) -> str:

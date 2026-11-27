@@ -136,7 +136,7 @@ ABBREVIATIONS = {
 PAUSE = "[pause]"
 PAUSE_MS = 600
 SSML_TAGS = {"speak", "break", "prosody", "emphasis", "s", "p", "sub", "say-as"}  # supported by Polly and Google
-UNSUPPORTED_TAGS = {"neural": {"emphasis"}, "generative": {"emphasis"}}  # Polly engines without these tags
+EMPHASIS_VOLUME = {"strong": "+4dB", "moderate": "+2dB", "reduced": "-3dB", "none": "medium"}
 TAG = re.compile(r"(<[^>]+>)")
 
 
@@ -220,6 +220,28 @@ def speakable_ssml(ssml: str, both_cases: AbstractSet[str] = frozenset(), pause_
     return "".join(parts)
 
 
+def polly_ssml(ssml: str, engine: str) -> str:
+    """The SSML in the form this Polly engine speaks (probed live 2026-11-27). Standard voices take everything and get
+    breaths between phrases. Neural, long-form and generative reject <emphasis> and prosody pitch, and a rejected clip
+    loses all its markup (plain text): emphasis becomes a louder word, pitch is dropped, the rest is kept."""
+    if engine == "standard":
+        return ssml.replace("<speak>", "<speak><amazon:auto-breaths>", 1).replace(
+            "</speak>", "</amazon:auto-breaths></speak>"
+        )
+    parts = []
+    for chunk in TAG.split(ssml):
+        if chunk.startswith("<emphasis"):
+            level = re.search(r"""level=["'](\w+)""", chunk)
+            chunk = f'<prosody volume="{EMPHASIS_VOLUME.get(level[1] if level else "moderate", "+2dB")}">'
+        elif chunk == "</emphasis>":
+            chunk = "</prosody>"
+        elif chunk.startswith("<prosody"):
+            chunk = re.sub(r"""\s+pitch=["'][^"']*["']""", "", chunk)
+            chunk = '<prosody volume="medium">' if chunk == "<prosody>" else chunk
+        parts.append(chunk)
+    return "".join(parts)
+
+
 def mark_words(ssml: str) -> tuple[str, list[str]]:
     """SSML with <mark name="i"/> before every word (Google TTS returns a time per mark) + the word list."""
     words, parts = [], []
@@ -272,17 +294,14 @@ def create_speech_synthesizer(sound: dict):
 
 
 def create_polly_synthesizer(voice: str, engine: str):
-    """AWS Polly from the clip's speakable SSML, without tags this engine lacks, plus word speech marks (beat timing).
-    Falls back to plain text when an engine rejects the SSML, and to no marks when an engine has none."""
+    """AWS Polly from the clip's speakable SSML in the form this engine speaks, plus word speech marks (beat timing).
+    Falls back to plain text when an engine still rejects the SSML, and to no marks when an engine has none."""
     import boto3
 
     polly_client = boto3.client("polly")
 
-    unsupported = UNSUPPORTED_TAGS.get(engine, set())
-
     def synthesize_request(ssml: str, **request_options):
-        if unsupported:
-            ssml = re.sub(rf"</?(?:{'|'.join(unsupported)})\b[^>]*>", "", ssml)
+        ssml = polly_ssml(ssml, engine)
         try:
             return polly_client.synthesize_speech(
                 Text=ssml, TextType="ssml", VoiceId=voice, Engine=engine, **request_options

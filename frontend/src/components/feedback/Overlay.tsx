@@ -33,14 +33,16 @@ export function Modal({ isOpen, onOpenChange, title, description, icon, children
   );
 }
 
-export function Drawer({ isOpen, onOpenChange, title, description, children, wide, footer }: {
+export function Drawer({ isOpen, onOpenChange, title, description, children, wide, terminal, footer }: {
   isOpen: boolean; onOpenChange: (open: boolean) => void; title: string; description?: ReactNode; children: ReactNode;
   /** A wide pane that scrolls inside (Build Your Own), rather than the console's narrow one. */
   wide?: boolean; footer?: ReactNode;
+  /** The console: wide, black, edge to edge, its own scrolling (a terminal, not a form). */
+  terminal?: boolean;
 }) {
   return (
-    <ModalOverlay className="overlay overlay--drawer" isOpen={isOpen} onOpenChange={onOpenChange} isDismissable>
-      <AriaModal className={wide ? "drawer drawer--wide" : "drawer"}>
+    <ModalOverlay className="overlay overlay--drawer" isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={!terminal}>
+      <AriaModal className={terminal ? "drawer drawer--terminal" : wide ? "drawer drawer--wide" : "drawer"}>
         <Dialog className="drawer__dialog">
           {({ close }) => (
             <>
