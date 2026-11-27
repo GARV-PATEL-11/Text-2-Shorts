@@ -25,7 +25,7 @@ export const NO_REQUESTS = ["template", "requirements", "reshuffle"];
 export function ChangeModal({ ask, onClose }: { ask: Ask | null; onClose: () => void }) {
   const { run, refresh } = useRun();
   const targets = useMemo(() => [
-    { id: "outline", label: "The Outline" }, { id: "script", label: "The Script" }, { id: "plan", label: "All Scene Plans" },
+    { id: "outline", label: "The Outline" }, { id: "script", label: "The Script" }, { id: "plan", label: "All Scene Plans" }, { id: "scenes", label: "All Scenes" },
     ...run.scenes.flatMap((scene) => [
       { id: scene.scene_id, label: `Scene ${scene.scene_id}: ${scene.title}` },
       ...scene.clips.map((clip) => ({ id: clip.clip_id, label: `Clip ${clip.clip_id}: ${clip.objective}` })),

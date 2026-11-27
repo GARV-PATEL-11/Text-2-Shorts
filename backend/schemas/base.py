@@ -39,7 +39,7 @@ class Severity(str, Enum):
     error = "ERROR"
 
 
-TargetId = Annotated[str, Field(pattern=r"^(outline|script|plan|final|s\d{2}(c\d{2})?)$")]
+TargetId = Annotated[str, Field(pattern=r"^(outline|script|plan|scenes|final|s\d{2}(c\d{2})?)$")]
 
 
 RequestKind = Literal["wording", "visual", "audio-timing", "accuracy", "structure", "style", "other"]

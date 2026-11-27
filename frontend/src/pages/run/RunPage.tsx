@@ -41,7 +41,11 @@ const VIEWS: Record<string, (props: StageProps) => ReactNode> = {
 
 /** Where the open stage waits for you, if it does: the tab to open (a scene's own tab for a scene). */
 function waitingTab(run: RunDetail, stage: string): string | null {
-  if (stage === "scenes") return run.awaiting.find((checkpoint) => /^(start:)?s\d{2}$/.test(checkpoint.target))?.target.replace("start:", "") ?? null;
+  if (stage === "scenes") {
+    const scene = run.awaiting.find((checkpoint) => /^(start:)?s\d{2}$/.test(checkpoint.target));
+    if (scene) return scene.target.replace("start:", "");
+    return run.awaiting.some((checkpoint) => checkpoint.target === "scenes") ? "approval" : null;  // Approve All Scenes
+  }
   return run.awaiting.some((checkpoint) => checkpoint.target === stage) ? "checkpoint" : null;
 }
 

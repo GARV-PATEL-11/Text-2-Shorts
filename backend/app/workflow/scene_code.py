@@ -125,6 +125,8 @@ def prepare_scene(run: Path, scene_id: str) -> str:
     plan = load_plan(run, scene_id)
     install_template(run)  # the renderer the harness draws the backdrop with, in the run environment
     audio = load_audio_index(run, scene_id)
+    if missing := [clip.clip_id for clip in plan.clips if clip.clip_id not in audio]:
+        raise SystemExit(f"No audio for {', '.join(missing)}: run voice first (`text-2-shorts voice .`)")
     ensure_api_index()
     scene_directory = run / "scenes" / scene_id
     work = scene_directory / "work"

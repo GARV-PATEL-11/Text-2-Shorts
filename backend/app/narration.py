@@ -171,7 +171,8 @@ def speakable(text: str, both_cases: AbstractSet[str] = frozenset()) -> str:
             text = text.replace(written, spoken)
     units = "|".join(re.escape(unit) for unit in sorted(UNITS, key=len, reverse=True))
     text = re.sub(rf"(\d(?:[\d,.]*\d)?)\s?({units})(?![A-Za-z])", lambda match: f"{match[1]} {UNITS[match[2]]}", text)
-    text = re.sub(r"(\d)\s*-\s*(\d)", r"\1 minus \2", text)
+    text = re.sub(r"(\d)[-–](\d)", r"\1 to \2", text)  # "10-20 s", "3–5": a range
+    text = re.sub(r"(\d)\s+-\s+(\d)", r"\1 minus \2", text)  # "9 - 1": spaced, a subtraction
     for written, spoken in {**GREEK, **SYMBOLS}.items():
         text = text.replace(written, spoken if written in SYMBOLS else f" {spoken} ")
     text = re.sub(r"\bAU\b", "A U", text)

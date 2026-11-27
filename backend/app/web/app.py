@@ -122,6 +122,7 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY) -> FastAPI:
     app = FastAPI(title="Text-2-Shorts", docs_url=None, redoc_url=None, openapi_url=None)
     sessions = auth.Sessions()
     browser = faraday_logging.channel("frontend")
+    runs_directory.mkdir(parents=True, exist_ok=True)  # a fresh clone has no artifacts/runs yet
     log.info("serving runs from %s", runs_directory)
 
     @app.middleware("http")

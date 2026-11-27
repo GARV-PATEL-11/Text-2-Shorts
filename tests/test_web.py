@@ -112,6 +112,15 @@ def test_the_claude_code_account_comes_from_claude_auth_status(monkeypatch):
 # ── runs, media ───────────────────────────────────────────────────────────────────────────────────────────
 
 
+def test_a_fresh_clone_without_a_runs_folder_lists_no_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr(auth, "claude_code_account", lambda: ACCOUNT)
+    with TestClient(create_app(tmp_path / "runs"), base_url=BASE) as client:
+        signed_in(client)
+        response = client.get("/api/runs")
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
 def test_the_api_lists_runs_and_shows_one_run(web):
     runs, client = web
     signed_in(client)
@@ -192,6 +201,8 @@ def test_the_frontend_records_change_requests_and_resolves_them(web):
     assert response.status_code == 200 and response.json()["status"] == "declined"
     missing = client.post("/api/runs/20261124-120000-cp1/requests/r009", json={"status": "applied"}, headers=ORIGIN)
     assert missing.status_code == 404
+    every_scene = {"target": "scenes", "kind": "visual", "text": "slower everywhere"}  # Scenes' "All Scenes"
+    assert client.post("/api/runs/20261124-120000-cp1/requests", json=every_scene, headers=ORIGIN).status_code == 201
 
 
 def test_writes_only_come_from_the_page_itself(web):
@@ -388,13 +399,15 @@ def test_a_console_turn_is_the_run_session_in_its_jail():  # Haiku: the user's c
     from app.config import SESSION_MODEL
 
     first = sandbox.console_claude_arguments("hello", None)
-    assert first[:3] == ["claude", "-p", "hello"] and "--resume" not in first
+    assert first[:2] == ["claude", "-p"] and first[-2:] == ["--", "hello"] and "--resume" not in first
     assert ["--output-format", "stream-json"] == first[
         first.index("--output-format") : first.index("--output-format") + 2
     ]
     assert first[first.index("--model") + 1] == SESSION_MODEL and "--plugin-dir" in first
     resumed = sandbox.console_claude_arguments("next", "session-1")
     assert resumed[resumed.index("--resume") + 1] == "session-1"
+    dash = sandbox.console_claude_arguments("--settings=x.json shorter intro", "session-1")
+    assert dash[-2:] == ["--", "--settings=x.json shorter intro"]  # never read as a Claude Code option
 
 
 # ── look & sound ──────────────────────────────────────────────────────────────────────────────────────────

@@ -162,6 +162,29 @@ def test_voice_and_clip_tasks_wait_for_the_approved_plans(tmp_path):
         scene_code.prepare_scene(tmp_path, "s01")
 
 
+def test_a_clip_task_without_audio_says_to_run_voice_first(tmp_path):
+    script = approved_script_run(tmp_path, 30, 30)
+    for number in (1, 2):
+        write_json_file(tmp_path / "scenes" / f"s{number:02d}" / "plan.json", make_plan(script, number))
+        write_critique(tmp_path, f"s{number:02d}", "plan", "pass")
+    write_json_file(tmp_path / "plan_review.json", {"findings": []})
+    approve(tmp_path, "plan")
+    with pytest.raises(SystemExit, match="run voice first"):
+        scene_code.prepare_scene(tmp_path, "s01")
+
+
+def test_re_timed_ssml_keeps_the_plan_critique_current_but_a_visual_edit_does_not(tmp_path):
+    two_scenes_after_cp2(tmp_path)
+    path = tmp_path / "scenes" / "s01" / "plan.json"
+    plan = json.loads(path.read_text())
+    plan["clips"][0]["ssml"] = plan["clips"][0]["ssml"].replace("</speak>", ' <break time="400ms"/></speak>')
+    write_json_file(path, plan)  # what the audio-refactorer does
+    assert critiques.critique_state(tmp_path, "s01", "plan") == "done"
+    plan["composition"] = "changed"
+    write_json_file(path, plan)
+    assert critiques.critique_state(tmp_path, "s01", "plan") == "stale"
+
+
 def test_next_steps_follow_the_stage_order(tmp_path):
     write_brief(tmp_path, objectives=["understand the topic"])
     steps = status.next_steps(tmp_path)
@@ -920,6 +943,14 @@ def test_scene_plans_are_written_and_refactored_by_the_scene_planner(tmp_path):
     feedback(tmp_path, "s02", "visual", "bigger diagram")
     route = driver.next_actions(tmp_path).actions[0]
     assert (route.agent, route.target) == ("scene-planner", "s02") and "r001" in route.what
+
+
+def test_a_request_about_all_scenes_blocks_the_scenes_checkpoint_and_is_asked_about(tmp_path):
+    two_scenes_after_cp2(tmp_path)
+    request = change_requests.record_change_request(tmp_path, "scenes", "visual", "slower animations everywhere")
+    assert change_requests.blocking_requests(tmp_path, "scenes")
+    action = change_requests.request_route(tmp_path, request)
+    assert action is not None and action.do == "ask_user" and request.id in action.what
 
 
 def test_outline_and_script_are_built_and_refactored_by_the_script_writer_never_the_session(tmp_path):

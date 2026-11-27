@@ -145,8 +145,9 @@ def console_claude_arguments(message: str, session_id: str | None) -> list[str]:
     """One turn of the run session from the website's console: the user's message, streamed back as JSON events,
     resuming the same session each turn. With usage_check_arguments, the only places Python starts Claude Code with a
     message: here the message is always the user's own (no prompts are written here)."""
-    arguments = ["claude", "-p", message, "--output-format", "stream-json", "--verbose", *session_flags()]
-    return arguments + (["--resume", session_id] if session_id else [])
+    arguments = ["claude", "-p", "--output-format", "stream-json", "--verbose", *session_flags()]
+    resume = ["--resume", session_id] if session_id else []
+    return [*arguments, *resume, "--", message]  # "--": a message starting with "-" is never read as an option
 
 
 USAGE_CHECK_MESSAGE = "Reply with OK."

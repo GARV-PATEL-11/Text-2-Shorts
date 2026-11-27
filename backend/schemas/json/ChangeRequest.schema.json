@@ -8,7 +8,7 @@
       "type": "string"
     },
     "target": {
-      "pattern": "^(outline|script|plan|final|s\\d{2}(c\\d{2})?)$",
+      "pattern": "^(outline|script|plan|scenes|final|s\\d{2}(c\\d{2})?)$",
       "title": "Target",
       "type": "string"
     },

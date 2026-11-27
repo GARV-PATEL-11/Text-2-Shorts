@@ -106,7 +106,7 @@ def blocking_requests(run: Path, target: str) -> list[str]:
         if target == "plan":
             return where == "plan" or (scene is not None and len(where) == 3 and kind == "visual")
         if target == "scenes":
-            return scene is not None
+            return scene is not None or where == "scenes"
         if target.startswith("scene:"):
             return scene == target.removeprefix("scene:")
         return target == "final"
@@ -142,6 +142,8 @@ def request_route(run: Path, request: TrackedRequest) -> Action | None:
             what="script refactor mode — fix the last script_critique.json round (basic needs first, keep its "
             f"strengths) and {what}",
         )
+    if where == "scenes" and kind in ("visual", "audio-timing"):  # every scene: the user picks which to redo
+        return Action(do="ask_user", what=f"which scenes should change? {what}")
     if kind == "visual":
         if scene and len(where) == 3 and (run / "scenes" / scene / "plan.json").exists():
             return Action(do="subagent", agent="scene-planner", target=scene, what=f"request mode — {what}")

@@ -34,9 +34,18 @@ def critique_subject_hash(run: Path, scene_id: str, kind: str) -> str | None:
     """What a critique round must have reviewed: the script, the scene plan as it is now, or the scene's video."""
     if kind == "script":
         return script_fingerprint(run)
-    if kind == "plan":
+    if kind == "plan":  # without SSML, like CP2's fingerprint: re-timed audio is not a new plan
         path = run / "scenes" / scene_id / "plan.json"
-        return content_hash(read_json(path)) if path.exists() else None
+        if not path.exists():
+            return None
+        plan = read_json(path)
+        clips = plan.get("clips") if isinstance(plan, dict) else None
+        if isinstance(clips, list):
+            plan = {
+                **plan,
+                "clips": [{k: v for k, v in c.items() if k != "ssml"} if isinstance(c, dict) else c for c in clips],
+            }
+        return content_hash(plan)
     return scene_video_hash(run, scene_id)
 
 

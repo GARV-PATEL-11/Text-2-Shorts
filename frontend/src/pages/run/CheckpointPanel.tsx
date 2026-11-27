@@ -20,7 +20,9 @@ export function CheckpointPanel({ target }: { target: string }) {
   const { run, refresh, ask } = useRun();
   const checkpoint = run.awaiting.find((candidate) => candidate.target === target);
   const [notes, setNotes] = useState("");
-  const [accepted, setAccepted] = useState(false);
+  const problemsKey = checkpoint?.problems.join("\n") ?? "";
+  const [acceptedFor, setAcceptedFor] = useState<string | null>(null);
+  const accepted = acceptedFor === problemsKey;  // new or changed problems clear the tick: they were never seen
   const action = useAction();
   const decisions = run.decisions.filter((decision) => decision.checkpoint === target);
   const approved = stageStatuses(run)[target] === "approved";
@@ -67,7 +69,7 @@ export function CheckpointPanel({ target }: { target: string }) {
           <>
             <p className="subhead">Open Problems</p>
             <ul className="points">{checkpoint.problems.map((problem) => <li key={problem}><WithCode text={problem} /></li>)}</ul>
-            <Checkbox label="Approve with Open Problems" hint="Approving Records These as Open" isSelected={accepted} onChange={setAccepted} />
+            <Checkbox label="Approve with Open Problems" hint="Approving Records These as Open" isSelected={accepted} onChange={(on) => setAcceptedFor(on ? problemsKey : null)} />
           </>
         ) : <p className="note">Nothing Blocks This Checkpoint</p>}
         <MarkdownField label="Notes (Optional)" value={notes} onChange={setNotes} rows={2} maxLength={4000} />

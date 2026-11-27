@@ -23,7 +23,8 @@ Rules (the gate checks the starred ones)
 3. Scenes after the index: one objective each (`role: "content"`, or `"recap"` for a closing summary),
    prerequisites first, each building on the last. The content decides the scene count. Typical: 20–90 s.
 4. *Narration is the exact spoken text, written for a voice per standards.md (symbols in backticks, [pause]
-   markers, numbers ≤ 2 decimals, no markdown). Words per scene ≈ duration_seconds × target_wpm / 60 (±25%).
+   markers, numbers ≤ 2 decimals, no markdown; "10-20" is read "10 to 20", so write a subtraction as "9 − 1"
+   or "9 - 1"). Words per scene ≈ duration_seconds × target_wpm / 60 (±25%).
 5. *bridge_in: empty for s01; for every later scene, the spoken inter-scene transition (transitions.md).
 6. *Pacing: scene durations total the brief's minutes ±20%; harder ideas get more time; one [pause] after each
    key result; vary sentence length.

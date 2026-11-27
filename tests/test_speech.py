@@ -11,8 +11,13 @@ def test_symbols_units_abbreviations_and_case():
         speakable("Earth is 1 AU away, e.g. 150 km/h or 9.8 m/s².")
         == "Earth is 1 astronomical units away, for example 150 kilometers per hour or 9.8 meters per second squared."
     )
-    assert speakable("`r_1` + `θ` ≈ 3.14 and 5-2 = 3") == "ar 1 plus theta approximately 3.14 and 5 minus 2 equals 3"
+    assert speakable("`r_1` + `θ` ≈ 3.14 and 5 - 2 = 3") == "ar 1 plus theta approximately 3.14 and 5 minus 2 equals 3"
     assert speakable("at 90° and 50%") == "at 90 degrees and 50 percent"
+
+
+def test_a_range_is_read_as_to_and_a_real_minus_as_minus():
+    assert speakable("it takes 10-20 seconds, or 3–5 orbits") == "it takes 10 to 20 seconds, or 3 to 5 orbits"
+    assert speakable("so 7 − 4 = 3 and 9 - 1 = 8") == "so 7 minus 4 equals 3 and 9 minus 1 equals 8"
 
 
 def test_planned_ssml_is_checked_and_made_speakable():

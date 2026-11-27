@@ -42,7 +42,7 @@ def test_no_llm_orchestration_in_app():
         if module_path.name != "sandbox.py":
             assert '"claude", "-p"' not in source, f"{module_path} starts Claude Code with a message"
     sandbox_source = (app_directory / "sandbox.py").read_text()
-    assert sandbox_source.count('"claude", "-p"') == 1 and '["claude", "-p", message,' in sandbox_source
+    assert sandbox_source.count('"claude", "-p"') == 1 and '"--", message]' in sandbox_source
     assert not (app_directory / "graph" / "prompts").exists()
     for name in (
         "standards",
@@ -371,7 +371,10 @@ def test_run_environment_is_not_gitignored():
     files = [
         str(path.relative_to(RUN_ENVIRONMENT.parent))
         for path in RUN_ENVIRONMENT.rglob("*")
-        if path.is_file() and "__pycache__" not in path.parts
+        # template/ is the installed run template (templates.install_template), gitignored on purpose
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and "template" not in path.relative_to(RUN_ENVIRONMENT).parts[:1]
     ]
     ignored = subprocess.run(
         ["git", "check-ignore", *files], cwd=RUN_ENVIRONMENT.parent, capture_output=True, text=True
