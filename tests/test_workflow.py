@@ -1135,6 +1135,30 @@ def test_a_later_critique_round_is_told_to_check_the_change(tmp_path):  # O3
     assert "round 2" in follow_up.what and "what the refactor changed" in follow_up.what
 
 
+def test_past_85_percent_of_a_usage_window_every_step_waits_for_the_users_go_ahead(tmp_path, no_usage_reported_yet):
+    import time
+
+    def used(percent, resets_in=3600):
+        window = {"utilization": percent / 100, "resetsAt": int(time.time()) + resets_in, "status": "allowed"}
+        no_usage_reported_yet.write_text(
+            json.dumps({"checked_at": "2026-11-27T12:00:00", "windows": {"five_hour": window}})
+        )
+
+    plans_ready_for_cp2(tmp_path)
+    used(70)
+    step = driver.next_actions(tmp_path).actions[0]
+    assert step.agent == "plan-critic"  # under the line: no question
+    used(86)
+    gate = driver.next_actions(tmp_path).actions[0]
+    assert gate.do == "ask_user" and "86%" in gate.what and "plan-critic" in gate.what
+    workflow_commands.handle_usage_ok_command(argparse.Namespace(run=str(tmp_path)))
+    assert driver.next_actions(tmp_path).actions[0].agent == "plan-critic"  # this one step, approved
+    write_critique(tmp_path, "s01", "plan", "pass")
+    assert driver.next_actions(tmp_path).actions[0].do == "ask_user"  # the next step asks again
+    used(97, resets_in=-60)  # that window has reset since it was read: it no longer counts
+    assert driver.next_actions(tmp_path).actions[0].agent == "plan-critic"
+
+
 def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):
     write_brief(tmp_path)
     for _ in range(2):

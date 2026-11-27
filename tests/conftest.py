@@ -23,6 +23,15 @@ def logs_in_a_temporary_folder(tmp_path_factory):
     return faraday_logging.LOG_DIRECTORY
 
 
+@pytest.fixture(autouse=True)
+def no_usage_reported_yet(tmp_path_factory, monkeypatch):
+    """Tests never read this computer's real Claude usage (~/.cache/text-2-shorts/usage.json)."""
+    from app.web import usage
+
+    monkeypatch.setattr(usage, "USAGE_FILE", tmp_path_factory.mktemp("usage") / "usage.json")
+    return usage.USAGE_FILE
+
+
 @pytest.fixture(scope="session", autouse=True)
 def runtime_template_in_a_temporary_folder(tmp_path_factory):
     """Tests never write the chosen template into runtime-environment/template/ (subprocesses inherit the setting)."""

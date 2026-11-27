@@ -197,7 +197,7 @@ def status_text(run: Path) -> str:
 def sum_session_tokens(run: Path) -> TokenUsage:
     """Token totals from this run's Claude Code transcripts (recorded by the SessionStart hook), subagents included.
     Streaming writes one transcript line per content block with the same message id — count each message once."""
-    totals, seen = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "messages": 0}, set()
+    totals, seen, by_model = TokenUsage(), set(), {}
     for transcript in load_state(run).sessions:
         transcript_path = Path(transcript)
         for transcript_file in (
@@ -215,9 +215,11 @@ def sum_session_tokens(run: Path) -> TokenUsage:
                 if entry.get("type") != "assistant" or not usage or message.get("id") in seen:
                     continue
                 seen.add(message.get("id"))
-                totals["input"] += usage.get("input_tokens", 0)
-                totals["output"] += usage.get("output_tokens", 0)
-                totals["cache_read"] += usage.get("cache_read_input_tokens", 0)
-                totals["cache_write"] += usage.get("cache_creation_input_tokens", 0)
-                totals["messages"] += 1
-    return TokenUsage(**totals)
+                for counted in (totals, by_model.setdefault(message.get("model") or "unknown", TokenUsage())):
+                    counted.input += usage.get("input_tokens", 0)
+                    counted.output += usage.get("output_tokens", 0)
+                    counted.cache_read += usage.get("cache_read_input_tokens", 0)
+                    counted.cache_write += usage.get("cache_creation_input_tokens", 0)
+                    counted.messages += 1
+    totals.by_model = by_model
+    return totals

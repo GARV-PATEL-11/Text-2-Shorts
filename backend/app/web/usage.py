@@ -10,6 +10,7 @@ import json
 import logging
 import subprocess
 import threading
+import time
 
 from schemas.api import UsageView, UsageWindow
 
@@ -36,6 +37,13 @@ def record(event: dict) -> bool:
         log.exception("usage limits not kept")
         return False
     return True
+
+
+def window_over(percent: float) -> tuple[UsageWindow, str | None] | None:
+    """The fullest usage window at `percent` or more that has not reset since it was read (and when it was read)."""
+    view = latest()
+    full = [window for window in view.windows if window.used_percent >= percent and window.resets_at > time.time()]
+    return (max(full, key=lambda window: window.used_percent), view.checked_at) if full else None
 
 
 def latest(plan: str = "") -> UsageView:

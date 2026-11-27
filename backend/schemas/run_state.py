@@ -50,6 +50,7 @@ class RunState(Strict):
     regate: list[str] = Field(
         default_factory=list, description="scenes a reshuffle recoloured: their code must pass the gates again (accept)"
     )
+    usage_ok: str | None = Field(None, description="the one batch the user let through past the usage gate (its hash)")
     builder_prompt: str | None = Field(
         None, description="hash of the scene-builder prompt this run was made with: part of every clip key (D3)"
     )
@@ -83,3 +84,4 @@ class TokenUsage(Strict):
     cache_read: int = 0
     cache_write: int = 0
     messages: int = Field(0, description="model responses, each counted once")
+    by_model: dict[str, TokenUsage] = Field(default_factory=dict, description="the same, per Claude model")

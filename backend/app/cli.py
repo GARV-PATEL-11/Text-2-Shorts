@@ -28,6 +28,7 @@ from app.commands.workflow_commands import (
     handle_report_command,
     handle_resolve_command,
     handle_status_command,
+    handle_usage_ok_command,
     handle_validate_command,
 )
 from app.config import DEFAULT_TTS, REPORTS_DIRECTORY, RUNS_DIRECTORY
@@ -204,6 +205,7 @@ def register_subcommands(subparsers) -> None:
     command_parser.add_argument("scene", help="sNN")
     command_parser = add_subcommand("accept", handle_accept_command)
     command_parser.add_argument("scene", help="sNN")
+    add_subcommand("usage-ok", handle_usage_ok_command)  # the user's go-ahead past the usage gate, one step
     command_parser = add_subcommand("approve", handle_approve_command, force=True)
     command_parser.add_argument(
         "target", help="requirements | template | outline | script | plan | sNN | final | start:sNN"

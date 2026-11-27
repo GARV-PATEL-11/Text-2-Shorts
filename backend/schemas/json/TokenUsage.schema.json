@@ -1,34 +1,47 @@
 {
-  "additionalProperties": false,
-  "description": "Token totals of a run's Claude Code sessions and subagents (`text-2-shorts report`).",
-  "properties": {
-    "input": {
-      "default": 0,
-      "title": "Input",
-      "type": "integer"
-    },
-    "output": {
-      "default": 0,
-      "title": "Output",
-      "type": "integer"
-    },
-    "cache_read": {
-      "default": 0,
-      "title": "Cache Read",
-      "type": "integer"
-    },
-    "cache_write": {
-      "default": 0,
-      "title": "Cache Write",
-      "type": "integer"
-    },
-    "messages": {
-      "default": 0,
-      "description": "model responses, each counted once",
-      "title": "Messages",
-      "type": "integer"
+  "$defs": {
+    "TokenUsage": {
+      "additionalProperties": false,
+      "description": "Token totals of a run's Claude Code sessions and subagents (`text-2-shorts report`).",
+      "properties": {
+        "input": {
+          "default": 0,
+          "title": "Input",
+          "type": "integer"
+        },
+        "output": {
+          "default": 0,
+          "title": "Output",
+          "type": "integer"
+        },
+        "cache_read": {
+          "default": 0,
+          "title": "Cache Read",
+          "type": "integer"
+        },
+        "cache_write": {
+          "default": 0,
+          "title": "Cache Write",
+          "type": "integer"
+        },
+        "messages": {
+          "default": 0,
+          "description": "model responses, each counted once",
+          "title": "Messages",
+          "type": "integer"
+        },
+        "by_model": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TokenUsage"
+          },
+          "description": "the same, per Claude model",
+          "title": "By Model",
+          "type": "object"
+        }
+      },
+      "title": "TokenUsage",
+      "type": "object"
     }
   },
-  "title": "TokenUsage",
-  "type": "object"
+  "$ref": "#/$defs/TokenUsage"
 }

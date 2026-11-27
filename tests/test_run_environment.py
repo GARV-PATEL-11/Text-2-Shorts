@@ -205,29 +205,32 @@ def test_report_sums_session_tokens_once_per_message(tmp_path):
 
     transcript = tmp_path / "s.jsonl"
 
-    def assistant_message(message_id, input_tokens):
+    def assistant_message(message_id, input_tokens, model="claude-opus-5-5"):
         usage = {
             "input_tokens": input_tokens,
             "output_tokens": 1,
             "cache_read_input_tokens": 10,
             "cache_creation_input_tokens": 5,
         }
-        return json.dumps({"type": "assistant", "message": {"id": message_id, "usage": usage}})
+        return json.dumps({"type": "assistant", "message": {"id": message_id, "model": model, "usage": usage}})
 
     transcript.write_text(
         "\n".join(
             [
                 assistant_message("a", 3),
                 assistant_message("a", 3),
-                assistant_message("b", 4),
+                assistant_message("b", 4, "claude-haiku-5-5"),
                 json.dumps({"type": "user"}),
             ]
         )
     )
     utilities.write_json(tmp_path / "state.json", {"approved": {}, "clips": {}, "sessions": [str(transcript)]})
-    assert status.sum_session_tokens(tmp_path) == TokenUsage(
-        input=7, output=2, cache_read=20, cache_write=10, messages=2
-    )
+    totals = status.sum_session_tokens(tmp_path)
+    assert totals.model_dump(exclude={"by_model"}) == {
+        "input": 7, "output": 2, "cache_read": 20, "cache_write": 10, "messages": 2,
+    }  # fmt: skip
+    assert totals.by_model["claude-opus-5-5"] == TokenUsage(input=3, output=1, cache_read=10, cache_write=5, messages=1)
+    assert totals.by_model["claude-haiku-5-5"].input == 4  # each model on its own: the Opus/Sonnet cost question (D8)
 
 
 def test_a_subagent_cannot_approve_a_checkpoint(tmp_path):  # M31: approving is the user's, through the session
@@ -241,6 +244,8 @@ def test_a_subagent_cannot_approve_a_checkpoint(tmp_path):  # M31: approving is 
     assert by_subagent.returncode == 2 and "user" in by_subagent.stderr
     by_session = run_hook({**asked, "tool_input": {"command": "text-2-shorts approve . plan"}})
     assert by_session.returncode == 0  # the session approves after the user said so in the console
+    past_the_gate = run_hook({**asked, "agent_id": "a1", "tool_input": {"command": "text-2-shorts usage-ok ."}})
+    assert past_the_gate.returncode == 2  # going on past the usage gate is the user's call too
     other = run_hook({**asked, "agent_id": "a1", "tool_input": {"command": "text-2-shorts validate . plan"}})
     assert other.returncode == 0
     hooks = json.loads((RUN_ENVIRONMENT / "hooks" / "hooks.json").read_text())["hooks"]

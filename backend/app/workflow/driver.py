@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from schemas.reviews import Critique
 from schemas.session import Action, ActionBatch
 
-from app.config import MAX_ATTEMPTS, REFERENCES_DIRECTORY
+from app.config import MAX_ATTEMPTS, REFERENCES_DIRECTORY, USAGE_GATE_PERCENT
+from app.utilities import content_hash
+from app.web.usage import window_over
 from app.workflow.artifacts import load_brief, load_final_report, load_scene_plans, load_script
 from app.workflow.change_requests import open_requests, request_route
 from app.workflow.checkpoints import stage_approval_problem
@@ -39,6 +42,33 @@ from app.workflow.validation import (
 
 
 def next_actions(run: Path) -> ActionBatch:
+    """The planned batch, unless a Claude usage window is USAGE_GATE_PERCENT full: then the user decides, one step at
+    a time (`text-2-shorts usage-ok .` lets exactly that batch through; the next one asks again)."""
+    planned = planned_batch(run)
+    over = window_over(USAGE_GATE_PERCENT)
+    if over is None or all(action.do == "ask_user" for action in planned.actions):
+        return planned
+    if load_state(run).usage_ok == content_hash(planned.model_dump()):
+        return planned
+    window, read_at = over
+    step = "; ".join(
+        f"{action.agent or action.command or action.do} {action.target or ''}".strip() for action in planned.actions
+    )
+    return ActionBatch(
+        stage=planned.stage,
+        actions=[
+            Action(
+                do="ask_user",
+                what=f"Claude usage is at {window.used_percent:.0f}% of the {window.id} window (resets "
+                f"{datetime.fromtimestamp(window.resets_at):%a %H:%M}; read {read_at or 'at an unknown time'}). "
+                f"Next would be: {step}. Ask the user whether to go on; on yes run `text-2-shorts usage-ok .`, "
+                "then `text-2-shorts next .` again.",
+            )
+        ],
+    )
+
+
+def planned_batch(run: Path) -> ActionBatch:
     """The one batch to do now. The session runs it (in parallel when `parallel`), then asks again. Each action names
     who does it (you, a subagent, a command, the user), its target, and the files to read — by path."""
 

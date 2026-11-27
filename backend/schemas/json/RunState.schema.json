@@ -153,6 +153,19 @@
       "title": "Regate",
       "type": "array"
     },
+    "usage_ok": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "the one batch the user let through past the usage gate (its hash)",
+      "title": "Usage Ok"
+    },
     "builder_prompt": {
       "anyOf": [
         {

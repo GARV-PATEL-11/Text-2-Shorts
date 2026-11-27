@@ -57,9 +57,10 @@ def react(hook_event: HookEvent) -> None:
     """What each hook event does (see handle_hook_command)."""
     tool_input = hook_event.tool_input
     if hook_event.hook_event_name == "PreToolUse":  # approving is the user's decision, relayed by the session (M31)
-        if hook_event.agent_id and re.search(r"\btext-2-shorts\s+approve\b", tool_input.command or ""):
+        if hook_event.agent_id and re.search(r"\btext-2-shorts\s+(approve|usage-ok)\b", tool_input.command or ""):
             print(
-                "Only the user approves a checkpoint. Finish your task and report back; the session asks the user.",
+                "Only the user approves a checkpoint or going on past the usage gate. Finish your task and report back; the "
+                "session asks the user.",
                 file=sys.stderr,
             )
             sys.exit(2)

@@ -9,11 +9,12 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from app.config import API_INDEX_PATH, PYTHON_EXECUTABLE, TOOLS_DIRECTORY, TOPICS_DIRECTORY
-from app.utilities import format_validation_errors
+from app.utilities import content_hash, format_validation_errors
 from app.workflow.approvals import ApprovalBlocked, approve_checkpoint, checkpoint_target
 from app.workflow.change_requests import REQUEST_ROUTES, record_change_request, resolve_request
 from app.workflow.critiques import critique_subject_hash, validate_changes, validate_critique
-from app.workflow.driver import format_actions, next_actions
+from app.workflow.driver import format_actions, next_actions, planned_batch
+from app.workflow.ledger import update_state
 from app.workflow.preferences import validate_preferences
 from app.workflow.scene_code import ensure_api_index
 from app.workflow.status import status_text, sum_session_tokens
@@ -56,6 +57,14 @@ def handle_resolve_command(arguments) -> None:
     print(f"{arguments.id}: {arguments.status}")
 
 
+def handle_usage_ok_command(arguments) -> None:
+    """The user said go on past the usage gate: lets exactly the batch `next` is holding back through."""
+    run = Path(arguments.run)
+    held = planned_batch(run)
+    update_state(run, lambda state: setattr(state, "usage_ok", content_hash(held.model_dump())))
+    print(f"go-ahead for this step only: {held.stage}")
+
+
 def handle_approve_command(arguments) -> None:
     try:
         decision = approve_checkpoint(
@@ -82,6 +91,11 @@ def handle_report_command(arguments) -> None:
         f"Claude Code sessions: {totals.messages} model responses · input {total_in} tokens (net {totals.input}, "
         f"cache read {totals.cache_read}, cache write {totals.cache_write}{cached}) · output {totals.output} tokens"
     )
+    for model, used in sorted(totals.by_model.items()):
+        print(
+            f"  {model}: {used.messages} responses · input {used.input} · cache read {used.cache_read} · "
+            f"cache write {used.cache_write} · output {used.output}"
+        )
 
 
 def handle_validate_command(arguments) -> None:
