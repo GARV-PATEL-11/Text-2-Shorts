@@ -47,6 +47,9 @@ class RunState(Strict):
     sessions: list[str] = Field(default_factory=list, description="Claude Code transcript paths of this run")
     status: dict[str, Status] = Field(default_factory=dict, description="every stage, scene and clip → its status")
     console_session: str | None = Field(None, description="the Claude Code session the website's console resumes")
+    regate: list[str] = Field(
+        default_factory=list, description="scenes a reshuffle recoloured: their code must pass the gates again (accept)"
+    )
     builder_prompt: str | None = Field(
         None, description="hash of the scene-builder prompt this run was made with: part of every clip key (D3)"
     )

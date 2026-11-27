@@ -657,6 +657,26 @@ def test_expired_sessions_are_swept_and_claude_auth_status_is_not_asked_on_every
     assert len(asked) == 1
 
 
+def test_an_unexpected_error_answers_with_its_cause_and_is_logged(tmp_path, monkeypatch, caplog):  # M16
+    import logging
+
+    from app.web import app as web_app
+
+    monkeypatch.setattr(auth, "claude_code_account", lambda: ACCOUNT)
+
+    def breaks(_):
+        raise RuntimeError("state.json vanished")
+
+    monkeypatch.setattr(web_app, "run_detail", breaks)
+    application = create_app(tmp_path / "runs")
+    (tmp_path / "runs" / "20261124-120000-x").mkdir()
+    with TestClient(application, base_url=BASE, raise_server_exceptions=False) as client, caplog.at_level(logging.INFO):
+        signed_in(client)
+        response = client.get("/api/runs/20261124-120000-x")
+    assert response.status_code == 500 and "state.json vanished" in response.json()["error"]
+    assert any(record.exc_info for record in caplog.records if "failed" in record.getMessage())
+
+
 def test_options_are_drawn_in_the_users_own_look_with_exact_colours(web):
     import io
 

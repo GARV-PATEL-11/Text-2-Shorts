@@ -55,12 +55,23 @@ def apply(run: Path, seed: int, groups: list[str]) -> list[str]:
     if errors := save_template(run, proposal(run, seed, groups)):
         return errors
     after = look(run)
+    recoloured = []
     for plan in plans:  # one file per scene; its clips share one key, so they are current together
         path = run / "scenes" / plan.scene_id / "scene_code.py"
         if any(clip.clip_id in current for clip in plan.clips) and path.exists():
-            path.write_text(recolour(path.read_text(), before, after))
+            # the builder's copy too, or the next rebuild starts from the old look (M33)
+            for code in (path, path.parent / "work" / "scene_code.py"):
+                if code.exists():
+                    code.write_text(recolour(code.read_text(), before, after))
+            recoloured.append(plan.scene_id)
     keys = {clip.clip_id: clip_key(run, plan, clip) for plan in plans for clip in plan.clips if clip.clip_id in current}
-    update_state(run, lambda state: [setattr(state.clips[clip_id], "key", key) for clip_id, key in keys.items()])
+
+    def rekey(state):  # still built (no Claude rebuild), but the recoloured code goes through the gates again
+        for clip_id, key in keys.items():
+            state.clips[clip_id].key = key
+        state.regate = sorted(set(state.regate) | set(recoloured))
+
+    update_state(run, rekey)
     if (run / "final.mp4").exists():
         (run / "versions").mkdir(exist_ok=True)
         shutil.move(run / "final.mp4", run / "versions" / f"final-before-reshuffle-{seed}.mp4")

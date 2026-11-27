@@ -383,6 +383,16 @@ def next_actions(run: Path) -> ActionBatch:
                     }
                 ],
             )
+        if scene_id in state.regate:  # recoloured by a reshuffle: the gates again, no rebuild (M33)
+            return batch(
+                "5 production",
+                [
+                    {"do": "command", "command": f"text-2-shorts task . {scene_id}", "target": scene_id,
+                     "what": "refresh the task for the recoloured code"},
+                    {"do": "command", "command": f"text-2-shorts accept . {scene_id}", "target": scene_id,
+                     "what": "the gates on the recoloured code (a failure sends it to the scene-builder)"},
+                ],
+            )  # fmt: skip
         if unbuilt:  # one file per scene: every clip is a section of it
             return batch(
                 "5 production",
@@ -410,7 +420,7 @@ def next_actions(run: Path) -> ActionBatch:
                     }
                 ],
             )
-        if problems and not gave_up(f"sync:{scene_id}"):  # given up: CP3 shows what is still out of sync
+        if problems and not gave_up(f"sync:{scene_id}") and not gave_up("sync:refactors"):  # given up: CP3 shows it
             return batch(
                 "5 production",
                 [

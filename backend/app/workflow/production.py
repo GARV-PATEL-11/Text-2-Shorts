@@ -30,7 +30,7 @@ from app.config import (
     VOICE_LEAD_IN_SECONDS,
 )
 from app.sandbox import render_jail_prefix
-from app.utilities import content_hash
+from app.utilities import content_hash, run_or_explain
 from app.workflow.artifacts import load_audio_index, load_brief, load_gate_result, load_script, load_sync_report
 from app.workflow.fingerprints import scene_video_hash
 from app.workflow.preferences import clip_speech
@@ -58,11 +58,14 @@ def stale_audio(run: Path, plans: list[ScenePlan]) -> set[str]:
     return stale_clip_ids
 
 
+RENDER_TIMEOUT_SECONDS = 7200
+
+
 def render_scene_sections(run: Path, plan: ScenePlan, quality: str, fps: int | None, media: str) -> SceneRender:
     """Wrap the scene's accepted code (scene_code.py) and render every clip as a section, in a network-less jail."""
     scene_directory = run / "scenes" / plan.scene_id
     install_template(run)  # the renderer the harness draws the backdrop with, in the run environment
-    subprocess.run(
+    run_or_explain(
         [
             PYTHON_EXECUTABLE,
             str(TOOLS_DIRECTORY / "scene_harness.py"),
@@ -71,35 +74,39 @@ def render_scene_sections(run: Path, plan: ScenePlan, quality: str, fps: int | N
             "--scene-id",
             plan.scene_id,
         ],
-        check=True,
-        capture_output=True,
+        f"{plan.scene_id}: wrapping scene_code.py for the render",
     )
     shutil.rmtree(scene_directory / media, ignore_errors=True)
-    render_process = subprocess.run(
-        render_jail_prefix()
-        + [
-            "--bind",
-            str(scene_directory),
-            str(scene_directory),
-            "--setenv",
-            "TEXT_2_SHORTS_LOOK",
-            json.dumps(drawing(run)),
-            PYTHON_EXECUTABLE,
-            str(TOOLS_DIRECTORY / "scene_harness.py"),
-            "render",
-            str(scene_directory),
-            "--scene-id",
-            plan.scene_id,
-            "--quality",
-            quality,
-            "--media",
-            media,
-        ]
-        + (["--fps", str(fps)] if fps else []),
-        capture_output=True,
-        text=True,
-        timeout=7200,
-    )
+    try:
+        render_process = subprocess.run(
+            render_jail_prefix()
+            + [
+                "--bind",
+                str(scene_directory),
+                str(scene_directory),
+                "--setenv",
+                "TEXT_2_SHORTS_LOOK",
+                json.dumps(drawing(run)),
+                PYTHON_EXECUTABLE,
+                str(TOOLS_DIRECTORY / "scene_harness.py"),
+                "render",
+                str(scene_directory),
+                "--scene-id",
+                plan.scene_id,
+                "--quality",
+                quality,
+                "--media",
+                media,
+            ]
+            + (["--fps", str(fps)] if fps else []),
+            capture_output=True,
+            text=True,
+            timeout=RENDER_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:  # one slow scene: a failed render that says which (L3)
+        return SceneRender(
+            ok=False, stderr_tail=f"{plan.scene_id}: the render timed out after {RENDER_TIMEOUT_SECONDS} s"
+        )
     try:
         return SceneRender.model_validate_json(render_process.stdout)
     except ValidationError:
@@ -135,10 +142,12 @@ def sync_report(run: Path, plan: ScenePlan, video_seconds: dict[str, float]) -> 
     probe = load_gate_result(scene_directory / "work" / "checks" / "probe.json")
     changes_path = scene_directory / "work" / "CHANGES.md"
     changes = changes_path.read_text().strip() if changes_path.exists() else ""
-    clips, problems = [], []
+    clips, problems, unchecked = [], [], []
     for clip in plan.clips:
         shown = probe.beats.get(f"clip_{clip.index:02d}", {}) if probe else {}
         audio = audio_index.get(clip.clip_id)
+        if clip.beats and not (audio and audio.beat_times):
+            unchecked.append(f"{clip.clip_id}: no beat timings from the voice, so its beats were not checked")
         beats = []
         for number, (beat, spoken) in enumerate(
             zip(clip.beats, (audio.beat_times if audio else None) or [None] * len(clip.beats)), 1
@@ -170,7 +179,12 @@ def sync_report(run: Path, plan: ScenePlan, video_seconds: dict[str, float]) -> 
             )
         )
     return SyncReport(
-        scene_id=plan.scene_id, tolerance=SYNC_TOLERANCE_SECONDS, clips=clips, problems=problems, in_sync=not problems
+        scene_id=plan.scene_id,
+        tolerance=SYNC_TOLERANCE_SECONDS,
+        clips=clips,
+        problems=problems,
+        unchecked=unchecked,
+        in_sync=not problems,
     )
 
 

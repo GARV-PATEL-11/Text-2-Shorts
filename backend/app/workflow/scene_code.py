@@ -14,6 +14,7 @@ in a jail and installs the file as scenes/sNN/scene_code.py. No Claude call happ
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import subprocess
@@ -38,6 +39,7 @@ from app.config import (
     VOICE_LEAD_IN_SECONDS,
 )
 from app.sandbox import render_jail_prefix
+from app.utilities import run_or_explain
 from app.workflow import mistakes
 from app.workflow.artifacts import load_audio_index, load_scene_plans
 from app.workflow.change_requests import open_requests, requests_for, requests_text, resolve_request
@@ -62,6 +64,9 @@ class CodegenInput:
     clip_timings: str = ""  # each clip's real length from the voice, and when its phrases are spoken
     notes: str = ""  # change requests and accuracy notes for this scene
     work_folder: str = "."
+
+
+log = logging.getLogger(__name__)
 
 
 def _validate(inp: CodegenInput) -> None:
@@ -111,10 +116,9 @@ def load_plan(run: Path, scene_id: str) -> ScenePlan:
 def ensure_api_index() -> None:
     if not API_INDEX_PATH.exists():
         API_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
+        run_or_explain(
             [PYTHON_EXECUTABLE, str(TOOLS_DIRECTORY / "build_manim_api_index.py"), "--out", str(API_INDEX_PATH)],
-            check=True,
-            capture_output=True,
+            "building the Manim API index",
         )
 
 
@@ -190,17 +194,27 @@ def accept_scene(run: Path, scene_id: str) -> ClipBuild:
     plan = load_plan(run, scene_id)
     scene_directory = run / "scenes" / scene_id
     work = scene_directory / "work"
-    passed = (work / CODE_FILE).exists() and subprocess.run(
-        render_jail_prefix() + ["--bind", str(work), str(work), PYTHON_EXECUTABLE, str(SCENE_GATES_PATH), "all"],
-        cwd=work,
-        capture_output=True,
-    ).returncode == 0
+    gates = (
+        subprocess.run(
+            render_jail_prefix() + ["--bind", str(work), str(work), PYTHON_EXECUTABLE, str(SCENE_GATES_PATH), "all"],
+            cwd=work,
+            capture_output=True,
+            text=True,
+        )
+        if (work / CODE_FILE).exists()
+        else None
+    )
+    passed = gates is not None and gates.returncode == 0
     findings = [
         f"{gate.stem}: {finding.code}"
         for gate in sorted((work / "checks").glob("*.json"))
         for finding in GateResult.model_validate_json(gate.read_text()).findings
         if finding.severity == "ERROR"
     ]
+    if gates is not None and not passed and not findings:  # the gates crashed: say how, not a bare FAILED (M29)
+        tail = (gates.stderr or "").strip()[-600:]
+        log.error("%s: the gates crashed (exit %s): %s", scene_id, gates.returncode, tail)
+        findings.append(f"gates: crashed (exit {gates.returncode}) — {tail}")
     if passed:
         shutil.copy(work / CODE_FILE, scene_directory / CODE_FILE)
     # the inputs the builder was given (TASK.json, at `task`): a plan or request that changed during the build
@@ -218,7 +232,13 @@ def accept_scene(run: Path, scene_id: str) -> ClipBuild:
         )
         for clip in plan.clips
     }
-    update_state(run, lambda state: state.clips.update(results))
+
+    def record(state):
+        state.clips.update(results)
+        if passed:  # a recoloured scene that passed the gates again (reshuffle, M33)
+            state.regate = [scene for scene in state.regate if scene != scene_id]
+
+    update_state(run, record)
     attempt = count_attempt(run, f"build:{scene_id}" + ("" if passed else f":{built_from[:12]}"), failed=not passed)
     issues = [MistakeIssue(code=finding, severity="ERROR", target=scene_id, problem=finding) for finding in findings]
     mistakes.record(run, "build", "scene-builder", scene_id, issues if not passed else [], attempt or None)

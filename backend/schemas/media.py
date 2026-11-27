@@ -115,6 +115,9 @@ class SyncReport(Strict):
     tolerance: float
     clips: list[SyncClip]
     problems: list[str] = Field(default_factory=list)
+    unchecked: list[str] = Field(
+        default_factory=list, description="clips whose beats could not be checked (the voice gave no word timings)"
+    )
     in_sync: bool
     scene_hash: str | None = Field(None, description="the scene video this report was made from")
 

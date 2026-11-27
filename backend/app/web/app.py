@@ -186,8 +186,15 @@ def create_app(runs_directory: Path = RUNS_DIRECTORY, sign_in_token: str | None 
         return problem_response(ApiProblem(400, "; ".join(messages)))
 
     @app.exception_handler(ValidationError)
-    async def on_invalid_contract(_: Request, invalid: ValidationError):
-        return problem_response(ApiProblem(400, "; ".join(format_validation_errors(invalid))))
+    async def on_invalid_contract(request: Request, invalid: ValidationError):
+        message = "; ".join(format_validation_errors(invalid))
+        log.warning("%s %s: 400 %s", request.method, request.url.path, message[:1500], exc_info=invalid)  # M16
+        return problem_response(ApiProblem(400, message))
+
+    @app.exception_handler(Exception)
+    async def on_unexpected(_: Request, error: Exception):
+        """Anything else: a JSON answer naming the cause (the request log already holds the traceback) (M16)."""
+        return problem_response(ApiProblem(500, f"{type(error).__name__}: {error}"))
 
     # ── who is signed in ───────────────────────────────────────────────────────────────────────────────────
     def signed_in_account(request: Request) -> ClaudeAccount:

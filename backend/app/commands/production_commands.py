@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,8 @@ from app.workflow.production import (
 from app.workflow.scene_code import accept_scene
 from app.workflow.templates import load_template, look, sound
 
+log = logging.getLogger(__name__)
+
 
 def handle_voice_command(arguments) -> None:
     run = Path(arguments.run)
@@ -54,7 +57,11 @@ def handle_voice_command(arguments) -> None:
             if clip.clip_id in audio_index and audio_index[clip.clip_id].hash == voice_hash and audio_path.exists():
                 continue  # unchanged SSML → keep the audio
             synthesize_clip = synthesize_clip or narration.create_speech_synthesizer(sound(run))
-            audio, marks = synthesize_clip(text)
+            try:
+                audio, marks = synthesize_clip(text)
+            except Exception as error:  # the voice provider: say which clip and why; the clips made so far are kept
+                log.exception("%s: voice failed", clip.clip_id)
+                sys.exit(f"{clip.clip_id}: the voice provider failed — {error}. Run voice again to go on from here.")
             audio_path.write_bytes(audio)
             audio_index[clip.clip_id] = ClipAudio(
                 hash=voice_hash,
@@ -62,8 +69,8 @@ def handle_voice_command(arguments) -> None:
                 spoken=narration.to_plain(text),
                 beat_times=narration.phrase_times(marks, clip.beats, pairs) if marks else None,
             )
+            save_audio_index(run, plan.scene_id, audio_index)  # after every clip: a later failure loses none (M30)
             print(f"{clip.clip_id}: {audio_index[clip.clip_id].seconds}s")
-        save_audio_index(run, plan.scene_id, audio_index)
     total = sum(
         clip_audio.seconds
         for scene_plan in load_scene_plans(run)
@@ -182,12 +189,14 @@ def handle_preview_command(arguments) -> None:
     report.scene_hash = scene_video_hash(run, scene_id)
     write_atomic(scene_directory / "sync.json", report.model_dump_json(indent=2))
     attempt = count_attempt(run, f"sync:{scene_id}", failed=not report.in_sync)
+    count_attempt(run, "sync:refactors", failed=False)  # a new preview: the last re-timing changed something (C2)
     issues = [MistakeIssue(code=mistakes.sync_code(problem), severity="ERROR", target=problem.split(" ")[0].rstrip(":"),
                            problem=problem) for problem in report.problems]  # fmt: skip
     mistakes.record(run, "sync", "audio-refactorer", scene_id, issues, attempt or None)
     print(
         f"{scene_directory / 'preview.mp4'} (720p30) · sync: "
         + ("in sync" if report.in_sync else "\n  " + "\n  ".join(report.problems))
+        + "".join(f"\n  not checked — {note}" for note in report.unchecked)
     )
 
 

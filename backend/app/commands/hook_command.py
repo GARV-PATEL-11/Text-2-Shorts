@@ -41,6 +41,20 @@ def handle_hook_command(arguments) -> None:
         hook_event = HookEvent.model_validate_json(sys.stdin.read())
     except ValidationError:
         return  # not a hook event this command understands
+    try:
+        react(hook_event)
+    except Exception as error:  # a crashing hook must never wave a file through unvalidated (L1)
+        logging.getLogger("app.hook").exception("hook crashed on %s", hook_event.hook_event_name)
+        print(
+            f"The Text-2-Shorts hook crashed ({type(error).__name__}: {error}), so this was not validated. "
+            "Check the file with `text-2-shorts validate`.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+def react(hook_event: HookEvent) -> None:
+    """What each hook event does (see handle_hook_command)."""
     tool_input = hook_event.tool_input
     if hook_event.hook_event_name == "PreToolUse":  # approving is the user's decision, relayed by the session (M31)
         if hook_event.agent_id and re.search(r"\btext-2-shorts\s+approve\b", tool_input.command or ""):
@@ -104,6 +118,8 @@ def handle_hook_command(arguments) -> None:
         row.shown = message + (f" — INVALID: {'; '.join(errors)}" if errors else "")
         (log.warning if errors else log.info)("%s", row.shown[:2000])
         append_jsonl(run, "log.jsonl", row)
+        if agent == "audio-refactorer":  # a new preview clears it: returning without one counts towards the limit (C2)
+            count_attempt(run, "sync:refactors", failed=True)
         if errors:
             mistakes.record_invalid(run, written_path, errors)
             print(f"{written_path.name} is invalid — fix it:\n" + "\n".join(errors), file=sys.stderr)

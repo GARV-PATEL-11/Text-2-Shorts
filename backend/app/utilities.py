@@ -43,6 +43,16 @@ def write_atomic(path: Path, text: str) -> None:
         raise
 
 
+def run_or_explain(argv: list, what: str, **options) -> subprocess.CompletedProcess:
+    """Run a tool; if it fails, stop with what failed and the end of its stderr (never a bare CalledProcessError)."""
+    done = subprocess.run(argv, capture_output=True, text=True, **options)
+    if done.returncode != 0:
+        tail = (done.stderr or "").strip()[-1500:]
+        log.error("%s failed (exit %s): %s", what, done.returncode, tail)
+        raise SystemExit(f"{what} failed (exit {done.returncode}):\n{tail}")
+    return done
+
+
 def write_json(path: Path, data) -> None:
     write_atomic(path, json.dumps(data, indent=2, ensure_ascii=False))
 

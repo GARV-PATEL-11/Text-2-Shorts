@@ -1003,6 +1003,110 @@ def test_editing_the_builder_prompt_leaves_a_run_that_pinned_it_alone(tmp_path, 
     assert fingerprints.clip_key(tmp_path, plan, plan.clips[0]) == before  # finished runs are not rebuilt at Opus cost
 
 
+def test_a_scene_whose_voice_gave_no_beat_timings_says_its_beats_were_not_checked(tmp_path):  # M28
+    from schemas.plans import ScenePlan
+
+    plan = ScenePlan.model_validate(two_scenes_after_cp2(tmp_path)[1])  # its audio index has no beat_times
+    report = production.sync_report(tmp_path, plan, {clip.clip_id: 5.0 for clip in plan.clips})
+    assert report.in_sync  # nothing for the audio-refactorer to fix …
+    assert [note.split(":")[0] for note in report.unchecked] == [clip.clip_id for clip in plan.clips]  # … but said
+
+
+def test_a_crashing_tool_says_why_instead_of_failing_silently(tmp_path, monkeypatch):  # M29
+    from types import SimpleNamespace
+
+    from schemas.plans import ScenePlan
+
+    two_scenes_after_cp2(tmp_path)
+    scene_code.prepare_scene(tmp_path, "s01")
+    (tmp_path / "scenes" / "s01" / "work" / "scene_code.py").write_text("# built\n")
+    crash = SimpleNamespace(returncode=1, stdout="", stderr="Traceback …\nZeroDivisionError: division by zero")
+    monkeypatch.setattr(scene_code.subprocess, "run", lambda *_, **__: crash)
+    failed = scene_code.accept_scene(tmp_path, "s01")
+    assert failed.status == "FAILED" and any("ZeroDivisionError" in finding for finding in failed.open_findings)
+    monkeypatch.setattr(production.subprocess, "run", lambda *_, **__: crash)
+    plan = ScenePlan.model_validate_json((tmp_path / "scenes" / "s01" / "plan.json").read_text())
+    with pytest.raises(SystemExit, match="ZeroDivisionError"):
+        production.render_scene_sections(tmp_path, plan, "m", None, "media_preview")
+
+
+def test_a_voice_error_keeps_the_clips_already_made_and_names_the_clip(tmp_path, monkeypatch):  # M30
+    from app import narration
+
+    script = approved_script_run(tmp_path, 30, 30)
+    plans = [make_plan(script, 1, clip_count=2, exits=[["eq"], []]), make_plan(script, 2)]
+    for plan in plans:
+        write_json_file(tmp_path / "scenes" / plan["scene_id"] / "plan.json", plan)
+        write_critique(tmp_path, plan["scene_id"], "plan", "pass")
+    write_review(tmp_path, "plan")
+    approve(tmp_path, "plan")
+    made = []
+
+    def synthesize(text):
+        if made:
+            raise RuntimeError("ThrottlingException: rate exceeded")
+        made.append(text)
+        return b"mp3", None
+
+    monkeypatch.setattr(narration, "create_speech_synthesizer", lambda _: synthesize)
+    monkeypatch.setattr(production_commands, "probe_duration_seconds", lambda _: 2.0)
+    with pytest.raises(SystemExit, match="s01c02.*ThrottlingException"):
+        production_commands.handle_voice_command(argparse.Namespace(run=str(tmp_path)))
+    assert list(artifacts_index(tmp_path, "s01")) == ["s01c01"]  # paid for once, kept for the retry
+
+
+def artifacts_index(run, scene_id):
+    from app.workflow.artifacts import load_audio_index
+
+    return load_audio_index(run, scene_id)
+
+
+def test_a_render_that_times_out_names_its_scene(tmp_path, monkeypatch):  # L3
+    import subprocess
+    from types import SimpleNamespace
+
+    from schemas.plans import ScenePlan
+
+    two_scenes_after_cp2(tmp_path)
+    plan = ScenePlan.model_validate_json((tmp_path / "scenes" / "s01" / "plan.json").read_text())
+
+    def slow(argv, **_):
+        if "compose" in argv:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        raise subprocess.TimeoutExpired(argv, 7200)
+
+    monkeypatch.setattr(subprocess, "run", slow)
+    render = production.render_scene_sections(tmp_path, plan, "p", 120, "media_final")
+    assert not render.ok and "s01" in render.stderr_tail and "timed out" in render.stderr_tail
+
+
+def test_an_audio_refactorer_that_changes_nothing_is_not_asked_forever(tmp_path, monkeypatch):  # C2
+    import io
+    import sys
+
+    from app.commands import hook_command
+
+    plans = two_scenes_after_cp2(tmp_path)
+    built_and_previewed(tmp_path, plans)
+    sync = json.loads((tmp_path / "scenes" / "s01" / "sync.json").read_text())
+    write_json_file(
+        tmp_path / "scenes" / "s01" / "sync.json", {**sync, "problems": ["s01c01 beat 1: late"], "in_sync": False}
+    )
+    assert driver.next_actions(tmp_path).actions[0].agent == "audio-refactorer"
+    returned = {"hook_event_name": "PostToolUse", "cwd": str(tmp_path), "tool_name": "Agent",
+                "tool_input": {"subagent_type": "audio-refactorer", "description": "re-time s01"}}  # fmt: skip
+    for _ in range(3):  # it returns, having changed nothing: no new audio, no new preview
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(returned)))
+        hook_command.handle_hook_command(None)
+    assert driver.next_actions(tmp_path).actions[0].agent != "audio-refactorer"
+
+
+def test_status_shows_the_same_next_step_as_the_driver(tmp_path):  # C3
+    write_brief(tmp_path, objectives=["understand the topic"])
+    write_requirements(tmp_path)  # the template is not chosen yet: the driver asks for it first
+    assert driver.format_actions(driver.next_actions(tmp_path)) in status.status_text(tmp_path)
+
+
 def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):
     write_brief(tmp_path)
     for _ in range(2):
@@ -1260,9 +1364,16 @@ def test_a_reshuffle_is_deterministic_recolours_built_clips_and_keeps_them_built
         ),
     )
     (tmp_path / "final.mp4").write_bytes(b"old")
+    work_file = clip_file.parent / "work" / "scene_code.py"
+    work_file.parent.mkdir()
+    work_file.write_text(clip_file.read_text())  # the builder's copy, which the next rebuild starts from
     look_before, code_before = templates.look(tmp_path), clip_file.read_text()
     assert reshuffle.apply(tmp_path, 7, ["colours"]) == []
     assert clip_file.read_text() == reshuffle.recolour(code_before, look_before, templates.look(tmp_path))
+    assert work_file.read_text() == clip_file.read_text()  # M33: a rebuild keeps the new look
+    assert ledger.load_state(tmp_path).regate == ["s01"]  # M33: the recoloured code passes the gates again
+    commands = [action.command for action in driver.next_actions(tmp_path).actions]
+    assert commands == ["text-2-shorts task . s01", "text-2-shorts accept . s01"]
     build = ledger.load_state(tmp_path).clips[clip.clip_id]
     assert build.key == fingerprints.clip_key(tmp_path, plans[0], clip)  # still built: no Claude rebuild
     assert (tmp_path / "versions" / "final-before-reshuffle-7.mp4").read_bytes() == b"old"

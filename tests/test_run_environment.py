@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 
+import pytest
 from app import config, sandbox, utilities
 from app.workflow import run_workspace, status
 from conftest import environment_report, write_review
@@ -165,7 +166,9 @@ def test_hooks_resume_validate_and_log(tmp_path):
         run, Brief(requirement="t", approach="feynman", minutes=1), environment_report()
     )
     result = run_hook({"hook_event_name": "SessionStart", "cwd": str(run), "transcript_path": "/x/t.jsonl"})
-    assert result.returncode == 0 and "next:" in result.stdout and "topics.md does not exist" in result.stdout
+    assert (
+        result.returncode == 0 and "next:" in result.stdout and "template.json does not exist" in result.stdout
+    )  # the driver: template first (C3)
     assert utilities.read_json(run / "state.json")["sessions"] == ["/x/t.jsonl"]
 
     (run / "scenes" / "s01").mkdir(parents=True)
@@ -242,6 +245,28 @@ def test_a_subagent_cannot_approve_a_checkpoint(tmp_path):  # M31: approving is 
     assert other.returncode == 0
     hooks = json.loads((RUN_ENVIRONMENT / "hooks" / "hooks.json").read_text())["hooks"]
     assert hooks["PreToolUse"][0]["matcher"] == "Bash"
+
+
+def test_a_crashing_hook_blocks_instead_of_waving_the_file_through(tmp_path, monkeypatch, capsys):  # L1
+    import io
+    import sys
+
+    from app.commands import hook_command
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "brief.json").write_text("{}")
+
+    def crashes(_):
+        raise KeyError("scenes")
+
+    monkeypatch.setattr(hook_command, "validate_script", crashes)
+    event = {"hook_event_name": "PostToolUse", "cwd": str(run), "tool_name": "Write",
+             "tool_input": {"file_path": str(run / "script.json")}}  # fmt: skip
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(event)))
+    with pytest.raises(SystemExit) as stopped:
+        hook_command.handle_hook_command(None)
+    assert stopped.value.code == 2 and "not validated" in capsys.readouterr().err
 
 
 def test_hooks_config_only_calls_real_commands():

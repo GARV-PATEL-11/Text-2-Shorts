@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 from collections.abc import Set as AbstractSet
 from xml.etree import ElementTree
@@ -301,7 +302,8 @@ def create_polly_synthesizer(voice: str, engine: str):
                 for mark in map(json.loads, speech_marks_json.splitlines())
                 if mark["type"] == "word"
             ]
-        except Exception:  # noqa: BLE001 — speech marks are a timing aid, never a reason to fail the voice step
+        except Exception:
+            logging.getLogger(__name__).warning("Polly speech marks failed: beats will not be synced", exc_info=True)
             marks = None
         return audio, marks
 
@@ -330,6 +332,7 @@ def create_google_synthesizer(voice: str):
                 }
             )
         except InvalidArgument:
+            logging.getLogger(__name__).warning("Google refused the marked SSML: plain text, beats will not be synced")
             response = client.synthesize_speech(
                 request={"input": {"text": to_plain(text)}, "voice": voice_selection, "audio_config": audio_config}
             )

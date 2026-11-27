@@ -145,6 +145,14 @@
       "description": "the Claude Code session the website's console resumes",
       "title": "Console Session"
     },
+    "regate": {
+      "description": "scenes a reshuffle recoloured: their code must pass the gates again (accept)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Regate",
+      "type": "array"
+    },
     "builder_prompt": {
       "anyOf": [
         {

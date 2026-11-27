@@ -154,6 +154,14 @@
       "title": "Problems",
       "type": "array"
     },
+    "unchecked": {
+      "description": "clips whose beats could not be checked (the voice gave no word timings)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Unchecked",
+      "type": "array"
+    },
     "in_sync": {
       "title": "In Sync",
       "type": "boolean"

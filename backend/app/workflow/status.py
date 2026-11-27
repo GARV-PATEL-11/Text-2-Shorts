@@ -188,8 +188,9 @@ def status_text(run: Path) -> str:
             f"{', '.join(build.open_findings if build else [])[:100]} |"
             for clip_id, build in clips
         ]
-    steps = next_steps(run)
-    lines += (["next:"] + [f"  - {step}" for step in steps]) if steps else ["next: nothing — the video is done."]
+    from app.workflow.driver import format_actions, next_actions  # the driver imports this module
+
+    lines += ["next:", format_actions(next_actions(run))]  # C3: exactly what `text-2-shorts next` gives the session
     return "\n".join(lines)
 
 
