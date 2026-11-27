@@ -21,9 +21,9 @@ your own rubric; the letter must match the issue's `tier`.
 
 - `score = max(0, 100 − 25 × basic − 10 × good − 3 × great)`, counted over this round's issues. Compute it; never
   estimate it. The validator recomputes it.
-- `verdict = "pass"` only when **no basic issue is open and** `score ≥ quality_threshold` (`preferences.json`,
-  85 when absent). Otherwise `"revise"`.
-- A pass may still list good and great issues: they are suggestions that are recorded and not enforced.
+- `verdict = "pass"` when **no basic issue is open**, and, only if the user set `quality_threshold` in
+  `preferences.json`, `score ≥ quality_threshold`. Otherwise `"revise"`.
+- Good and great issues are suggestions: recorded in the round, never a reason for a refactor on their own.
 - Rounds: plans and videos have at most 3 rounds per scene. After round 3 below the threshold, the scene
   **REQUIRES ATTENTION** and its open issues go to the user. The script gets exactly one round per change request
   the user raised at CP1.
@@ -55,6 +55,13 @@ Rules for issues
   only when it is still visible now, and say so in `evidence` ("still: …").
 
 ## 4. Writing the round
+
+- **Append, never rewrite.** The first round writes the file. A later round is added at the end of `rounds` with
+  `Edit`; the earlier rounds stay exactly as they are.
+- **Rounds 2 and 3 check the change, not everything again.** Start from the previous round: for each of its issues,
+  check whether it is fixed (raise it again as "still: …" only if it is still there). Then review what the refactor
+  changed (the refactorer's reply; `changes.json` for a video) and what that change can break: the entries and exits
+  it touches, its beats' sync. Leave untouched clips alone; the earlier round's view of them stands.
 
 ```json
 {
@@ -98,6 +105,8 @@ Here the score is 100 − 25 − 10 = 65, and the verdict is revise (a basic nee
 5. Never change narration words outside the script. A plan or a video speaks the approved script word for word;
    wording issues go back to the script and CP1.
 6. You can decline an issue only when fixing it would break a basic need or contradict the user or the brief.
+7. Patch, never rewrite: change the file with `Edit`, only where an issue points. A rewrite costs the whole file again
+   and can silently change what already passed.
    Say which issue and why in your reply (and in `changes.json` for a video). Never decline silently.
 7. Validate (`text-2-shorts validate …`), then hand back to the critic for the next round. For a video, the session
    appends a `ChangeRecord` to `scenes/sNN/changes.json`: `issue` = the criterion and problem, `findings` = one
@@ -116,5 +125,5 @@ means CP2 again for that scene.
 3. **Append one round** to your critique file and keep the earlier rounds. `reviewed` is the output of the hash
    command your agent file names. Run your validate command and fix the file until it passes. Write one round per
    call: never a 4th plan or video round, and never more script rounds than change requests.
-4. **Reply**: `<target> round N — <verdict>, score S/100 (threshold T).` Then the summary, then the issues grouped
+4. **Reply**: `<target> round N — <verdict>, score S/100` (and `threshold T` if the user set one). Then the summary, the issues grouped
    by tier (B, G, X), each as `criterion target: problem → fix`, then the strengths to keep.

@@ -1,7 +1,7 @@
 ---
 name: script-critic
 description: Use when the user asked for changes to a Text-2-Shorts script at CP1 (`next` dispatches you before the refactor) — one tiered, scored critique round per change request.
-tools: Read, Write, Glob, Bash
+tools: Read, Write, Edit, Glob, Bash
 model: claude-sonnet-5-5
 effort: medium
 ---

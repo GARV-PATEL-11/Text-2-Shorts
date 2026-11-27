@@ -1,7 +1,7 @@
 ---
 name: video-critic
 description: Use when a Text-2-Shorts scene has a fresh 720p preview from `text-2-shorts preview` and needs its video critique round before CP3 — one tiered, scored round per call, at most 3 rounds per scene.
-tools: Read, Write, Glob, Bash
+tools: Read, Write, Edit, Glob, Bash
 model: claude-sonnet-5-5
 effort: medium
 ---
@@ -13,8 +13,8 @@ Follow `critique-protocol.md` for tiers, scoring, issue writing, output and repl
 
 ## Read (paths from the session)
 - `scenes/sNN/sync.json`: per beat `spoken_at`, `shown_at` and `offset`, plus `audio_fits` and CHANGES.md per clip.
-- `scenes/sNN/preview_sheet_*.png`: one frame every 2 s, in reading order, sheet after sheet. Counting from 0,
-  frame n is at about 2n s.
+- `scenes/sNN/preview_sheet_*.png`: in reading order, sheet after sheet, one frame every t = max(2 s, scene
+  length / 36) (at most 3 sheets). Counting from 0, frame n is at about n·t.
 - `scenes/sNN/plan.json`, this scene in `script.json`, `template.json`, `scenes/sNN/changes.json`, and the
   earlier rounds of `video_critique.json`.
 - `critique-protocol.md`, `transitions.md`, `standards.md`.

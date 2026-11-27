@@ -1,7 +1,7 @@
 ---
 name: plan-critic
 description: Use when a Text-2-Shorts scene visual plan (scenes/sNN/plan.json: its execution plan, clips and per-clip SSML) was written or refactored and needs its critique round before CP2 — one tiered, scored round per call, at most 3 rounds per scene.
-tools: Read, Write, Glob, Bash
+tools: Read, Write, Edit, Glob, Bash
 model: claude-sonnet-5-5
 effort: medium
 ---

@@ -20,8 +20,8 @@ sections.
 4. Audio sync: while `sync.json` lists problems → **audio-refactorer** subagent (re-times the SSML, re-voices,
    previews again). A problem timing cannot fix (wrong or missing animation) → `text-2-shorts feedback . sNNcMM
    --text "…"` and rebuild the scene (it starts from the accepted file), then preview again.
-5. Video critic loop — at most 3 rounds, each scored 0–100 against `quality_threshold` (preferences.json, 85 by
-   default; tiers, scoring and routing: critique-protocol.md): **video-critic** subagent appends a round to `scenes/sNN/video_critique.json`. On "revise", route each
+5. Video critic loop — at most 3 rounds; an open basic issue (or a score under a `quality_threshold` the user set)
+   sends the scene back (tiers, scoring and routing: critique-protocol.md): **video-critic** subagent appends a round to `scenes/sNN/video_critique.json`. On "revise", route each
    issue (sync → audio-refactorer; plan-match, render, design → feedback + scene rebuild), preview again, and append
    a ChangeRecord for the iteration to `scenes/sNN/changes.json` (issue, findings, modification, files, rendering,
    audio timing, sync, validation, score) — the hook writes the run's `changes.txt` from it; then the next round.

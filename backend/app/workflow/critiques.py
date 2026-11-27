@@ -67,10 +67,12 @@ def validate_critique(run: Path, scene_id: str, kind: str) -> list[str]:
     threshold = load_preferences(run).quality_threshold
     for number, critique_round in enumerate(critique.rounds, 1):
         basic_open = any(issue.tier == "basic" for issue in critique_round.issues)
-        passes = critique_round.score >= threshold and not basic_open  # a basic need blocks at any score
+        # a basic need blocks at any score; good and great issues only when the user set a score to reach (O4)
+        passes = not basic_open and (threshold is None or critique_round.score >= threshold)
         if passes != (critique_round.verdict == "pass"):
+            against = f" against the quality threshold {threshold}" if threshold is not None else ""
             errors.append(
-                f"{name} round {number}: score {critique_round.score} against the quality threshold {threshold}"
+                f"{name} round {number}: score {critique_round.score}{against}"
                 f"{' with a basic need open' if basic_open else ''} means verdict {'pass' if passes else 'revise'}"
             )
         for issue in critique_round.issues:
@@ -142,7 +144,7 @@ def critique_problems(run: Path, scene_id: str, kind: str) -> list[str]:
         return [f"{scene_id}: {kind} critique round {len(rounds)} asks for changes — refactor, then {next_round}"]
     issues = "; ".join(f"{issue.target} {issue.criterion} ({issue.tier}): {issue.problem}" for issue in last.issues)
     return [
-        f"{scene_id}: REQUIRES ATTENTION — {MAX_CRITIQUE_ROUNDS} critique rounds below the quality threshold; "
+        f"{scene_id}: REQUIRES ATTENTION — {MAX_CRITIQUE_ROUNDS} critique rounds with issues left; "
         "open issues for the user to accept (approve --force) or fix: "
         + (issues or f"the last {kind} change was not critiqued")
     ]

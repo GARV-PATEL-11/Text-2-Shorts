@@ -140,6 +140,12 @@ def handle_final_command(arguments) -> None:
         print(f"{finding.severity} {finding.code}: {finding.message}")
 
 
+def contact_sheet_filter(seconds: float) -> str:
+    """One frame every 2 s, 12 to a sheet, but at most 3 sheets (36 frames): what the video critic looks at stays
+    bounded however long the scene is (O7)."""
+    return f"fps=1/{max(2.0, seconds / 36):.2f},scale=480:-1,tile=4x3"
+
+
 def handle_preview_command(arguments) -> None:
     """The whole scene (with its transitions) at 720p30 with its audio, the sync report and contact sheets."""
     run, scene_id = Path(arguments.run), arguments.scene
@@ -179,7 +185,7 @@ def handle_preview_command(arguments) -> None:
             "-i",
             str(scene_directory / "preview.mp4"),
             "-vf",
-            "fps=1/2,scale=480:-1,tile=4x3",
+            contact_sheet_filter(probe_duration_seconds(scene_directory / "preview.mp4")),
             str(scene_directory / "preview_sheet_%02d.png"),
         ],
         check=False,

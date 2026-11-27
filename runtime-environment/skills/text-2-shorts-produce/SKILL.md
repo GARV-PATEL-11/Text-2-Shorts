@@ -21,7 +21,7 @@ Start no work `next` did not list: it enforces the order.
   CP3 all scene previews at once · CP4 final. `--force` only when the user accepts the open problems. Editing an approved artifact makes it stale.
 - **Show every change**: after each action, one line to the user: what changed (file, command, subagent, result).
 - **Every artifact passes its gate** (the hook validates what you write); clip code reaches `clips/` only via `accept`.
-- **Plan and video critiques are scored** (pass ≥ `quality_threshold`, default 85), at most 3 rounds; then
+- **Plan and video critiques**: a basic issue (or a user-set `quality_threshold`) sends it back, at most 3 rounds; then
   REQUIRES ATTENTION goes to the user. Record each video refactor in `scenes/sNN/changes.json`.
 
 ## Stages

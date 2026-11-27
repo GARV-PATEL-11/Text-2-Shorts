@@ -678,13 +678,12 @@ def test_critique_rounds_are_scored_from_their_tiers_against_the_preferred_thres
     assert any("score" in error for error in video_round(tmp_path, "pass"))  # every round is scored
     assert any("90" in error for error in video_round(tmp_path, "pass", 100, [good]))  # 100 − 10 per good to have
     assert video_round(tmp_path, "pass", 90, [good]) == []  # a pass may carry suggestions
+    assert video_round(tmp_path, "pass", 80, [good, other_good]) == []  # O4: good issues are suggestions by default
+    great = critique_issue("video", "s01c01", "great")
+    assert any("verdict pass" in error for error in video_round(tmp_path, "revise", 97, [great]))
+    write_json_file(tmp_path / "preferences.json", {"quality_threshold": 85})  # a score the user asked for
     assert any("threshold 85" in error for error in video_round(tmp_path, "pass", 80, [good, other_good]))
-    assert any(
-        "threshold 85" in error
-        for error in video_round(tmp_path, "revise", 97, [critique_issue("video", "s01c01", "great")])
-    )
-    write_json_file(tmp_path / "preferences.json", {"quality_threshold": 75})
-    assert video_round(tmp_path, "pass", 80, [good, other_good]) == []
+    assert any("threshold 85" in error for error in video_round(tmp_path, "revise", 97, [great]))
 
 
 def test_an_open_basic_need_always_means_revise(tmp_path):
@@ -1105,6 +1104,35 @@ def test_status_shows_the_same_next_step_as_the_driver(tmp_path):  # C3
     write_brief(tmp_path, objectives=["understand the topic"])
     write_requirements(tmp_path)  # the template is not chosen yet: the driver asks for it first
     assert driver.format_actions(driver.next_actions(tmp_path)) in status.status_text(tmp_path)
+
+
+def test_only_a_basic_issue_sends_a_plan_back_unless_the_user_set_a_score_to_reach(tmp_path):  # O4
+    plans_ready_for_cp2(tmp_path)
+    good = [critique_issue("plan", "s01c01", tier="good"), critique_issue("plan", "s01c01", tier="good")]
+    round_ = {"reviewed": critiques.critique_subject_hash(tmp_path, "s01", "plan"), "verdict": "pass", "score": 80,
+              "summary": "two good issues, as suggestions", "issues": good}  # fmt: skip
+    write_json_file(tmp_path / "scenes" / "s01" / "plan_critique.json", {"rounds": [round_]})
+    assert critiques.validate_critique(tmp_path, "s01", "plan") == []  # suggestions: no refactor round
+    write_json_file(tmp_path / "preferences.json", {"quality_threshold": 85})  # the user asked for more
+    assert any("verdict revise" in error for error in critiques.validate_critique(tmp_path, "s01", "plan"))
+
+
+def test_a_long_scene_gets_at_most_three_contact_sheets(tmp_path):  # O7
+    assert production_commands.contact_sheet_filter(30) == "fps=1/2.00,scale=480:-1,tile=4x3"  # short: every 2 s
+    long = production_commands.contact_sheet_filter(180)  # 36 frames = 3 sheets of 12, whatever the length
+    assert long == "fps=1/5.00,scale=480:-1,tile=4x3"
+
+
+def test_a_later_critique_round_is_told_to_check_the_change(tmp_path):  # O3
+    plans_ready_for_cp2(tmp_path)
+    first = driver.next_actions(tmp_path).actions[0]
+    assert first.agent == "plan-critic" and "round" not in first.what.split("→")[1]
+    write_critique(tmp_path, "s01", "plan", "revise")
+    plan = json.loads((tmp_path / "scenes" / "s01" / "plan.json").read_text())
+    plan["composition"] = "refactored"
+    write_json_file(tmp_path / "scenes" / "s01" / "plan.json", plan)  # the refactor happened: a new version
+    follow_up = next(a for a in driver.next_actions(tmp_path).actions if a.agent == "plan-critic")
+    assert "round 2" in follow_up.what and "what the refactor changed" in follow_up.what
 
 
 def test_a_loop_counts_failures_in_a_row_and_a_success_clears_it(tmp_path):

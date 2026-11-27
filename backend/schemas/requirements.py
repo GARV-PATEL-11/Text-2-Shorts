@@ -80,6 +80,10 @@ class Preferences(Strict):
     tone: str = Field("", description="tone of voice for the script, e.g. 'warm, playful'")
     pause_ms: int = Field(600, ge=200, le=2000, description="length of a [pause]")
     confirm_each_scene: bool = Field(False, description="ask the user before each scene's production starts")
-    quality_threshold: int = Field(
-        85, ge=50, le=100, description="the critique score (0–100) a scene plan or video must reach"
+    quality_threshold: int | None = Field(
+        None,
+        ge=50,
+        le=100,
+        description="unset: only basic issues send a plan or video back (good and great are suggestions); a number: "
+        "the critique score (0–100) must reach it too",
     )

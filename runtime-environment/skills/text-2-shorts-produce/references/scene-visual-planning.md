@@ -48,7 +48,7 @@ Rules for plan.json (the gate checks the starred ones)
 
 Per scene, after writing plan.json:
 1. `text-2-shorts validate . plan --scene sNN` (the hook also runs it) and fix every error.
-2. Critic loop — at most 3 rounds, each scored 0–100 against `quality_threshold` (85 by default); tiers, scoring
+2. Critic loop — at most 3 rounds; an open basic issue (or a score under a user-set `quality_threshold`) sends it back; tiers, scoring
    and how to refactor from a round: critique-protocol.md:
    **plan-critic** subagent appends a round to `scenes/sNN/plan_critique.json` (clarity · sync · constructability
    in Manim 0.20.1 · design, and the output spec's checks K1-K13 on the execution plan). On "revise", the

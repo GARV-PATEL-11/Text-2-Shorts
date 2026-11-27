@@ -23,12 +23,19 @@
       "type": "boolean"
     },
     "quality_threshold": {
-      "default": 85,
-      "description": "the critique score (0\u2013100) a scene plan or video must reach",
-      "maximum": 100,
-      "minimum": 50,
-      "title": "Quality Threshold",
-      "type": "integer"
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 50,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "unset: only basic issues send a plan or video back (good and great are suggestions); a number: the critique score (0\u2013100) must reach it too",
+      "title": "Quality Threshold"
     }
   },
   "title": "Preferences",

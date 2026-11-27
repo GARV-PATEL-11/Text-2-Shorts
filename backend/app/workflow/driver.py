@@ -92,12 +92,23 @@ def next_actions(run: Path) -> ActionBatch:
         if problems and "changes.json" in problems[0]:  # a refactor not recorded yet
             return [{"do": "write", "file": f"scenes/{scene_id}/changes.json", "what": problems[0]}]
         state = critique_state(run, scene_id, kind)
+        rounds_done = (
+            len(Critique.model_validate_json((run / critique_file(scene_id, kind)).read_text()).rounds)
+            if state != "missing"
+            else 0
+        )
+        follow_up = (
+            f" (round {rounds_done + 1}: check the last round's issues and what the refactor changed, "
+            "critique-protocol.md §4)"
+            if rounds_done
+            else ""
+        )
         critic = {
             "do": "subagent",
             "agent": CRITICS[kind],
             "target": scene_id,
             "read": read,
-            "what": f"one critique round → {critique_file(scene_id, kind)}",
+            "what": f"one critique round → {critique_file(scene_id, kind)}{follow_up}",
         }
         if state in ("missing", "stale"):
             return [critic]
